@@ -1,0 +1,128 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum Sex {
+  MALE
+  FEMALE
+  UNKNOWN
+}
+
+// Precision of a genealogical date, since exact dates are the exception,
+// not the rule (parish records, oral history, estimates from other events...).
+enum DatePrecision {
+  EXACT
+  ABOUT
+  BEFORE
+  AFTER
+  UNKNOWN
+}
+
+enum UnionType {
+  MARRIAGE
+  PARTNERSHIP
+  UNKNOWN
+}
+
+enum ChildRelationType {
+  BIOLOGICAL
+  ADOPTED
+  FOSTER
+  STEP
+  UNKNOWN
+}
+
+model Individual {
+  id String @id @default(cuid())
+
+  givenNames String @map("given_names")
+
+  // Current/most commonly used surname (e.g. after marriage, if changed).
+  surname String
+
+  // Surname of the family this person was born into, only set when it
+  // differs from `surname`. Deliberately not tied to sex: in most cases the
+  // wife takes the husband's surname, but the reverse also happens (and is
+  // recorded this way in this family), so this field is symmetric and
+  // applies to whichever partner changed their name.
+  birthSurname String? @map("birth_surname")
+
+  sex Sex @default(UNKNOWN)
+
+  birthDateText      String?        @map("birth_date_text")
+  birthDateValue     DateTime?      @map("birth_date_value")
+  birthDatePrecision DatePrecision? @map("birth_date_precision")
+  birthPlace         String?        @map("birth_place")
+
+  deathDateText      String?        @map("death_date_text")
+  deathDateValue     DateTime?      @map("death_date_value")
+  deathDatePrecision DatePrecision? @map("death_date_precision")
+  deathPlace         String?        @map("death_place")
+
+  notes    String? @db.Text
+  photoUrl String? @map("photo_url")
+
+  // Original ID from a GEDCOM import, kept for round-tripping export/import.
+  gedcomXref String? @unique @map("gedcom_xref")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  familiesAsPartner1 Family[]      @relation("FamilyPartner1")
+  familiesAsPartner2 Family[]      @relation("FamilyPartner2")
+  childOf            FamilyChild[]
+
+  @@index([surname, givenNames])
+  @@map("individuals")
+}
+
+model Family {
+  id String @id @default(cuid())
+
+  partner1Id String?     @map("partner1_id")
+  partner1   Individual? @relation("FamilyPartner1", fields: [partner1Id], references: [id])
+
+  partner2Id String?     @map("partner2_id")
+  partner2   Individual? @relation("FamilyPartner2", fields: [partner2Id], references: [id])
+
+  unionType UnionType @default(UNKNOWN) @map("union_type")
+
+  unionDateText      String?        @map("union_date_text")
+  unionDateValue     DateTime?      @map("union_date_value")
+  unionDatePrecision DatePrecision? @map("union_date_precision")
+  unionPlace         String?        @map("union_place")
+
+  gedcomXref String? @unique @map("gedcom_xref")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  children FamilyChild[]
+
+  @@index([partner1Id])
+  @@index([partner2Id])
+  @@map("families")
+}
+
+model FamilyChild {
+  id String @id @default(cuid())
+
+  familyId String @map("family_id")
+  family   Family @relation(fields: [familyId], references: [id], onDelete: Cascade)
+
+  individualId String     @map("individual_id")
+  individual   Individual @relation(fields: [individualId], references: [id])
+
+  relationType ChildRelationType @default(BIOLOGICAL) @map("relation_type")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@unique([familyId, individualId])
+  @@index([individualId])
+  @@map("family_children")
+}

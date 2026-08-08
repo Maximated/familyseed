@@ -1,0 +1,17 @@
+services:
+  mariadb:
+    image: mariadb:11
+    container_name: familytree-mariadb
+    restart: unless-stopped
+    environment:
+      MARIADB_ROOT_PASSWORD: rootpass
+      MARIADB_DATABASE: familytree
+      MARIADB_USER: familytree
+      MARIADB_PASSWORD: familytree
+    ports:
+      - "3306:3306"
+    volumes:
+      - familytree-mariadb-data:/var/lib/mysql
+
+volumes:
+  familytree-mariadb-data:
