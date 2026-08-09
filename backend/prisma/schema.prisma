@@ -84,8 +84,9 @@ model Individual {
   deathDatePrecision DatePrecision? @map("death_date_precision")
   deathPlace         String?        @map("death_place")
 
-  notes    String? @db.Text
-  photoUrl String? @map("photo_url")
+  notes     String? @db.Text
+  biography String? @db.Text @map("biography")
+  photoUrl  String? @map("photo_url")
 
   // Original ID from a GEDCOM import, kept for round-tripping export/import.
   gedcomXref String? @unique @map("gedcom_xref")

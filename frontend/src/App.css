@@ -1,7 +1,27 @@
+:root {
+  --font-ui: "Inter", system-ui, sans-serif;
+  --font-name: "Fraunces", Georgia, serif;
+}
+
+body {
+  font-family: var(--font-ui);
+  font-weight: 600;
+}
+
+/* Person and lineage names get the serif/cursive treatment everywhere —
+   tree cards, lineage chips, info-panel titles — everything else (dates,
+   labels, buttons, forms) stays on Inter. */
+.name-text {
+  font-family: var(--font-name);
+  font-style: italic;
+  font-weight: 500;
+}
+
 .app {
   display: flex;
   flex-direction: column;
   height: 100vh;
+  font-family: var(--font-ui);
 }
 
 .app-header {
@@ -158,6 +178,96 @@
   font-size: 0.75rem;
   color: #666;
   border-bottom: 1px solid #e2e2e2;
+}
+
+.union-legend-hint {
+  margin-left: auto;
+  font-style: italic;
+  color: #888;
+}
+
+/* Compact tree card: name + optional birth surname + a lifespan line, plus
+   a small toggle that opens the full record instead of growing the card
+   in place (which would overlap its neighbors in the tree layout). */
+.f3 .card-inner {
+  padding: 6px 10px;
+  border-radius: 6px;
+  text-align: center;
+  min-width: 130px;
+  max-width: 220px;
+}
+
+.card-name {
+  font-size: 0.95rem;
+  line-height: 1.15;
+}
+
+.card-birthname {
+  font-size: 0.8rem;
+  opacity: 0.85;
+  line-height: 1.15;
+}
+
+.card-lifespan {
+  font-family: var(--font-ui);
+  font-weight: 600;
+  font-size: 0.7rem;
+  margin-top: 2px;
+  opacity: 0.9;
+}
+
+.card-expand-toggle {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-size: 0.7rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.card-expand-toggle:hover {
+  background: rgba(0, 0, 0, 0.8);
+}
+
+.info-panel-title {
+  margin-bottom: 0.15rem;
+}
+
+.info-panel-subtitle {
+  margin: 0 0 1rem;
+  font-size: 0.95rem;
+  color: #666;
+}
+
+.info-panel-rows {
+  margin: 0 0 1rem;
+}
+
+.info-panel-row {
+  display: flex;
+  gap: 0.75rem;
+  padding: 0.35rem 0;
+  border-bottom: 1px solid #f0f0f0;
+  font-size: 0.9rem;
+}
+
+.info-panel-row dt {
+  flex: 0 0 110px;
+  color: #666;
+  font-weight: 700;
+}
+
+.info-panel-row dd {
+  margin: 0;
+  flex: 1;
+  white-space: pre-wrap;
 }
 
 .modal-backdrop {

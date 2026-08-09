@@ -30,7 +30,7 @@ export default function LineageChips({ lineages, selectedIds, onChange }: Props)
             aria-pressed={active}
           >
             <span className="lineage-chip-dot" />
-            {lineage.name}
+            <span className="name-text">{lineage.name}</span>
           </button>
         );
       })}

@@ -26,6 +26,8 @@ type IndividualInput = {
   deathDateValue?: Date;
   deathDatePrecision?: DatePrecision;
   deathPlace?: string;
+  notes?: string;
+  biography?: string;
 };
 
 async function createIndividual(data: IndividualInput) {
@@ -66,6 +68,8 @@ async function main() {
     deathDateValue: new Date("1998-11-02"),
     deathDatePrecision: DatePrecision.EXACT,
     deathPlace: "Kraków, Polonia",
+    biography:
+      "Ferroviario de profesión, pasó toda su vida en Kraków salvo los años de la guerra. Se le recuerda por reconstruir la casa familiar con sus propias manos tras 1945.",
   });
   await addToLineage(bronislaw.id, lineageZawadzki.id);
 
@@ -266,6 +270,8 @@ async function main() {
     birthDateValue: new Date("1974-01-01"),
     birthDatePrecision: DatePrecision.ABOUT,
     birthPlace: "Kraków, Polonia",
+    biography:
+      "Hija única de la familia Dąbrowski, mantuvo su apellido de nacimiento como segundo nombre de uso habitual entre los suyos incluso después de casarse.",
   });
   await addToLineage(agnieszka.id, lineageZawadzki.id);
   await addToLineage(agnieszka.id, lineageDabrowski.id);

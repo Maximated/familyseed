@@ -41,6 +41,7 @@ export default function AddPersonForm({ onCreated, onClose }: Props) {
   const [deathDateText, setDeathDateText] = useState("");
   const [deathPlace, setDeathPlace] = useState("");
   const [notes, setNotes] = useState("");
+  const [biography, setBiography] = useState("");
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -107,6 +108,7 @@ export default function AddPersonForm({ onCreated, onClose }: Props) {
           deathDateText: deathDateText.trim() || undefined,
           deathPlace: deathPlace.trim() || undefined,
           notes: notes.trim() || undefined,
+          biography: biography.trim() || undefined,
         },
         relationship: buildRelationship(),
       });
@@ -280,6 +282,15 @@ export default function AddPersonForm({ onCreated, onClose }: Props) {
           <label>
             Notas
             <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} />
+          </label>
+          <label>
+            Biografía
+            <textarea
+              placeholder="Un relato breve sobre esta persona: su vida, oficio, anécdotas…"
+              value={biography}
+              onChange={(e) => setBiography(e.target.value)}
+              rows={4}
+            />
           </label>
         </fieldset>
 

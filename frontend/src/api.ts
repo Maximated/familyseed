@@ -10,6 +10,8 @@ export type UnionInfo = {
   partner2Id: string;
   unionType: UnionType;
   unionStatus: UnionStatus;
+  unionDateText: string | null;
+  unionPlace: string | null;
   // Chronological order of this union among each partner's own unions
   // (max of both, so a remarriage shows as such even if it's the other
   // partner's first) — used to mark 2nd+ marriages on the tree.
@@ -31,10 +33,18 @@ export type TreePerson = {
   data: {
     "first name": string;
     "last name": string;
+    "birth name"?: string;
+    "birth place"?: string;
+    "death place"?: string;
+    gender?: string;
     birthday?: string;
     deathday?: string;
     birthYear?: number;
     deathYear?: number;
+    birthPrecision?: string;
+    deathPrecision?: string;
+    notes?: string;
+    biography?: string;
     lineageIds: string[];
     [key: string]: unknown;
   };
@@ -57,6 +67,7 @@ export type Individual = {
   deathDateText: string | null;
   deathPlace: string | null;
   notes: string | null;
+  biography: string | null;
   deletedAt?: string | null;
 };
 
@@ -82,6 +93,7 @@ export type IndividualFields = {
   deathDateText?: string;
   deathPlace?: string;
   notes?: string;
+  biography?: string;
 };
 
 export type CreateIndividualPayload = {

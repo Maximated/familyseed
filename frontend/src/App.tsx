@@ -16,6 +16,7 @@ import EditPersonForm from "./EditPersonForm";
 import TrashView from "./TrashView";
 import LineageChips from "./LineageChips";
 import Timeline from "./Timeline";
+import InfoPanel, { type InfoPanelData } from "./InfoPanel";
 
 // family-chart's own Datum type requires `gender: 'M' | 'F'`, but our data
 // can omit it (unknown sex) — the library renders a genderless card fine at
@@ -60,6 +61,11 @@ function pairKey(idA: string, idB: string): string {
   return [idA, idB].sort().join("_");
 }
 
+// The datum d3 binds onto each `g.link-text` element for the marriage/
+// divorce/etc. mark on a spouse link — just enough to recover which two
+// people it joins.
+type LinkTextDatum = { nodes: [{ data: { id: string } }, { data: { id: string } }] };
+
 // Standard genealogical marks (⚭ marriage, ⚮ divorce, ⚯ unmarried
 // partnership) plus a couple of homemade ones where no standard symbol
 // exists — kept in the legend below the lineage chips since most people
@@ -95,6 +101,123 @@ function unionIcon(union: UnionInfo): string {
   return `${type}${order}${status}`;
 }
 
+const UNION_TYPE_LABEL: Record<UnionType, string> = {
+  MARRIAGE: "Matrimonio",
+  PARTNERSHIP: "Pareja de hecho",
+  EXTRAMARITAL: "Relación extramatrimonial",
+  UNKNOWN: "Desconocido",
+};
+
+const UNION_STATUS_LABEL: Record<UnionStatus, string> = {
+  ONGOING: "En curso",
+  ENDED_BY_DEATH: "Finalizada por fallecimiento",
+  DIVORCED: "Divorcio",
+  SEPARATED: "Separación",
+  ANNULLED: "Anulación",
+};
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+// "c." (circa) in front of an approximate year — exact/unknown precision
+// years are shown plain.
+function yearLabel(year: number | undefined, precision: unknown): string | null {
+  if (year === undefined) return null;
+  return precision === "ABOUT" ? `c. ${year}` : String(year);
+}
+
+function formatLifespan(
+  birthYear: number | undefined,
+  deathYear: number | undefined,
+  birthPrecision: unknown,
+  deathPrecision: unknown,
+): string {
+  const birth = yearLabel(birthYear, birthPrecision);
+  const death = yearLabel(deathYear, deathPrecision);
+  if (birth && death) return `${birth} – ${death}`;
+  if (birth) return `n. ${birth}`;
+  if (death) return `† ${death}`;
+  return "";
+}
+
+// family-chart's TreeDatum — loosely typed to match its own (`any`-valued)
+// Datum.data, since we only read a few known keys off it here.
+type CardDatum = { data: { id: string; data: Record<string, unknown> } };
+
+// The card body itself stays a compact summary (name + birth surname, so
+// the lineage-highlight chips still make sense at a glance, + a lifespan
+// line) — the expand button opens the full record instead of growing the
+// card in place, which would overlap neighboring cards in the tree layout.
+function cardTemplate(d: CardDatum): string {
+  const data = d.data.data;
+  const name = escapeHtml(`${data["first name"] ?? ""} ${data["last name"] ?? ""}`.toString().trim());
+  const birthName = data["birth name"] ? escapeHtml(String(data["birth name"])) : "";
+  const lifespan = formatLifespan(
+    data.birthYear as number | undefined,
+    data.deathYear as number | undefined,
+    data.birthPrecision,
+    data.deathPrecision,
+  );
+  return `
+    <div class="card-inner">
+      <div class="card-name name-text">${name}</div>
+      ${birthName ? `<div class="card-birthname name-text">${birthName}</div>` : ""}
+      ${lifespan ? `<div class="card-lifespan">${escapeHtml(lifespan)}</div>` : ""}
+    </div>
+    <button type="button" class="card-expand-toggle" data-person-id="${d.data.id}" title="Ver ficha completa" aria-label="Ver ficha completa">ⓘ</button>
+  `;
+}
+
+function formatEventLine(dateText: unknown, place: unknown): string {
+  const parts = [dateText, place].filter((v): v is string => typeof v === "string" && v.length > 0);
+  return parts.length ? parts.join(", ") : "Desconocido";
+}
+
+function buildPersonInfoPanel(person: TreePerson): InfoPanelData {
+  const d = person.data;
+  const rows: { label: string; value: string }[] = [];
+  const surnameLine = [d["last name"], d["birth name"]].filter(Boolean).join(" ");
+  if (surnameLine) rows.push({ label: "Apellidos", value: surnameLine });
+  rows.push({
+    label: "Sexo",
+    value: d.gender === "F" ? "Mujer" : d.gender === "M" ? "Hombre" : "Desconocido",
+  });
+  rows.push({ label: "Nacimiento", value: formatEventLine(d.birthday, d["birth place"]) });
+  if (d.deathday || d["death place"]) {
+    rows.push({ label: "Defunción", value: formatEventLine(d.deathday, d["death place"]) });
+  }
+  if (d.notes) rows.push({ label: "Notas", value: String(d.notes) });
+  if (d.biography) rows.push({ label: "Biografía", value: String(d.biography) });
+  return {
+    title: `${d["first name"]} ${d["last name"]}`.trim(),
+    subtitle: d["birth name"] ? String(d["birth name"]) : undefined,
+    rows,
+  };
+}
+
+function buildUnionInfoPanel(union: UnionInfo, people: TreePerson[]): InfoPanelData {
+  const partner1 = people.find((p) => p.id === union.partner1Id);
+  const partner2 = people.find((p) => p.id === union.partner2Id);
+  const name = (p?: TreePerson) => (p ? `${p.data["first name"]} ${p.data["last name"]}`.trim() : "?");
+  const rows = [
+    { label: "Tipo", value: UNION_TYPE_LABEL[union.unionType] },
+    { label: "Estado", value: UNION_STATUS_LABEL[union.unionStatus] },
+    { label: "Fecha", value: union.unionDateText ?? "Desconocida" },
+  ];
+  if (union.unionPlace) rows.push({ label: "Lugar", value: union.unionPlace });
+  return {
+    title: `${name(partner1)} & ${name(partner2)}`,
+    subtitle: union.order >= 2 ? `${union.order}ª unión` : undefined,
+    rows,
+  };
+}
+
 function App() {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<ReturnType<typeof f3.createChart> | null>(null);
@@ -116,6 +239,7 @@ function App() {
   const [treeData, setTreeData] = useState<TreePerson[]>([]);
   const [lineages, setLineages] = useState<Lineage[]>([]);
   const [selectedLineageIds, setSelectedLineageIds] = useState<Set<string>>(new Set());
+  const [infoPanel, setInfoPanel] = useState<InfoPanelData | null>(null);
 
   const runHighlight = useCallback(() => {
     if (!containerRef.current) return;
@@ -125,6 +249,36 @@ function App() {
       selectedLineageIdsRef.current,
       lineageColorByIdRef.current,
     );
+  }, []);
+
+  // Re-run after every tree render: family-chart rebuilds the card/link DOM
+  // from scratch each time, so any handler attached to it has to be
+  // reattached rather than registered once.
+  const wireCardAndUnionClicks = useCallback(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    container.querySelectorAll<HTMLButtonElement>(".card-expand-toggle").forEach((btn) => {
+      btn.onclick = (e) => {
+        e.stopPropagation();
+        const person = treeDataRef.current.find((p) => p.id === btn.dataset.personId);
+        if (person) setInfoPanel(buildPersonInfoPanel(person));
+      };
+    });
+
+    container.querySelectorAll<SVGGElement>("g.link-text").forEach((g) => {
+      // family-chart binds its d3 data straight onto the DOM node — no
+      // extra plumbing needed to recover which two people this link joins.
+      const datum = (g as unknown as { __data__?: LinkTextDatum }).__data__;
+      const union = datum && unionsByPairKeyRef.current.get(pairKey(datum.nodes[0].data.id, datum.nodes[1].data.id));
+      g.style.cursor = union ? "pointer" : "default";
+      g.onclick = union
+        ? (e) => {
+            e.stopPropagation();
+            setInfoPanel(buildUnionInfoPanel(union, treeDataRef.current));
+          }
+        : null;
+    });
   }, []);
 
   const loadTree = useCallback(
@@ -144,14 +298,12 @@ function App() {
 
       if (!chartRef.current) {
         const chart = f3.createChart(containerRef.current, people as unknown as ChartData);
-        chart
-          .setCardHtml()
-          .setCardDisplay([
-            ["first name", "last name"],
-            ["birth name"],
-            ["birthday", "birth place"],
-            ["deathday", "death place"],
-          ]);
+        const card = chart.setCardHtml();
+        // Fallback rows for the rare library-internal placeholder cards
+        // (e.g. "add relative" UI) that bypass cardInnerHtmlCreator — the
+        // real cards below are built from cardTemplate instead.
+        card.setCardDisplay([["first name", "last name"], ["birth name"]]);
+        card.setCardInnerHtmlCreator(cardTemplate);
         // Bound how many generations render at once so the initial "fit"
         // stays readable no matter how large the real family tree grows.
         chart.setAncestryDepth(3);
@@ -179,8 +331,16 @@ function App() {
             isGoingBackRef.current = false;
             currentMainIdRef.current = newMainId;
             setCurrentMainId(newMainId);
+            // Navigating to someone else makes a pinned lineage highlight
+            // stale — without this, everyone stays dimmed with no way to
+            // tell why, since the chip itself still looks selected.
+            if (selectedLineageIdsRef.current.size > 0) {
+              selectedLineageIdsRef.current = new Set();
+              setSelectedLineageIds(new Set());
+            }
           }
           runHighlight();
+          wireCardAndUnionClicks();
         });
 
         chart.updateTree({ initial: true });
@@ -198,7 +358,7 @@ function App() {
       currentMainIdRef.current = chartRef.current.getMainDatum().id;
       setCurrentMainId(currentMainIdRef.current);
     },
-    [runHighlight],
+    [runHighlight, wireCardAndUnionClicks],
   );
 
   useEffect(() => {
@@ -310,8 +470,10 @@ function App() {
         <span>⚭² 2º matrimonio (o más)</span>
         <span>⚯ Pareja de hecho</span>
         <span>※ Relación extramatrimonial</span>
+        <span>※² 2ª relación extramatrimonial (o más)</span>
         <span>⚮ Divorcio/separación</span>
         <span>✝ Unión finalizada por fallecimiento</span>
+        <span className="union-legend-hint">Pulsa un icono de unión, o el ⓘ de una tarjeta, para ver el detalle</span>
       </div>
       {loading && <p className="status">Cargando árbol…</p>}
       {error && <p className="status status-error">{error}</p>}
@@ -333,6 +495,7 @@ function App() {
       {showTrash && (
         <TrashView onRestored={handleTrashRestored} onClose={() => setShowTrash(false)} />
       )}
+      {infoPanel && <InfoPanel data={infoPanel} onClose={() => setInfoPanel(null)} />}
     </div>
   );
 }

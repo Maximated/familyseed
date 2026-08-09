@@ -30,6 +30,7 @@ export default function EditPersonForm({ personId, onSaved, onDeleted, onClose }
   const [deathDateText, setDeathDateText] = useState("");
   const [deathPlace, setDeathPlace] = useState("");
   const [notes, setNotes] = useState("");
+  const [biography, setBiography] = useState("");
 
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -47,6 +48,7 @@ export default function EditPersonForm({ personId, onSaved, onDeleted, onClose }
         setDeathDateText(person.deathDateText ?? "");
         setDeathPlace(person.deathPlace ?? "");
         setNotes(person.notes ?? "");
+        setBiography(person.biography ?? "");
       })
       .catch((err: Error) => setError(err.message))
       .finally(() => setLoading(false));
@@ -73,6 +75,7 @@ export default function EditPersonForm({ personId, onSaved, onDeleted, onClose }
         deathDateText: deathDateText.trim() || undefined,
         deathPlace: deathPlace.trim() || undefined,
         notes: notes.trim() || undefined,
+        biography: biography.trim() || undefined,
       };
       await updateIndividual(personId, payload);
       onSaved(personId);
@@ -175,6 +178,15 @@ export default function EditPersonForm({ personId, onSaved, onDeleted, onClose }
               <label>
                 Notas
                 <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} />
+              </label>
+              <label>
+                Biografía
+                <textarea
+                  placeholder="Un relato breve sobre esta persona: su vida, oficio, anécdotas…"
+                  value={biography}
+                  onChange={(e) => setBiography(e.target.value)}
+                  rows={4}
+                />
               </label>
             </fieldset>
 

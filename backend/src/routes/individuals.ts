@@ -27,6 +27,7 @@ const individualFieldsSchema = {
     deathDatePrecision: { type: "string", enum: DATE_PRECISION_VALUES },
     deathPlace: { type: "string" },
     notes: { type: "string" },
+    biography: { type: "string" },
     photoUrl: { type: "string" },
   },
   additionalProperties: false,
@@ -83,6 +84,7 @@ type CreateIndividualBody = {
     deathDatePrecision?: (typeof DATE_PRECISION_VALUES)[number];
     deathPlace?: string;
     notes?: string;
+    biography?: string;
     photoUrl?: string;
   };
   relationship?: {

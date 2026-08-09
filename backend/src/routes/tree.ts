@@ -53,6 +53,8 @@ export default async function treeRoutes(fastify: FastifyInstance) {
         partner2Id: string;
         unionType: string;
         unionStatus: string;
+        unionDateText: string | null;
+        unionPlace: string | null;
         order: number;
       }
     >();
@@ -69,6 +71,8 @@ export default async function treeRoutes(fastify: FastifyInstance) {
           partner2Id: family.partner2Id,
           unionType: family.unionType,
           unionStatus: family.unionStatus,
+          unionDateText: family.unionDateText,
+          unionPlace: family.unionPlace,
           order: Math.max(orderOf(family.partner1Id, family.id), orderOf(family.partner2Id, family.id)),
         });
       }
@@ -113,6 +117,10 @@ export default async function treeRoutes(fastify: FastifyInstance) {
           deathday: individual.deathDateText ?? undefined,
           "birth place": individual.birthPlace ?? undefined,
           "death place": individual.deathPlace ?? undefined,
+          birthPrecision: individual.birthDatePrecision ?? undefined,
+          deathPrecision: individual.deathDatePrecision ?? undefined,
+          notes: individual.notes ?? undefined,
+          biography: individual.biography ?? undefined,
           avatar: individual.photoUrl ?? undefined,
           // Used by the frontend's timeline navigation (bucket individuals by
           // era) and lineage highlight chips — purely navigational, not part
