@@ -1,9 +1,36 @@
-import type { Data as TreeData } from "family-chart";
-
 const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3001";
 
 export type Sex = "MALE" | "FEMALE" | "UNKNOWN";
 export type UnionType = "MARRIAGE" | "PARTNERSHIP" | "UNKNOWN";
+
+export type Lineage = {
+  id: string;
+  name: string;
+  color: string | null;
+};
+
+// The shape GET /tree returns: family-chart's Datum plus the extra fields
+// used only by the timeline/lineage-chip navigation (not the genealogy
+// itself). Kept separate from family-chart's own (stricter) Data type so
+// Timeline/LineageChips don't need to know about card-rendering concerns.
+export type TreePerson = {
+  id: string;
+  data: {
+    "first name": string;
+    "last name": string;
+    birthday?: string;
+    deathday?: string;
+    birthYear?: number;
+    deathYear?: number;
+    lineageIds: string[];
+    [key: string]: unknown;
+  };
+  rels: {
+    parents: string[];
+    spouses: string[];
+    children: string[];
+  };
+};
 
 export type Individual = {
   id: string;
@@ -63,13 +90,14 @@ export async function fetchIndividuals(): Promise<Individual[]> {
   return parseJsonOrThrow(res);
 }
 
-export async function fetchTree(): Promise<TreeData> {
+export async function fetchTree(): Promise<TreePerson[]> {
   const res = await fetch(`${API_URL}/tree`);
-  const data = await parseJsonOrThrow(res);
-  // The backend's gender is 'M' | 'F' | omitted (unknown sex); family-chart
-  // renders a genderless card for anything that isn't 'M'/'F' at runtime,
-  // its stricter type just doesn't spell out that third case.
-  return data as TreeData;
+  return parseJsonOrThrow(res);
+}
+
+export async function fetchLineages(): Promise<Lineage[]> {
+  const res = await fetch(`${API_URL}/lineages`);
+  return parseJsonOrThrow(res);
 }
 
 export async function createIndividual(

@@ -2,10 +2,51 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import * as f3 from "family-chart";
 import "family-chart/styles/family-chart.css";
 import "./App.css";
-import { fetchTree } from "./api";
+import { fetchLineages, fetchTree, type Lineage, type TreePerson } from "./api";
 import AddPersonForm from "./AddPersonForm";
 import EditPersonForm from "./EditPersonForm";
 import TrashView from "./TrashView";
+import LineageChips from "./LineageChips";
+import Timeline from "./Timeline";
+
+// family-chart's own Datum type requires `gender: 'M' | 'F'`, but our data
+// can omit it (unknown sex) — the library renders a genderless card fine at
+// runtime, its type just doesn't spell out that case. Cast at the boundary
+// rather than fighting the stricter type throughout this file.
+type ChartData = Parameters<typeof f3.createChart>[1];
+
+function applyLineageHighlight(
+  container: HTMLElement,
+  people: TreePerson[],
+  selectedIds: Set<string>,
+  colorById: Map<string, string>,
+) {
+  const lineagesById = new Map(people.map((p) => [p.id, p.data.lineageIds ?? []]));
+  const cards = container.querySelectorAll<HTMLElement>(".card[data-id]");
+
+  cards.forEach((card) => {
+    const id = card.dataset.id;
+    if (!id) return;
+
+    if (selectedIds.size === 0) {
+      card.classList.remove("lineage-highlight", "lineage-dim");
+      card.style.removeProperty("--lineage-color");
+      return;
+    }
+
+    const personLineageIds = lineagesById.get(id) ?? [];
+    const matchId = personLineageIds.find((lineageId) => selectedIds.has(lineageId));
+    if (matchId) {
+      card.classList.add("lineage-highlight");
+      card.classList.remove("lineage-dim");
+      card.style.setProperty("--lineage-color", colorById.get(matchId) ?? "#888");
+    } else {
+      card.classList.add("lineage-dim");
+      card.classList.remove("lineage-highlight");
+      card.style.removeProperty("--lineage-color");
+    }
+  });
+}
 
 function App() {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -13,6 +54,10 @@ function App() {
   const backStackRef = useRef<string[]>([]);
   const currentMainIdRef = useRef<string | null>(null);
   const isGoingBackRef = useRef(false);
+  const treeDataRef = useRef<TreePerson[]>([]);
+  const selectedLineageIdsRef = useRef<Set<string>>(new Set());
+  const lineageColorByIdRef = useRef<Map<string, string>>(new Map());
+
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [canGoBack, setCanGoBack] = useState(false);
@@ -20,56 +65,77 @@ function App() {
   const [showAddForm, setShowAddForm] = useState(false);
   const [showEditForm, setShowEditForm] = useState(false);
   const [showTrash, setShowTrash] = useState(false);
+  const [treeData, setTreeData] = useState<TreePerson[]>([]);
+  const [lineages, setLineages] = useState<Lineage[]>([]);
+  const [selectedLineageIds, setSelectedLineageIds] = useState<Set<string>>(new Set());
 
-  const loadTree = useCallback(async (recenterOnId?: string) => {
-    const data = await fetchTree();
+  const runHighlight = useCallback(() => {
     if (!containerRef.current) return;
-    if (!data.length) {
-      setError("No hay individuos en la base de datos todavía.");
-      return;
-    }
-
-    if (!chartRef.current) {
-      const chart = f3.createChart(containerRef.current, data);
-      chart
-        .setCardHtml()
-        .setCardDisplay([["first name", "last name"], ["birthday"]]);
-      // Bound how many generations render at once so the initial "fit"
-      // stays readable no matter how large the real family tree grows.
-      chart.setAncestryDepth(3);
-      chart.setProgenyDepth(3);
-
-      // Clicking a card re-centers the tree on it (chart.updateMainId
-      // internally). Track that in our own stack so a "back" button can
-      // undo it — the library only keeps main-id history to recover from
-      // a deleted person, not for back/forward navigation.
-      chart.setAfterUpdate(() => {
-        const newMainId = chart.getMainDatum().id;
-        if (newMainId === currentMainIdRef.current) return;
-        if (!isGoingBackRef.current && currentMainIdRef.current) {
-          backStackRef.current.push(currentMainIdRef.current);
-          setCanGoBack(true);
-        }
-        isGoingBackRef.current = false;
-        currentMainIdRef.current = newMainId;
-        setCurrentMainId(newMainId);
-      });
-
-      chart.updateTree({ initial: true });
-      chartRef.current = chart;
-      currentMainIdRef.current = chart.getMainDatum().id;
-      setCurrentMainId(chart.getMainDatum().id);
-      return;
-    }
-
-    chartRef.current.updateData(data);
-    if (recenterOnId) {
-      chartRef.current.updateMainId(recenterOnId);
-    }
-    chartRef.current.updateTree({});
-    currentMainIdRef.current = chartRef.current.getMainDatum().id;
-    setCurrentMainId(currentMainIdRef.current);
+    applyLineageHighlight(
+      containerRef.current,
+      treeDataRef.current,
+      selectedLineageIdsRef.current,
+      lineageColorByIdRef.current,
+    );
   }, []);
+
+  const loadTree = useCallback(
+    async (recenterOnId?: string) => {
+      const data = await fetchTree();
+      if (!containerRef.current) return;
+      if (!data.length) {
+        setError("No hay individuos en la base de datos todavía.");
+        return;
+      }
+
+      treeDataRef.current = data;
+      setTreeData(data);
+
+      if (!chartRef.current) {
+        const chart = f3.createChart(containerRef.current, data as unknown as ChartData);
+        chart
+          .setCardHtml()
+          .setCardDisplay([["first name", "last name"], ["birthday"]]);
+        // Bound how many generations render at once so the initial "fit"
+        // stays readable no matter how large the real family tree grows.
+        chart.setAncestryDepth(3);
+        chart.setProgenyDepth(3);
+
+        // Clicking a card, or navigating via the timeline, re-centers the
+        // tree (chart.updateMainId internally). Track that in our own stack
+        // so a "back" button can undo it — the library only keeps main-id
+        // history to recover from a deleted person, not for navigation.
+        chart.setAfterUpdate(() => {
+          const newMainId = chart.getMainDatum().id;
+          if (newMainId !== currentMainIdRef.current) {
+            if (!isGoingBackRef.current && currentMainIdRef.current) {
+              backStackRef.current.push(currentMainIdRef.current);
+              setCanGoBack(true);
+            }
+            isGoingBackRef.current = false;
+            currentMainIdRef.current = newMainId;
+            setCurrentMainId(newMainId);
+          }
+          runHighlight();
+        });
+
+        chart.updateTree({ initial: true });
+        chartRef.current = chart;
+        currentMainIdRef.current = chart.getMainDatum().id;
+        setCurrentMainId(chart.getMainDatum().id);
+        return;
+      }
+
+      chartRef.current.updateData(data as unknown as ChartData);
+      if (recenterOnId) {
+        chartRef.current.updateMainId(recenterOnId);
+      }
+      chartRef.current.updateTree({});
+      currentMainIdRef.current = chartRef.current.getMainDatum().id;
+      setCurrentMainId(currentMainIdRef.current);
+    },
+    [runHighlight],
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -87,6 +153,24 @@ function App() {
     };
   }, [loadTree]);
 
+  useEffect(() => {
+    fetchLineages()
+      .then(setLineages)
+      .catch(() => {
+        // Purely a navigation aid — the tree itself still works without it.
+      });
+  }, []);
+
+  useEffect(() => {
+    lineageColorByIdRef.current = new Map(lineages.map((l) => [l.id, l.color ?? "#888"]));
+    runHighlight();
+  }, [lineages, runHighlight]);
+
+  useEffect(() => {
+    selectedLineageIdsRef.current = selectedLineageIds;
+    runHighlight();
+  }, [selectedLineageIds, runHighlight]);
+
   function handleBack() {
     const chart = chartRef.current;
     const previousId = backStackRef.current.pop();
@@ -96,6 +180,13 @@ function App() {
     chart.updateMainId(previousId);
     chart.updateTree({});
     setCanGoBack(backStackRef.current.length > 0);
+  }
+
+  function handleTimelineNavigate(personId: string) {
+    const chart = chartRef.current;
+    if (!chart) return;
+    chart.updateMainId(personId);
+    chart.updateTree({});
   }
 
   function handlePersonCreated(newPersonId: string) {
@@ -149,9 +240,13 @@ function App() {
           + Añadir persona
         </button>
       </header>
+      <LineageChips lineages={lineages} selectedIds={selectedLineageIds} onChange={setSelectedLineageIds} />
       {loading && <p className="status">Cargando árbol…</p>}
       {error && <p className="status status-error">{error}</p>}
-      <div id="FamilyChart" ref={containerRef} className="f3 tree-container" />
+      <div className="main-area">
+        <div id="FamilyChart" ref={containerRef} className="f3 tree-container" />
+        <Timeline people={treeData} onNavigate={handleTimelineNavigate} />
+      </div>
       {showAddForm && (
         <AddPersonForm onCreated={handlePersonCreated} onClose={() => setShowAddForm(false)} />
       )}

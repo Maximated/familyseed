@@ -49,12 +49,105 @@
   color: #b00020;
 }
 
+.main-area {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+}
+
 .tree-container {
   flex: 1;
-  width: 100%;
+  min-width: 0;
   min-height: 0;
   /* family-chart's link/text colors are designed for this dark canvas. */
   background: var(--background-color, rgb(33, 33, 33));
+}
+
+/* Lineage chips highlight matching cards without hiding the rest — a real
+   person belongs to several lineages at once (their parents', a spouse's),
+   so filtering by hiding would misrepresent that. */
+.tree-container .card.lineage-highlight {
+  box-shadow: 0 0 0 3px var(--lineage-color, #fff);
+}
+
+.tree-container .card.lineage-dim {
+  opacity: 0.3;
+}
+
+.timeline {
+  width: 64px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  background: var(--background-color, rgb(33, 33, 33));
+  border-left: 1px solid rgba(255, 255, 255, 0.15);
+  touch-action: none;
+  user-select: none;
+  cursor: pointer;
+}
+
+.timeline-bucket {
+  flex: 1;
+  min-height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.7rem;
+  color: rgba(255, 255, 255, 0.75);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  white-space: nowrap;
+}
+
+.timeline-bucket:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.timeline-bucket-active {
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
+  font-weight: 600;
+}
+
+.lineage-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.5rem 1.5rem;
+  border-bottom: 1px solid #e2e2e2;
+}
+
+.lineage-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.8rem;
+  padding: 0.25rem 0.65rem;
+  border-radius: 999px;
+  border: 1px solid #ccc;
+  background: #fff;
+  color: #222;
+  cursor: pointer;
+}
+
+.lineage-chip-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--chip-color, #888);
+  flex-shrink: 0;
+}
+
+.lineage-chip-active {
+  border-color: var(--chip-color, #888);
+  background: color-mix(in srgb, var(--chip-color, #888) 15%, white);
+  font-weight: 600;
+}
+
+.lineage-chip-clear {
+  color: #666;
+  border-style: dashed;
 }
 
 .modal-backdrop {

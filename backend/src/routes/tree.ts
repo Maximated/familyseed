@@ -10,6 +10,7 @@ export default async function treeRoutes(fastify: FastifyInstance) {
         childOf: { include: { family: true } },
         familiesAsPartner1: { include: { children: true } },
         familiesAsPartner2: { include: { children: true } },
+        lineages: { select: { lineageId: true } },
       },
     });
 
@@ -59,6 +60,12 @@ export default async function treeRoutes(fastify: FastifyInstance) {
           "birth place": individual.birthPlace ?? undefined,
           "death place": individual.deathPlace ?? undefined,
           avatar: individual.photoUrl ?? undefined,
+          // Used by the frontend's timeline navigation (bucket individuals by
+          // era) and lineage highlight chips — purely navigational, not part
+          // of the genealogical data itself.
+          birthYear: individual.birthDateValue ? individual.birthDateValue.getUTCFullYear() : undefined,
+          deathYear: individual.deathDateValue ? individual.deathDateValue.getUTCFullYear() : undefined,
+          lineageIds: individual.lineages.map((l) => l.lineageId),
         },
         rels: {
           parents: [...parents],
