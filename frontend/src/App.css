@@ -15,6 +15,7 @@
 .app-header h1 {
   font-size: 1.25rem;
   margin: 0;
+  flex: 1;
 }
 
 .back-button {
@@ -52,4 +53,112 @@
   min-height: 0;
   /* family-chart's link/text colors are designed for this dark canvas. */
   background: var(--background-color, rgb(33, 33, 33));
+}
+
+.add-button {
+  font-size: 0.9rem;
+  padding: 0.35rem 0.75rem;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  background: #fff;
+  cursor: pointer;
+}
+
+.add-button:hover {
+  background: #f0f0f0;
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+}
+
+.modal-panel {
+  background: #fff;
+  color: #222;
+  border-radius: 8px;
+  padding: 1.25rem 1.5rem;
+  width: 480px;
+  max-width: calc(100vw - 2rem);
+  max-height: calc(100vh - 2rem);
+  overflow-y: auto;
+}
+
+.modal-panel h2 {
+  margin: 0 0 1rem;
+  font-size: 1.1rem;
+}
+
+.modal-panel fieldset {
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  margin-bottom: 1rem;
+}
+
+.modal-panel legend {
+  font-size: 0.85rem;
+  color: #666;
+  padding: 0 0.4rem;
+}
+
+.modal-panel fieldset > label {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.9rem;
+  margin: 0.4rem 0;
+}
+
+.modal-panel fieldset:last-of-type > label {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.2rem;
+}
+
+.modal-panel input,
+.modal-panel select,
+.modal-panel textarea {
+  font: inherit;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+}
+
+.modal-panel .indent {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin: 0 0 0.4rem 1.6rem;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+.modal-actions button {
+  font-size: 0.9rem;
+  padding: 0.4rem 0.9rem;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+  cursor: pointer;
+  background: #fff;
+}
+
+.modal-actions button[type="submit"] {
+  background: #2d6cdf;
+  border-color: #2d6cdf;
+  color: #fff;
+}
+
+.modal-actions button:disabled {
+  opacity: 0.6;
+  cursor: default;
 }

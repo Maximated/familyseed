@@ -1,9 +1,9 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import * as f3 from "family-chart";
 import "family-chart/styles/family-chart.css";
 import "./App.css";
-
-const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3001";
+import { fetchTree } from "./api";
+import AddPersonForm from "./AddPersonForm";
 
 function App() {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -14,50 +14,58 @@ function App() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [canGoBack, setCanGoBack] = useState(false);
+  const [showAddForm, setShowAddForm] = useState(false);
+
+  const loadTree = useCallback(async (recenterOnId?: string) => {
+    const data = await fetchTree();
+    if (!containerRef.current) return;
+    if (!data.length) {
+      setError("No hay individuos en la base de datos todavía.");
+      return;
+    }
+
+    if (!chartRef.current) {
+      const chart = f3.createChart(containerRef.current, data);
+      chart
+        .setCardHtml()
+        .setCardDisplay([["first name", "last name"], ["birthday"]]);
+      // Bound how many generations render at once so the initial "fit"
+      // stays readable no matter how large the real family tree grows.
+      chart.setAncestryDepth(3);
+      chart.setProgenyDepth(3);
+
+      // Clicking a card re-centers the tree on it (chart.updateMainId
+      // internally). Track that in our own stack so a "back" button can
+      // undo it — the library only keeps main-id history to recover from
+      // a deleted person, not for back/forward navigation.
+      chart.setAfterUpdate(() => {
+        const newMainId = chart.getMainDatum().id;
+        if (newMainId === currentMainIdRef.current) return;
+        if (!isGoingBackRef.current && currentMainIdRef.current) {
+          backStackRef.current.push(currentMainIdRef.current);
+          setCanGoBack(true);
+        }
+        isGoingBackRef.current = false;
+        currentMainIdRef.current = newMainId;
+      });
+
+      chart.updateTree({ initial: true });
+      chartRef.current = chart;
+      currentMainIdRef.current = chart.getMainDatum().id;
+      return;
+    }
+
+    chartRef.current.updateData(data);
+    if (recenterOnId) {
+      chartRef.current.updateMainId(recenterOnId);
+    }
+    chartRef.current.updateTree({});
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
 
-    fetch(`${API_URL}/tree`)
-      .then((res) => {
-        if (!res.ok) throw new Error(`La API respondió ${res.status}`);
-        return res.json();
-      })
-      .then((data) => {
-        if (cancelled || !containerRef.current) return;
-        if (!data.length) {
-          setError("No hay individuos en la base de datos todavía.");
-          return;
-        }
-
-        const chart = f3.createChart(containerRef.current, data);
-        chart
-          .setCardHtml()
-          .setCardDisplay([["first name", "last name"], ["birthday"]]);
-        // Bound how many generations render at once so the initial "fit"
-        // stays readable no matter how large the real family tree grows.
-        chart.setAncestryDepth(3);
-        chart.setProgenyDepth(3);
-
-        // Clicking a card re-centers the tree on it (chart.updateMainId
-        // internally). Track that in our own stack so a "back" button can
-        // undo it — the library only keeps main-id history to recover from
-        // a deleted person, not for back/forward navigation.
-        chart.setAfterUpdate(() => {
-          const newMainId = chart.getMainDatum().id;
-          if (newMainId === currentMainIdRef.current) return;
-          if (!isGoingBackRef.current && currentMainIdRef.current) {
-            backStackRef.current.push(currentMainIdRef.current);
-            setCanGoBack(true);
-          }
-          isGoingBackRef.current = false;
-          currentMainIdRef.current = newMainId;
-        });
-
-        chart.updateTree({ initial: true });
-        chartRef.current = chart;
-        currentMainIdRef.current = chart.getMainDatum().id;
-      })
+    loadTree()
       .catch((err: Error) => {
         if (!cancelled) setError(err.message);
       })
@@ -68,7 +76,7 @@ function App() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [loadTree]);
 
   function handleBack() {
     const chart = chartRef.current;
@@ -79,6 +87,11 @@ function App() {
     chart.updateMainId(previousId);
     chart.updateTree({});
     setCanGoBack(backStackRef.current.length > 0);
+  }
+
+  function handlePersonCreated(newPersonId: string) {
+    setShowAddForm(false);
+    loadTree(newPersonId).catch((err: Error) => setError(err.message));
   }
 
   return (
@@ -95,10 +108,16 @@ function App() {
           ← Volver
         </button>
         <h1>Árbol genealógico</h1>
+        <button type="button" className="add-button" onClick={() => setShowAddForm(true)}>
+          + Añadir persona
+        </button>
       </header>
       {loading && <p className="status">Cargando árbol…</p>}
       {error && <p className="status status-error">{error}</p>}
       <div id="FamilyChart" ref={containerRef} className="f3 tree-container" />
+      {showAddForm && (
+        <AddPersonForm onCreated={handlePersonCreated} onClose={() => setShowAddForm(false)} />
+      )}
     </div>
   );
 }
