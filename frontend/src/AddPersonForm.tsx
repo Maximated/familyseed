@@ -152,6 +152,12 @@ export default function AddPersonForm({ onCreated, onClose }: Props) {
                   </option>
                 ))}
               </select>
+              <p className="field-hint">
+                Si los dos padres elegidos no tienen ya una unión registrada entre
+                ellos, se crea una unión nueva solo para ellos dos — así se
+                representan también los hijos de relaciones extramatrimoniales o
+                de una pareja no registrada como matrimonio.
+              </p>
             </div>
           )}
 
@@ -186,7 +192,7 @@ export default function AddPersonForm({ onCreated, onClose }: Props) {
               />
               <input
                 type="text"
-                placeholder="Lugar de la unión"
+                placeholder="ej. Kraków, Polonia"
                 value={unionPlace}
                 onChange={(e) => setUnionPlace(e.target.value)}
               />
@@ -215,7 +221,11 @@ export default function AddPersonForm({ onCreated, onClose }: Props) {
           </label>
           <label>
             Apellido de soltera/nacimiento (si difiere)
-            <input value={birthSurname} onChange={(e) => setBirthSurname(e.target.value)} />
+            <input
+              placeholder="ej. Kowalski"
+              value={birthSurname}
+              onChange={(e) => setBirthSurname(e.target.value)}
+            />
           </label>
           <label>
             Sexo
@@ -236,15 +246,28 @@ export default function AddPersonForm({ onCreated, onClose }: Props) {
           </label>
           <label>
             Lugar de nacimiento
-            <input value={birthPlace} onChange={(e) => setBirthPlace(e.target.value)} />
+            <input
+              placeholder="ej. Kraków, Polonia"
+              value={birthPlace}
+              onChange={(e) => setBirthPlace(e.target.value)}
+            />
           </label>
           <label>
             Fecha de defunción
-            <input value={deathDateText} onChange={(e) => setDeathDateText(e.target.value)} />
+            <input
+              type="text"
+              placeholder="ej. 1998, hacia 1965, 2 noviembre 1998"
+              value={deathDateText}
+              onChange={(e) => setDeathDateText(e.target.value)}
+            />
           </label>
           <label>
             Lugar de defunción
-            <input value={deathPlace} onChange={(e) => setDeathPlace(e.target.value)} />
+            <input
+              placeholder="ej. Kraków, Polonia"
+              value={deathPlace}
+              onChange={(e) => setDeathPlace(e.target.value)}
+            />
           </label>
           <label>
             Notas

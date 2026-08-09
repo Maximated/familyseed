@@ -24,6 +24,8 @@
   border: 1px solid #ccc;
   border-radius: 6px;
   background: #fff;
+  color: #222;
+  color-scheme: light;
   cursor: pointer;
 }
 
@@ -61,6 +63,8 @@
   border: 1px solid #ccc;
   border-radius: 6px;
   background: #fff;
+  color: #222;
+  color-scheme: light;
   cursor: pointer;
 }
 
@@ -81,6 +85,7 @@
 .modal-panel {
   background: #fff;
   color: #222;
+  color-scheme: light;
   border-radius: 8px;
   padding: 1.25rem 1.5rem;
   width: 480px;
@@ -128,6 +133,8 @@
   padding: 0.35rem 0.5rem;
   border: 1px solid #ccc;
   border-radius: 4px;
+  background: #fff;
+  color: #222;
 }
 
 .modal-panel .indent {
@@ -135,6 +142,12 @@
   flex-direction: column;
   gap: 0.4rem;
   margin: 0 0 0.4rem 1.6rem;
+}
+
+.field-hint {
+  font-size: 0.8rem;
+  color: #666;
+  margin: 0;
 }
 
 .modal-actions {
@@ -150,6 +163,7 @@
   border: 1px solid #ccc;
   cursor: pointer;
   background: #fff;
+  color: #222;
 }
 
 .modal-actions button[type="submit"] {
