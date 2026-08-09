@@ -59,7 +59,7 @@ export default function TrashView({ onRestored, onClose }: Props) {
               <li key={person.id}>
                 <div>
                   <div className="trash-list-name">
-                    {person.givenNames} {person.surname}
+                    {person.givenNames} {[person.surname1, person.surname2].filter(Boolean).join(" ")}
                   </div>
                   <div className="trash-list-meta">Eliminado el {formatDeletedAt(person.deletedAt)}</div>
                 </div>

@@ -17,7 +17,8 @@ type Props = {
 
 function personLabel(person: Individual) {
   const year = person.birthDateText ? ` (${person.birthDateText})` : "";
-  return `${person.givenNames} ${person.surname}${year}`;
+  const surname = [person.surname1, person.surname2].filter(Boolean).join(" ");
+  return `${person.givenNames} ${surname}${year}`;
 }
 
 export default function AddPersonForm({ onCreated, onClose }: Props) {
@@ -31,8 +32,9 @@ export default function AddPersonForm({ onCreated, onClose }: Props) {
   const [unionPlace, setUnionPlace] = useState("");
 
   const [givenNames, setGivenNames] = useState("");
-  const [surname, setSurname] = useState("");
-  const [birthSurname, setBirthSurname] = useState("");
+  const [surname1, setSurname1] = useState("");
+  const [surname2, setSurname2] = useState("");
+  const [surname1BirthName, setSurname1BirthName] = useState("");
   const [sex, setSex] = useState<Sex>("UNKNOWN");
   const [birthDateText, setBirthDateText] = useState("");
   const [birthPlace, setBirthPlace] = useState("");
@@ -70,8 +72,8 @@ export default function AddPersonForm({ onCreated, onClose }: Props) {
   }
 
   function validate(): string | null {
-    if (!givenNames.trim() || !surname.trim()) {
-      return "El nombre y el apellido son obligatorios.";
+    if (!givenNames.trim() || !surname1.trim()) {
+      return "El nombre y el primer apellido son obligatorios.";
     }
     if (relationshipKind === "CHILD_OF_PARENTS" && !parent1Id) {
       return "Elige al menos un padre/madre.";
@@ -96,8 +98,9 @@ export default function AddPersonForm({ onCreated, onClose }: Props) {
       const { individual } = await createIndividual({
         individual: {
           givenNames: givenNames.trim(),
-          surname: surname.trim(),
-          birthSurname: birthSurname.trim() || undefined,
+          surname1: surname1.trim(),
+          surname2: surname2.trim() || undefined,
+          surname1BirthName: surname1BirthName.trim() || undefined,
           sex,
           birthDateText: birthDateText.trim() || undefined,
           birthPlace: birthPlace.trim() || undefined,
@@ -216,15 +219,19 @@ export default function AddPersonForm({ onCreated, onClose }: Props) {
             <input value={givenNames} onChange={(e) => setGivenNames(e.target.value)} required />
           </label>
           <label>
-            Apellido
-            <input value={surname} onChange={(e) => setSurname(e.target.value)} required />
+            Primer apellido (paterno en España, único en Polonia)
+            <input value={surname1} onChange={(e) => setSurname1(e.target.value)} required />
           </label>
           <label>
-            Apellido de soltera/nacimiento (si difiere)
+            Segundo apellido (materno — opcional, convención española)
+            <input value={surname2} onChange={(e) => setSurname2(e.target.value)} />
+          </label>
+          <label>
+            Primer apellido de nacimiento (si difiere del actual)
             <input
               placeholder="ej. Kowalski"
-              value={birthSurname}
-              onChange={(e) => setBirthSurname(e.target.value)}
+              value={surname1BirthName}
+              onChange={(e) => setSurname1BirthName(e.target.value)}
             />
           </label>
           <label>

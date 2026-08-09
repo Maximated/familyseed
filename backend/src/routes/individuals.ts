@@ -10,11 +10,12 @@ import {
 
 const individualFieldsSchema = {
   type: "object",
-  required: ["givenNames", "surname"],
+  required: ["givenNames", "surname1"],
   properties: {
     givenNames: { type: "string", minLength: 1 },
-    surname: { type: "string", minLength: 1 },
-    birthSurname: { type: "string" },
+    surname1: { type: "string", minLength: 1 },
+    surname2: { type: "string" },
+    surname1BirthName: { type: "string" },
     sex: { type: "string", enum: SEX_VALUES },
     birthDateText: { type: "string" },
     birthDateValue: { type: "string", format: "date" },
@@ -67,8 +68,9 @@ const updateIndividualBodySchema = {
 type CreateIndividualBody = {
   individual: {
     givenNames: string;
-    surname: string;
-    birthSurname?: string;
+    surname1: string;
+    surname2?: string;
+    surname1BirthName?: string;
     sex?: (typeof SEX_VALUES)[number];
     birthDateText?: string;
     birthDateValue?: string;
@@ -118,13 +120,14 @@ export default async function individualRoutes(fastify: FastifyInstance) {
           ? {
               OR: [
                 { givenNames: { contains: search } },
-                { surname: { contains: search } },
-                { birthSurname: { contains: search } },
+                { surname1: { contains: search } },
+                { surname2: { contains: search } },
+                { surname1BirthName: { contains: search } },
               ],
             }
           : {}),
       },
-      orderBy: [{ surname: "asc" }, { givenNames: "asc" }],
+      orderBy: [{ surname1: "asc" }, { givenNames: "asc" }],
     });
   });
 

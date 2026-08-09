@@ -42,15 +42,23 @@ model Individual {
 
   givenNames String @map("given_names")
 
-  // Current/most commonly used surname (e.g. after marriage, if changed).
-  surname String
+  // Primary/lineage-grouping surname: paternal surname in Spanish naming,
+  // the only surname in Polish naming. Current/used, not necessarily the
+  // one this person was born with (see surname1BirthName below).
+  surname1 String @map("apellido_1")
 
-  // Surname of the family this person was born into, only set when it
-  // differs from `surname`. Deliberately not tied to sex: in most cases the
-  // wife takes the husband's surname, but the reverse also happens (and is
-  // recorded this way in this family), so this field is symmetric and
-  // applies to whichever partner changed their name.
-  birthSurname String? @map("birth_surname")
+  // Secondary surname (Spanish maternal surname convention). Null for
+  // single-surname naming conventions (e.g. Polish).
+  surname2 String? @map("apellido_2")
+
+  // surname1 at birth, only set when it differs from the current surname1.
+  // Deliberately not tied to sex: in most cases the wife takes the
+  // husband's surname, but the reverse also happens (and is recorded this
+  // way in this family), so this field is symmetric and applies to
+  // whichever partner changed their name. Surname2 is a Spanish-convention
+  // maternal surname that doesn't change at marriage, so it needs no
+  // birth-name counterpart.
+  surname1BirthName String? @map("apellido_1_nacimiento")
 
   sex Sex @default(UNKNOWN)
 
@@ -74,12 +82,51 @@ model Individual {
   updatedAt DateTime  @updatedAt @map("updated_at")
   deletedAt DateTime? @map("deleted_at")
 
-  familiesAsPartner1 Family[]      @relation("FamilyPartner1")
-  familiesAsPartner2 Family[]      @relation("FamilyPartner2")
+  familiesAsPartner1 Family[]            @relation("FamilyPartner1")
+  familiesAsPartner2 Family[]            @relation("FamilyPartner2")
   childOf            FamilyChild[]
+  lineages           IndividualLineage[]
 
-  @@index([surname, givenNames])
+  @@index([surname1, givenNames])
   @@map("individuals")
+}
+
+// Purely a navigation/highlighting aid (see the sidebar timeline + lineage
+// filter chips planned for the frontend) — not part of the genealogical
+// relationships themselves, which live entirely in Family/FamilyChild.
+// Membership is manual: an individual can belong to several lineages at
+// once (their father's, their mother's, their spouse's...), it's not
+// auto-derived from surname1.
+model Lineage {
+  id String @id @default(cuid())
+
+  name String
+
+  // Hex or CSS color for the filter chip / highlighted branch in the UI.
+  color String?
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  individuals IndividualLineage[]
+
+  @@map("lineages")
+}
+
+model IndividualLineage {
+  id String @id @default(cuid())
+
+  individualId String     @map("individual_id")
+  individual   Individual @relation(fields: [individualId], references: [id], onDelete: Cascade)
+
+  lineageId String  @map("lineage_id")
+  lineage   Lineage @relation(fields: [lineageId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@unique([individualId, lineageId])
+  @@index([lineageId])
+  @@map("individual_lineages")
 }
 
 model Family {

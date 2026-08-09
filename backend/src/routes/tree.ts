@@ -45,12 +45,14 @@ export default async function treeRoutes(fastify: FastifyInstance) {
         }
       }
 
+      const lastName = [individual.surname1, individual.surname2].filter(Boolean).join(" ");
+
       return {
         id: individual.id,
         data: {
           "first name": individual.givenNames,
-          "last name": individual.surname,
-          "birth name": individual.birthSurname ?? undefined,
+          "last name": lastName,
+          "birth name": individual.surname1BirthName ?? undefined,
           gender: individual.sex === "FEMALE" ? "F" : individual.sex === "MALE" ? "M" : undefined,
           birthday: individual.birthDateText ?? undefined,
           deathday: individual.deathDateText ?? undefined,

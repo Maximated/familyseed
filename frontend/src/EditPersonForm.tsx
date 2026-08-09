@@ -21,8 +21,9 @@ export default function EditPersonForm({ personId, onSaved, onDeleted, onClose }
   const [submitting, setSubmitting] = useState(false);
 
   const [givenNames, setGivenNames] = useState("");
-  const [surname, setSurname] = useState("");
-  const [birthSurname, setBirthSurname] = useState("");
+  const [surname1, setSurname1] = useState("");
+  const [surname2, setSurname2] = useState("");
+  const [surname1BirthName, setSurname1BirthName] = useState("");
   const [sex, setSex] = useState<Sex>("UNKNOWN");
   const [birthDateText, setBirthDateText] = useState("");
   const [birthPlace, setBirthPlace] = useState("");
@@ -37,8 +38,9 @@ export default function EditPersonForm({ personId, onSaved, onDeleted, onClose }
     fetchIndividual(personId)
       .then((person: Individual) => {
         setGivenNames(person.givenNames);
-        setSurname(person.surname);
-        setBirthSurname(person.birthSurname ?? "");
+        setSurname1(person.surname1);
+        setSurname2(person.surname2 ?? "");
+        setSurname1BirthName(person.surname1BirthName ?? "");
         setSex(person.sex);
         setBirthDateText(person.birthDateText ?? "");
         setBirthPlace(person.birthPlace ?? "");
@@ -52,8 +54,8 @@ export default function EditPersonForm({ personId, onSaved, onDeleted, onClose }
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
-    if (!givenNames.trim() || !surname.trim()) {
-      setError("El nombre y el apellido son obligatorios.");
+    if (!givenNames.trim() || !surname1.trim()) {
+      setError("El nombre y el primer apellido son obligatorios.");
       return;
     }
 
@@ -62,8 +64,9 @@ export default function EditPersonForm({ personId, onSaved, onDeleted, onClose }
     try {
       const payload: UpdateIndividualPayload = {
         givenNames: givenNames.trim(),
-        surname: surname.trim(),
-        birthSurname: birthSurname.trim() || undefined,
+        surname1: surname1.trim(),
+        surname2: surname2.trim() || undefined,
+        surname1BirthName: surname1BirthName.trim() || undefined,
         sex,
         birthDateText: birthDateText.trim() || undefined,
         birthPlace: birthPlace.trim() || undefined,
@@ -112,15 +115,19 @@ export default function EditPersonForm({ personId, onSaved, onDeleted, onClose }
                 <input value={givenNames} onChange={(e) => setGivenNames(e.target.value)} required />
               </label>
               <label>
-                Apellido
-                <input value={surname} onChange={(e) => setSurname(e.target.value)} required />
+                Primer apellido (paterno en España, único en Polonia)
+                <input value={surname1} onChange={(e) => setSurname1(e.target.value)} required />
               </label>
               <label>
-                Apellido de soltera/nacimiento (si difiere)
+                Segundo apellido (materno — opcional, convención española)
+                <input value={surname2} onChange={(e) => setSurname2(e.target.value)} />
+              </label>
+              <label>
+                Primer apellido de nacimiento (si difiere del actual)
                 <input
                   placeholder="ej. Kowalski"
-                  value={birthSurname}
-                  onChange={(e) => setBirthSurname(e.target.value)}
+                  value={surname1BirthName}
+                  onChange={(e) => setSurname1BirthName(e.target.value)}
                 />
               </label>
               <label>
@@ -195,7 +202,7 @@ export default function EditPersonForm({ personId, onSaved, onDeleted, onClose }
               ) : (
                 <div className="delete-confirm">
                   <p>
-                    ¿Seguro que quieres eliminar a <strong>{givenNames} {surname}</strong>?
+                    ¿Seguro que quieres eliminar a <strong>{givenNames} {surname1}</strong>?
                     Pasará a la papelera — podrás restaurarla más tarde si te equivocas.
                   </p>
                   <div className="modal-actions">

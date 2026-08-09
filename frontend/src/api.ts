@@ -8,8 +8,9 @@ export type UnionType = "MARRIAGE" | "PARTNERSHIP" | "UNKNOWN";
 export type Individual = {
   id: string;
   givenNames: string;
-  surname: string;
-  birthSurname: string | null;
+  surname1: string;
+  surname2: string | null;
+  surname1BirthName: string | null;
   sex: Sex;
   birthDateText: string | null;
   birthPlace: string | null;
@@ -31,8 +32,9 @@ export type Relationship =
 
 export type IndividualFields = {
   givenNames: string;
-  surname: string;
-  birthSurname?: string;
+  surname1: string;
+  surname2?: string;
+  surname1BirthName?: string;
   sex?: Sex;
   birthDateText?: string;
   birthPlace?: string;
