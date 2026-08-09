@@ -35,6 +35,7 @@ export default function AddPersonForm({ onCreated, onClose }: Props) {
   const [surname1, setSurname1] = useState("");
   const [surname2, setSurname2] = useState("");
   const [surname1BirthName, setSurname1BirthName] = useState("");
+  const [alias, setAlias] = useState("");
   const [sex, setSex] = useState<Sex>("UNKNOWN");
   const [birthDateText, setBirthDateText] = useState("");
   const [birthPlace, setBirthPlace] = useState("");
@@ -102,6 +103,7 @@ export default function AddPersonForm({ onCreated, onClose }: Props) {
           surname1: surname1.trim(),
           surname2: surname2.trim() || undefined,
           surname1BirthName: surname1BirthName.trim() || undefined,
+          alias: alias.trim() || undefined,
           sex,
           birthDateText: birthDateText.trim() || undefined,
           birthPlace: birthPlace.trim() || undefined,
@@ -235,6 +237,14 @@ export default function AddPersonForm({ onCreated, onClose }: Props) {
               placeholder="ej. Kowalski"
               value={surname1BirthName}
               onChange={(e) => setSurname1BirthName(e.target.value)}
+            />
+          </label>
+          <label>
+            Apodo o alias (opcional)
+            <input
+              placeholder="ej. Boni"
+              value={alias}
+              onChange={(e) => setAlias(e.target.value)}
             />
           </label>
           <label>

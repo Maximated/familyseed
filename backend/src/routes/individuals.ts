@@ -17,6 +17,7 @@ const individualFieldsSchema = {
     surname1: { type: "string", minLength: 1 },
     surname2: { type: "string" },
     surname1BirthName: { type: "string" },
+    alias: { type: "string" },
     sex: { type: "string", enum: SEX_VALUES },
     birthDateText: { type: "string" },
     birthDateValue: { type: "string", format: "date" },
@@ -74,6 +75,7 @@ type CreateIndividualBody = {
     surname1: string;
     surname2?: string;
     surname1BirthName?: string;
+    alias?: string;
     sex?: (typeof SEX_VALUES)[number];
     birthDateText?: string;
     birthDateValue?: string;

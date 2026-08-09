@@ -34,6 +34,7 @@ export type TreePerson = {
     "first name": string;
     "last name": string;
     "birth name"?: string;
+    alias?: string;
     "birth place"?: string;
     "death place"?: string;
     gender?: string;
@@ -61,6 +62,7 @@ export type Individual = {
   surname1: string;
   surname2: string | null;
   surname1BirthName: string | null;
+  alias: string | null;
   sex: Sex;
   birthDateText: string | null;
   birthPlace: string | null;
@@ -87,6 +89,7 @@ export type IndividualFields = {
   surname1: string;
   surname2?: string;
   surname1BirthName?: string;
+  alias?: string;
   sex?: Sex;
   birthDateText?: string;
   birthPlace?: string;

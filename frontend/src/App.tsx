@@ -24,12 +24,7 @@ import InfoPanel, { type InfoPanelData } from "./InfoPanel";
 // rather than fighting the stricter type throughout this file.
 type ChartData = Parameters<typeof f3.createChart>[1];
 
-function applyLineageHighlight(
-  container: HTMLElement,
-  people: TreePerson[],
-  selectedIds: Set<string>,
-  colorById: Map<string, string>,
-) {
+function applyLineageHighlight(container: HTMLElement, people: TreePerson[], selectedIds: Set<string>) {
   const lineagesById = new Map(people.map((p) => [p.id, p.data.lineageIds ?? []]));
   const cards = container.querySelectorAll<HTMLElement>(".card[data-id]");
 
@@ -39,21 +34,13 @@ function applyLineageHighlight(
 
     if (selectedIds.size === 0) {
       card.classList.remove("lineage-highlight", "lineage-dim");
-      card.style.removeProperty("--lineage-color");
       return;
     }
 
     const personLineageIds = lineagesById.get(id) ?? [];
-    const matchId = personLineageIds.find((lineageId) => selectedIds.has(lineageId));
-    if (matchId) {
-      card.classList.add("lineage-highlight");
-      card.classList.remove("lineage-dim");
-      card.style.setProperty("--lineage-color", colorById.get(matchId) ?? "#888");
-    } else {
-      card.classList.add("lineage-dim");
-      card.classList.remove("lineage-highlight");
-      card.style.removeProperty("--lineage-color");
-    }
+    const isMatch = personLineageIds.some((lineageId) => selectedIds.has(lineageId));
+    card.classList.toggle("lineage-highlight", isMatch);
+    card.classList.toggle("lineage-dim", !isMatch);
   });
 }
 
@@ -154,9 +141,15 @@ type CardDatum = { data: { id: string; data: Record<string, unknown> } };
 // the lineage-highlight chips still make sense at a glance, + a lifespan
 // line) — the expand button opens the full record instead of growing the
 // card in place, which would overlap neighboring cards in the tree layout.
+// Lucide's "message-square-text" glyph (MIT) — a rounded speech bubble
+// with a couple of lines inside, standing in for the plain "ⓘ" character
+// that didn't read as an inviting "see more" affordance.
+const EXPAND_ICON_SVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M7 8h10"/><path d="M7 12h6"/></svg>`;
+
 function cardTemplate(d: CardDatum): string {
   const data = d.data.data;
   const name = escapeHtml(`${data["first name"] ?? ""} ${data["last name"] ?? ""}`.toString().trim());
+  const alias = data.alias ? escapeHtml(String(data.alias)) : "";
   const birthName = data["birth name"] ? escapeHtml(String(data["birth name"])) : "";
   const lifespan = formatLifespan(
     data.birthYear as number | undefined,
@@ -167,10 +160,11 @@ function cardTemplate(d: CardDatum): string {
   return `
     <div class="card-inner">
       <div class="card-name name-text">${name}</div>
+      ${alias ? `<div class="card-alias alias-text">«${alias}»</div>` : ""}
       ${birthName ? `<div class="card-birthname name-text">${birthName}</div>` : ""}
       ${lifespan ? `<div class="card-lifespan">${escapeHtml(lifespan)}</div>` : ""}
     </div>
-    <button type="button" class="card-expand-toggle" data-person-id="${d.data.id}" title="Ver ficha completa" aria-label="Ver ficha completa">ⓘ</button>
+    <button type="button" class="card-expand-toggle" data-person-id="${d.data.id}" title="Ver ficha completa" aria-label="Ver ficha completa">${EXPAND_ICON_SVG}</button>
   `;
 }
 
@@ -184,6 +178,7 @@ function buildPersonInfoPanel(person: TreePerson): InfoPanelData {
   const rows: { label: string; value: string }[] = [];
   const surnameLine = [d["last name"], d["birth name"]].filter(Boolean).join(" ");
   if (surnameLine) rows.push({ label: "Apellidos", value: surnameLine });
+  if (d.alias) rows.push({ label: "Apodo", value: String(d.alias) });
   rows.push({
     label: "Sexo",
     value: d.gender === "F" ? "Mujer" : d.gender === "M" ? "Hombre" : "Desconocido",
@@ -227,7 +222,6 @@ function App() {
   const treeDataRef = useRef<TreePerson[]>([]);
   const unionsByPairKeyRef = useRef<Map<string, UnionInfo>>(new Map());
   const selectedLineageIdsRef = useRef<Set<string>>(new Set());
-  const lineageColorByIdRef = useRef<Map<string, string>>(new Map());
 
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -243,12 +237,7 @@ function App() {
 
   const runHighlight = useCallback(() => {
     if (!containerRef.current) return;
-    applyLineageHighlight(
-      containerRef.current,
-      treeDataRef.current,
-      selectedLineageIdsRef.current,
-      lineageColorByIdRef.current,
-    );
+    applyLineageHighlight(containerRef.current, treeDataRef.current, selectedLineageIdsRef.current);
   }, []);
 
   // Re-run after every tree render: family-chart rebuilds the card/link DOM
@@ -384,11 +373,6 @@ function App() {
         // Purely a navigation aid — the tree itself still works without it.
       });
   }, []);
-
-  useEffect(() => {
-    lineageColorByIdRef.current = new Map(lineages.map((l) => [l.id, l.color ?? "#888"]));
-    runHighlight();
-  }, [lineages, runHighlight]);
 
   useEffect(() => {
     selectedLineageIdsRef.current = selectedLineageIds;

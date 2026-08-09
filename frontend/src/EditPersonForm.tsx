@@ -24,6 +24,7 @@ export default function EditPersonForm({ personId, onSaved, onDeleted, onClose }
   const [surname1, setSurname1] = useState("");
   const [surname2, setSurname2] = useState("");
   const [surname1BirthName, setSurname1BirthName] = useState("");
+  const [alias, setAlias] = useState("");
   const [sex, setSex] = useState<Sex>("UNKNOWN");
   const [birthDateText, setBirthDateText] = useState("");
   const [birthPlace, setBirthPlace] = useState("");
@@ -42,6 +43,7 @@ export default function EditPersonForm({ personId, onSaved, onDeleted, onClose }
         setSurname1(person.surname1);
         setSurname2(person.surname2 ?? "");
         setSurname1BirthName(person.surname1BirthName ?? "");
+        setAlias(person.alias ?? "");
         setSex(person.sex);
         setBirthDateText(person.birthDateText ?? "");
         setBirthPlace(person.birthPlace ?? "");
@@ -69,6 +71,7 @@ export default function EditPersonForm({ personId, onSaved, onDeleted, onClose }
         surname1: surname1.trim(),
         surname2: surname2.trim() || undefined,
         surname1BirthName: surname1BirthName.trim() || undefined,
+        alias: alias.trim() || undefined,
         sex,
         birthDateText: birthDateText.trim() || undefined,
         birthPlace: birthPlace.trim() || undefined,
@@ -131,6 +134,14 @@ export default function EditPersonForm({ personId, onSaved, onDeleted, onClose }
                   placeholder="ej. Kowalski"
                   value={surname1BirthName}
                   onChange={(e) => setSurname1BirthName(e.target.value)}
+                />
+              </label>
+              <label>
+                Apodo o alias (opcional)
+                <input
+                  placeholder="ej. Boni"
+                  value={alias}
+                  onChange={(e) => setAlias(e.target.value)}
                 />
               </label>
               <label>

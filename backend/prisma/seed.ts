@@ -17,6 +17,7 @@ type IndividualInput = {
   surname1: string;
   surname2?: string;
   surname1BirthName?: string;
+  alias?: string;
   sex: Sex;
   birthDateText?: string;
   birthDateValue?: Date;
@@ -59,6 +60,7 @@ async function main() {
   const bronislaw = await createIndividual({
     givenNames: "Bronisław",
     surname1: "Zawadzki",
+    alias: "Boni",
     sex: Sex.MALE,
     birthDateText: "12 marzo 1925",
     birthDateValue: new Date("1925-03-12"),

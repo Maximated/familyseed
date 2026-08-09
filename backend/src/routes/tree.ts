@@ -112,6 +112,7 @@ export default async function treeRoutes(fastify: FastifyInstance) {
           "first name": individual.givenNames,
           "last name": lastName,
           "birth name": individual.surname1BirthName ? `(${individual.surname1BirthName})` : undefined,
+          alias: individual.alias ?? undefined,
           gender: individual.sex === "FEMALE" ? "F" : individual.sex === "MALE" ? "M" : undefined,
           birthday: individual.birthDateText ?? undefined,
           deathday: individual.deathDateText ?? undefined,

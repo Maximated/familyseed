@@ -72,6 +72,11 @@ model Individual {
   // birth-name counterpart.
   surname1BirthName String? @map("apellido_1_nacimiento")
 
+  // Nickname/alias this person went by — distinct from surname1BirthName
+  // (which is still a legal surname, just an earlier one). Shown in
+  // cursive on the tree card to set it apart from the real name.
+  alias String?
+
   sex Sex @default(UNKNOWN)
 
   birthDateText      String?        @map("birth_date_text")
