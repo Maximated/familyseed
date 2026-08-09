@@ -5,6 +5,7 @@ import {
   CHILD_RELATION_TYPE_VALUES,
   DATE_PRECISION_VALUES,
   SEX_VALUES,
+  UNION_STATUS_VALUES,
   UNION_TYPE_VALUES,
 } from "../enums.js";
 
@@ -42,6 +43,7 @@ const relationshipSchema = {
     partnerId: { type: "string" },
     relationType: { type: "string", enum: CHILD_RELATION_TYPE_VALUES },
     unionType: { type: "string", enum: UNION_TYPE_VALUES },
+    unionStatus: { type: "string", enum: UNION_STATUS_VALUES },
     unionDateText: { type: "string" },
     unionDateValue: { type: "string", format: "date" },
     unionDatePrecision: { type: "string", enum: DATE_PRECISION_VALUES },
@@ -91,6 +93,7 @@ type CreateIndividualBody = {
     partnerId?: string;
     relationType?: (typeof CHILD_RELATION_TYPE_VALUES)[number];
     unionType?: (typeof UNION_TYPE_VALUES)[number];
+    unionStatus?: (typeof UNION_STATUS_VALUES)[number];
     unionDateText?: string;
     unionDateValue?: string;
     unionDatePrecision?: (typeof DATE_PRECISION_VALUES)[number];
@@ -327,6 +330,7 @@ export default async function individualRoutes(fastify: FastifyInstance) {
                   partner1Id: partner.id,
                   partner2Id: created.id,
                   unionType: relationship.unionType ?? "UNKNOWN",
+                  unionStatus: relationship.unionStatus ?? "ONGOING",
                   unionDateText: relationship.unionDateText,
                   unionDateValue: relationship.unionDateValue ? new Date(relationship.unionDateValue) : undefined,
                   unionDatePrecision: relationship.unionDatePrecision,

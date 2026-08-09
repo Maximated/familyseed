@@ -6,9 +6,11 @@ const prisma = new PrismaClient();
 // validate the schema against real-world cases: a second union after
 // widowhood (half-siblings), a cousin branch, a husband taking his wife's
 // surname (the reverse of the usual case), individuals without a known
-// partner, a double surname (Spanish convention), and lineages that overlap
+// partner, a double surname (Spanish convention), lineages that overlap
 // rather than partition the tree (a person's paternal and maternal lineage
-// at once).
+// at once), a divorce, and an extramarital relationship concurrent with a
+// marriage (with a child carrying the mother's surname instead of the
+// father's, since that's often how such births were actually recorded).
 
 type IndividualInput = {
   givenNames: string;
@@ -105,17 +107,22 @@ async function main() {
       partner1Id: bronislaw.id,
       partner2Id: maria.id,
       unionType: "MARRIAGE",
+      unionStatus: "ENDED_BY_DEATH",
       unionDateText: "hacia 1946",
+      unionDateValue: new Date("1946-01-01"),
       unionDatePrecision: DatePrecision.ABOUT,
       unionPlace: "Kraków, Polonia",
     },
   });
 
+  // Bronisław's second marriage — the backend computes "2nd union" from
+  // having more than one Family row, nothing to set here for that part.
   const familyBronislawJanina = await prisma.family.create({
     data: {
       partner1Id: bronislaw.id,
       partner2Id: janina.id,
       unionType: "MARRIAGE",
+      unionStatus: "ENDED_BY_DEATH",
       unionDateText: "1967",
       unionDateValue: new Date("1967-01-01"),
       unionDatePrecision: DatePrecision.EXACT,
@@ -296,6 +303,7 @@ async function main() {
       partner1Id: anna.id,
       partner2Id: marek.id,
       unionType: "MARRIAGE",
+      unionStatus: "DIVORCED",
       unionDateText: "2000",
       unionDateValue: new Date("2000-01-01"),
       unionDatePrecision: DatePrecision.EXACT,
@@ -376,7 +384,51 @@ async function main() {
     },
   });
 
-  console.log("Seed completado: 15 individuos, 7 uniones familiares, 8 linajes.");
+  // Extramarital relationship, concurrent with Piotr's marriage to
+  // Agnieszka — validates UnionType.EXTRAMARITAL and a case where the
+  // child (unlike the rest of the seed) carries the mother's surname, as
+  // often happened when paternity went unacknowledged in the records.
+  const ewa = await createIndividual({
+    givenNames: "Ewa",
+    surname1: "Wójcik",
+    sex: Sex.FEMALE,
+    birthDateText: "hacia 1975",
+    birthDateValue: new Date("1975-01-01"),
+    birthDatePrecision: DatePrecision.ABOUT,
+    birthPlace: "Kraków, Polonia",
+  });
+  const lineageWojcik = await createLineage("Wójcik", "#a98a4a");
+  await addToLineage(ewa.id, lineageWojcik.id);
+
+  const familyPiotrEwa = await prisma.family.create({
+    data: {
+      partner1Id: piotr.id,
+      partner2Id: ewa.id,
+      unionType: "EXTRAMARITAL",
+      unionStatus: "ONGOING",
+      unionDateText: "hacia 2005",
+      unionDatePrecision: DatePrecision.ABOUT,
+      unionPlace: "Kraków, Polonia",
+    },
+  });
+
+  const zofia = await createIndividual({
+    givenNames: "Zofia",
+    surname1: "Wójcik",
+    sex: Sex.FEMALE,
+    birthDateText: "2006",
+    birthDateValue: new Date("2006-01-01"),
+    birthDatePrecision: DatePrecision.EXACT,
+    birthPlace: "Kraków, Polonia",
+  });
+  await addToLineage(zofia.id, lineageWojcik.id);
+  await addToLineage(zofia.id, lineageZawadzki.id);
+
+  await prisma.familyChild.create({
+    data: { familyId: familyPiotrEwa.id, individualId: zofia.id, relationType: "BIOLOGICAL" },
+  });
+
+  console.log("Seed completado: 17 individuos, 9 uniones familiares, 9 linajes.");
 }
 
 main()

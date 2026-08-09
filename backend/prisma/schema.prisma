@@ -26,7 +26,19 @@ enum DatePrecision {
 enum UnionType {
   MARRIAGE
   PARTNERSHIP
+  EXTRAMARITAL
   UNKNOWN
+}
+
+// The union's current/final state — a separate axis from UnionType (which
+// describes its nature, not how or whether it ended). Drives the divorce/
+// widowed icons on the tree.
+enum UnionStatus {
+  ONGOING
+  ENDED_BY_DEATH
+  DIVORCED
+  SEPARATED
+  ANNULLED
 }
 
 enum ChildRelationType {
@@ -138,7 +150,8 @@ model Family {
   partner2Id String?     @map("partner2_id")
   partner2   Individual? @relation("FamilyPartner2", fields: [partner2Id], references: [id])
 
-  unionType UnionType @default(UNKNOWN) @map("union_type")
+  unionType   UnionType   @default(UNKNOWN) @map("union_type")
+  unionStatus UnionStatus @default(ONGOING) @map("union_status")
 
   unionDateText      String?        @map("union_date_text")
   unionDateValue     DateTime?      @map("union_date_value")

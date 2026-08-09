@@ -185,6 +185,7 @@ export default function AddPersonForm({ onCreated, onClose }: Props) {
               <select value={unionType} onChange={(e) => setUnionType(e.target.value as UnionType)}>
                 <option value="MARRIAGE">Matrimonio</option>
                 <option value="PARTNERSHIP">Pareja de hecho</option>
+                <option value="EXTRAMARITAL">Relación extramatrimonial</option>
                 <option value="UNKNOWN">Desconocido</option>
               </select>
               <input

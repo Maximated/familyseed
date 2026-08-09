@@ -2,7 +2,15 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import * as f3 from "family-chart";
 import "family-chart/styles/family-chart.css";
 import "./App.css";
-import { fetchLineages, fetchTree, type Lineage, type TreePerson } from "./api";
+import {
+  fetchLineages,
+  fetchTree,
+  type Lineage,
+  type TreePerson,
+  type UnionInfo,
+  type UnionStatus,
+  type UnionType,
+} from "./api";
 import AddPersonForm from "./AddPersonForm";
 import EditPersonForm from "./EditPersonForm";
 import TrashView from "./TrashView";
@@ -48,6 +56,45 @@ function applyLineageHighlight(
   });
 }
 
+function pairKey(idA: string, idB: string): string {
+  return [idA, idB].sort().join("_");
+}
+
+// Standard genealogical marks (⚭ marriage, ⚮ divorce, ⚯ unmarried
+// partnership) plus a couple of homemade ones where no standard symbol
+// exists — kept in the legend below the lineage chips since most people
+// won't recognize them on sight.
+const UNION_TYPE_SYMBOL: Record<UnionType, string> = {
+  MARRIAGE: "⚭",
+  PARTNERSHIP: "⚯",
+  EXTRAMARITAL: "※",
+  UNKNOWN: "",
+};
+
+const UNION_STATUS_SYMBOL: Record<UnionStatus, string> = {
+  ONGOING: "",
+  ENDED_BY_DEATH: "✝",
+  DIVORCED: "⚮",
+  SEPARATED: "⚮",
+  ANNULLED: "⚮",
+};
+
+const SUPERSCRIPT_DIGITS = ["⁰", "¹", "²", "³", "⁴", "⁵", "⁶", "⁷", "⁸", "⁹"];
+
+function toSuperscript(n: number): string {
+  return String(n)
+    .split("")
+    .map((digit) => SUPERSCRIPT_DIGITS[Number(digit)])
+    .join("");
+}
+
+function unionIcon(union: UnionInfo): string {
+  const type = UNION_TYPE_SYMBOL[union.unionType] ?? "";
+  const order = union.order >= 2 ? toSuperscript(union.order) : "";
+  const status = UNION_STATUS_SYMBOL[union.unionStatus] ?? "";
+  return `${type}${order}${status}`;
+}
+
 function App() {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<ReturnType<typeof f3.createChart> | null>(null);
@@ -55,6 +102,7 @@ function App() {
   const currentMainIdRef = useRef<string | null>(null);
   const isGoingBackRef = useRef(false);
   const treeDataRef = useRef<TreePerson[]>([]);
+  const unionsByPairKeyRef = useRef<Map<string, UnionInfo>>(new Map());
   const selectedLineageIdsRef = useRef<Set<string>>(new Set());
   const lineageColorByIdRef = useRef<Map<string, string>>(new Map());
 
@@ -81,25 +129,41 @@ function App() {
 
   const loadTree = useCallback(
     async (recenterOnId?: string) => {
-      const data = await fetchTree();
+      const { people, unions } = await fetchTree();
       if (!containerRef.current) return;
-      if (!data.length) {
+      if (!people.length) {
         setError("No hay individuos en la base de datos todavía.");
         return;
       }
 
-      treeDataRef.current = data;
-      setTreeData(data);
+      treeDataRef.current = people;
+      setTreeData(people);
+      unionsByPairKeyRef.current = new Map(
+        unions.map((u) => [pairKey(u.partner1Id, u.partner2Id), u]),
+      );
 
       if (!chartRef.current) {
-        const chart = f3.createChart(containerRef.current, data as unknown as ChartData);
+        const chart = f3.createChart(containerRef.current, people as unknown as ChartData);
         chart
           .setCardHtml()
-          .setCardDisplay([["first name", "last name"], ["birthday"]]);
+          .setCardDisplay([
+            ["first name", "last name"],
+            ["birth name"],
+            ["birthday", "birth place"],
+            ["deathday", "death place"],
+          ]);
         // Bound how many generations render at once so the initial "fit"
         // stays readable no matter how large the real family tree grows.
         chart.setAncestryDepth(3);
         chart.setProgenyDepth(3);
+
+        // Marriage/divorce/etc. marks on the spouse link — looked up by pair
+        // of ids from a ref so this stays fresh across data reloads without
+        // re-registering the callback (family-chart only reads it once).
+        chart.setLinkSpouseText((sp1, sp2) => {
+          const union = unionsByPairKeyRef.current.get(pairKey(sp1.data.id, sp2.data.id));
+          return union ? unionIcon(union) : "";
+        });
 
         // Clicking a card, or navigating via the timeline, re-centers the
         // tree (chart.updateMainId internally). Track that in our own stack
@@ -126,7 +190,7 @@ function App() {
         return;
       }
 
-      chartRef.current.updateData(data as unknown as ChartData);
+      chartRef.current.updateData(people as unknown as ChartData);
       if (recenterOnId) {
         chartRef.current.updateMainId(recenterOnId);
       }
@@ -241,6 +305,14 @@ function App() {
         </button>
       </header>
       <LineageChips lineages={lineages} selectedIds={selectedLineageIds} onChange={setSelectedLineageIds} />
+      <div className="union-legend">
+        <span>⚭ Matrimonio</span>
+        <span>⚭² 2º matrimonio (o más)</span>
+        <span>⚯ Pareja de hecho</span>
+        <span>※ Relación extramatrimonial</span>
+        <span>⚮ Divorcio/separación</span>
+        <span>✝ Unión finalizada por fallecimiento</span>
+      </div>
       {loading && <p className="status">Cargando árbol…</p>}
       {error && <p className="status status-error">{error}</p>}
       <div className="main-area">

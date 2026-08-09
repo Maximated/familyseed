@@ -150,6 +150,16 @@
   border-style: dashed;
 }
 
+.union-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  padding: 0.35rem 1.5rem;
+  font-size: 0.75rem;
+  color: #666;
+  border-bottom: 1px solid #e2e2e2;
+}
+
 .modal-backdrop {
   position: fixed;
   inset: 0;

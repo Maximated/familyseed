@@ -1,7 +1,20 @@
 const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3001";
 
 export type Sex = "MALE" | "FEMALE" | "UNKNOWN";
-export type UnionType = "MARRIAGE" | "PARTNERSHIP" | "UNKNOWN";
+export type UnionType = "MARRIAGE" | "PARTNERSHIP" | "EXTRAMARITAL" | "UNKNOWN";
+export type UnionStatus = "ONGOING" | "ENDED_BY_DEATH" | "DIVORCED" | "SEPARATED" | "ANNULLED";
+
+export type UnionInfo = {
+  id: string;
+  partner1Id: string;
+  partner2Id: string;
+  unionType: UnionType;
+  unionStatus: UnionStatus;
+  // Chronological order of this union among each partner's own unions
+  // (max of both, so a remarriage shows as such even if it's the other
+  // partner's first) — used to mark 2nd+ marriages on the tree.
+  order: number;
+};
 
 export type Lineage = {
   id: string;
@@ -53,6 +66,7 @@ export type Relationship =
       kind: "PARTNER";
       partnerId: string;
       unionType?: UnionType;
+      unionStatus?: UnionStatus;
       unionDateText?: string;
       unionPlace?: string;
     };
@@ -90,7 +104,7 @@ export async function fetchIndividuals(): Promise<Individual[]> {
   return parseJsonOrThrow(res);
 }
 
-export async function fetchTree(): Promise<TreePerson[]> {
+export async function fetchTree(): Promise<{ people: TreePerson[]; unions: UnionInfo[] }> {
   const res = await fetch(`${API_URL}/tree`);
   return parseJsonOrThrow(res);
 }

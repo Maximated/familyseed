@@ -1,7 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { prisma } from "../db.js";
 import { HttpError } from "../http-error.js";
-import { DATE_PRECISION_VALUES, UNION_TYPE_VALUES } from "../enums.js";
+import { DATE_PRECISION_VALUES, UNION_STATUS_VALUES, UNION_TYPE_VALUES } from "../enums.js";
 
 const createFamilyBodySchema = {
   type: "object",
@@ -10,6 +10,7 @@ const createFamilyBodySchema = {
     partner1Id: { type: "string" },
     partner2Id: { type: "string" },
     unionType: { type: "string", enum: UNION_TYPE_VALUES },
+    unionStatus: { type: "string", enum: UNION_STATUS_VALUES },
     unionDateText: { type: "string" },
     unionDateValue: { type: "string", format: "date" },
     unionDatePrecision: { type: "string", enum: DATE_PRECISION_VALUES },
@@ -23,6 +24,7 @@ type CreateFamilyBody = {
   partner1Id: string;
   partner2Id?: string;
   unionType?: (typeof UNION_TYPE_VALUES)[number];
+  unionStatus?: (typeof UNION_STATUS_VALUES)[number];
   unionDateText?: string;
   unionDateValue?: string;
   unionDatePrecision?: (typeof DATE_PRECISION_VALUES)[number];
@@ -36,6 +38,7 @@ export default async function familyRoutes(fastify: FastifyInstance) {
       partner1Id,
       partner2Id,
       unionType,
+      unionStatus,
       unionDateText,
       unionDateValue,
       unionDatePrecision,
@@ -62,6 +65,7 @@ export default async function familyRoutes(fastify: FastifyInstance) {
             partner1Id,
             partner2Id: partner2Id ?? null,
             unionType: unionType ?? "UNKNOWN",
+            unionStatus: unionStatus ?? "ONGOING",
             unionDateText,
             unionDateValue: unionDateValue ? new Date(unionDateValue) : undefined,
             unionDatePrecision,
