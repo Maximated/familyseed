@@ -119,8 +119,29 @@ export async function fetchIndividuals(): Promise<Individual[]> {
   return parseJsonOrThrow(res);
 }
 
-export async function fetchTree(): Promise<{ people: TreePerson[]; unions: UnionInfo[] }> {
+export async function fetchTree(): Promise<{
+  id: string;
+  name: string;
+  people: TreePerson[];
+  unions: UnionInfo[];
+}> {
   const res = await fetch(`${API_URL}/tree`);
+  return parseJsonOrThrow(res);
+}
+
+export async function updateTreeName(name: string): Promise<{ id: string; name: string }> {
+  const res = await fetch(`${API_URL}/tree`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name }),
+  });
+  return parseJsonOrThrow(res);
+}
+
+export type Me = { id: string; name: string | null; email: string | null; role: string };
+
+export async function fetchMe(): Promise<Me> {
+  const res = await fetch(`${API_URL}/me`);
   return parseJsonOrThrow(res);
 }
 

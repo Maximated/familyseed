@@ -17,25 +17,29 @@ export default function LineageChips({ lineages, selectedIds, onChange }: Props)
   }
 
   return (
-    <div className="lineage-chips">
-      {lineages.map((lineage) => {
+    <div className="lineage-list">
+      {lineages.map((lineage, index) => {
         const active = selectedIds.has(lineage.id);
         return (
           <button
             key={lineage.id}
             type="button"
-            className={`lineage-chip${active ? " lineage-chip-active" : ""}`}
-            style={{ "--chip-color": lineage.color ?? "#888" } as React.CSSProperties}
+            className={`lineage-list-item${active ? " lineage-list-item-active" : ""}`}
+            style={{ animationDelay: `${index * 45}ms` }}
             onClick={() => toggle(lineage.id)}
             aria-pressed={active}
           >
-            <span className="lineage-chip-dot" />
-            <span className="name-text">{lineage.name}</span>
+            {lineage.name}
           </button>
         );
       })}
       {selectedIds.size > 0 && (
-        <button type="button" className="lineage-chip lineage-chip-clear" onClick={() => onChange(new Set())}>
+        <button
+          type="button"
+          className="lineage-list-clear"
+          style={{ animationDelay: `${lineages.length * 45}ms` }}
+          onClick={() => onChange(new Set())}
+        >
           Limpiar
         </button>
       )}

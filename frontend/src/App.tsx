@@ -4,8 +4,11 @@ import "family-chart/styles/family-chart.css";
 import "./App.css";
 import {
   fetchLineages,
+  fetchMe,
   fetchTree,
+  updateTreeName,
   type Lineage,
+  type Me,
   type TreePerson,
   type UnionInfo,
   type UnionStatus,
@@ -16,7 +19,8 @@ import EditPersonForm from "./EditPersonForm";
 import TrashView from "./TrashView";
 import LineageChips from "./LineageChips";
 import Timeline from "./Timeline";
-import InfoPanel, { type InfoPanelData } from "./InfoPanel";
+import InfoPanel, { type InfoPanelData, type InfoPanelSection } from "./InfoPanel";
+import { ArrowLeftIcon, GitBranchIcon, PencilIcon, Trash2Icon, UserIcon, UserPlusIcon } from "./Icons";
 
 // family-chart's own Datum type requires `gender: 'M' | 'F'`, but our data
 // can omit it (unknown sex) — the library renders a genderless card fine at
@@ -47,6 +51,12 @@ function applyLineageHighlight(container: HTMLElement, people: TreePerson[], sel
 function pairKey(idA: string, idB: string): string {
   return [idA, idB].sort().join("_");
 }
+
+const ROLE_LABEL: Record<string, string> = {
+  OWNER: "Propietario",
+  EDITOR: "Editor",
+  VIEWER: "Lector",
+};
 
 // The datum d3 binds onto each `g.link-text` element for the marriage/
 // divorce/etc. mark on a spouse link — just enough to recover which two
@@ -168,31 +178,44 @@ function cardTemplate(d: CardDatum): string {
   `;
 }
 
-function formatEventLine(dateText: unknown, place: unknown): string {
-  const parts = [dateText, place].filter((v): v is string => typeof v === "string" && v.length > 0);
-  return parts.length ? parts.join(", ") : "Desconocido";
+// Notes/biography are free text a user typed — split on blank lines so
+// each paragraph becomes its own bullet instead of one giant block.
+function splitLines(text: string): string[] {
+  return text
+    .split(/\n+/)
+    .map((line) => line.trim())
+    .filter(Boolean);
 }
 
 function buildPersonInfoPanel(person: TreePerson): InfoPanelData {
   const d = person.data;
-  const rows: { label: string; value: string }[] = [];
+  const sections: InfoPanelSection[] = [];
+
+  const identity: string[] = [];
   const surnameLine = [d["last name"], d["birth name"]].filter(Boolean).join(" ");
-  if (surnameLine) rows.push({ label: "Apellidos", value: surnameLine });
-  if (d.alias) rows.push({ label: "Apodo", value: String(d.alias) });
-  rows.push({
-    label: "Sexo",
-    value: d.gender === "F" ? "Mujer" : d.gender === "M" ? "Hombre" : "Desconocido",
-  });
-  rows.push({ label: "Nacimiento", value: formatEventLine(d.birthday, d["birth place"]) });
+  if (surnameLine) identity.push(`Apellidos: ${surnameLine}`);
+  if (d.alias) identity.push(`Apodo: «${String(d.alias)}»`);
+  identity.push(`Sexo: ${d.gender === "F" ? "Mujer" : d.gender === "M" ? "Hombre" : "Desconocido"}`);
+  sections.push({ heading: "Identidad", items: identity });
+
+  const birth = [d.birthday, d["birth place"]].filter((v): v is string => typeof v === "string" && v.length > 0);
+  sections.push({ heading: "Nacimiento", items: birth.length ? birth : ["Desconocido"] });
+
   if (d.deathday || d["death place"]) {
-    rows.push({ label: "Defunción", value: formatEventLine(d.deathday, d["death place"]) });
+    const death = [d.deathday, d["death place"]].filter((v): v is string => typeof v === "string" && v.length > 0);
+    sections.push({ heading: "Defunción", items: death });
   }
-  if (d.notes) rows.push({ label: "Notas", value: String(d.notes) });
-  if (d.biography) rows.push({ label: "Biografía", value: String(d.biography) });
+
+  if (d.notes) sections.push({ heading: "Notas", items: splitLines(String(d.notes)) });
+  if (d.biography) sections.push({ heading: "Biografía", items: splitLines(String(d.biography)) });
+
   return {
+    icon: <UserIcon size={20} />,
+    iconClassName:
+      d.gender === "F" ? "info-panel-icon-female" : d.gender === "M" ? "info-panel-icon-male" : "info-panel-icon-other",
     title: `${d["first name"]} ${d["last name"]}`.trim(),
     subtitle: d["birth name"] ? String(d["birth name"]) : undefined,
-    rows,
+    sections,
   };
 }
 
@@ -200,16 +223,20 @@ function buildUnionInfoPanel(union: UnionInfo, people: TreePerson[]): InfoPanelD
   const partner1 = people.find((p) => p.id === union.partner1Id);
   const partner2 = people.find((p) => p.id === union.partner2Id);
   const name = (p?: TreePerson) => (p ? `${p.data["first name"]} ${p.data["last name"]}`.trim() : "?");
-  const rows = [
-    { label: "Tipo", value: UNION_TYPE_LABEL[union.unionType] },
-    { label: "Estado", value: UNION_STATUS_LABEL[union.unionStatus] },
-    { label: "Fecha", value: union.unionDateText ?? "Desconocida" },
+
+  const items = [
+    `Tipo: ${UNION_TYPE_LABEL[union.unionType]}`,
+    `Estado: ${UNION_STATUS_LABEL[union.unionStatus]}`,
+    `Fecha: ${union.unionDateText ?? "Desconocida"}`,
   ];
-  if (union.unionPlace) rows.push({ label: "Lugar", value: union.unionPlace });
+  if (union.unionPlace) items.push(`Lugar: ${union.unionPlace}`);
+
   return {
+    icon: <span className="info-panel-union-symbol">{unionIcon(union)}</span>,
+    iconClassName: "info-panel-icon-union",
     title: `${name(partner1)} & ${name(partner2)}`,
     subtitle: union.order >= 2 ? `${union.order}ª unión` : undefined,
-    rows,
+    sections: [{ heading: "Detalles de la unión", items }],
   };
 }
 
@@ -222,6 +249,8 @@ function App() {
   const treeDataRef = useRef<TreePerson[]>([]);
   const unionsByPairKeyRef = useRef<Map<string, UnionInfo>>(new Map());
   const selectedLineageIdsRef = useRef<Set<string>>(new Set());
+  const lineageMenuRef = useRef<HTMLDivElement>(null);
+  const userMenuRef = useRef<HTMLDivElement>(null);
 
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -234,6 +263,12 @@ function App() {
   const [lineages, setLineages] = useState<Lineage[]>([]);
   const [selectedLineageIds, setSelectedLineageIds] = useState<Set<string>>(new Set());
   const [infoPanel, setInfoPanel] = useState<InfoPanelData | null>(null);
+  const [treeName, setTreeName] = useState("");
+  const [editingTitle, setEditingTitle] = useState(false);
+  const [titleDraft, setTitleDraft] = useState("");
+  const [showLineageMenu, setShowLineageMenu] = useState(false);
+  const [showUserMenu, setShowUserMenu] = useState(false);
+  const [me, setMe] = useState<Me | null>(null);
 
   const runHighlight = useCallback(() => {
     if (!containerRef.current) return;
@@ -272,8 +307,9 @@ function App() {
 
   const loadTree = useCallback(
     async (recenterOnId?: string) => {
-      const { people, unions } = await fetchTree();
+      const { name, people, unions } = await fetchTree();
       if (!containerRef.current) return;
+      setTreeName(name);
       if (!people.length) {
         setError("No hay individuos en la base de datos todavía.");
         return;
@@ -375,9 +411,60 @@ function App() {
   }, []);
 
   useEffect(() => {
+    fetchMe()
+      .then(setMe)
+      .catch(() => {
+        // No auth exists yet — the user icon just shows less if this fails.
+      });
+  }, []);
+
+  useEffect(() => {
     selectedLineageIdsRef.current = selectedLineageIds;
     runHighlight();
   }, [selectedLineageIds, runHighlight]);
+
+  useEffect(() => {
+    if (!showLineageMenu && !showUserMenu) return;
+
+    function handlePointerDown(event: PointerEvent) {
+      const target = event.target as Node;
+      if (showLineageMenu && lineageMenuRef.current && !lineageMenuRef.current.contains(target)) {
+        setShowLineageMenu(false);
+      }
+      if (showUserMenu && userMenuRef.current && !userMenuRef.current.contains(target)) {
+        setShowUserMenu(false);
+      }
+    }
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    return () => document.removeEventListener("pointerdown", handlePointerDown);
+  }, [showLineageMenu, showUserMenu]);
+
+  function handleTitleClick() {
+    setTitleDraft(treeName);
+    setEditingTitle(true);
+  }
+
+  function handleTitleCommit() {
+    setEditingTitle(false);
+    const trimmed = titleDraft.trim();
+    if (!trimmed || trimmed === treeName) return;
+
+    const previousName = treeName;
+    setTreeName(trimmed);
+    updateTreeName(trimmed).catch((err: Error) => {
+      setTreeName(previousName);
+      setError(err.message);
+    });
+  }
+
+  function handleTitleKeyDown(event: React.KeyboardEvent<HTMLInputElement>) {
+    if (event.key === "Enter") {
+      event.currentTarget.blur();
+    } else if (event.key === "Escape") {
+      setEditingTitle(false);
+    }
+  }
 
   function handleBack() {
     const chart = chartRef.current;
@@ -424,45 +511,144 @@ function App() {
       <header className="app-header">
         <button
           type="button"
-          className="header-button"
+          className="icon-button"
           onClick={handleBack}
           disabled={!canGoBack}
           aria-label="Volver"
           title="Volver"
         >
-          ← Volver
+          <ArrowLeftIcon />
         </button>
-        <h1>Árbol genealógico</h1>
-        <button
-          type="button"
-          className="header-button"
-          onClick={() => setShowEditForm(true)}
-          disabled={!currentMainId}
-        >
-          Editar
-        </button>
-        <button type="button" className="header-button" onClick={() => setShowTrash(true)}>
-          Papelera
-        </button>
-        <button type="button" className="header-button" onClick={() => setShowAddForm(true)}>
-          + Añadir persona
-        </button>
+
+        {editingTitle ? (
+          <input
+            className="tree-title-input"
+            value={titleDraft}
+            onChange={(e) => setTitleDraft(e.target.value)}
+            onBlur={handleTitleCommit}
+            onKeyDown={handleTitleKeyDown}
+            autoComplete="off"
+            autoFocus
+          />
+        ) : (
+          <h1 className="tree-title" onClick={handleTitleClick} title="Pulsa para renombrar el árbol">
+            {treeName || "Árbol genealógico"}
+          </h1>
+        )}
+
+        <div className="header-actions">
+          <div className="popover-anchor" ref={lineageMenuRef}>
+            <button
+              type="button"
+              className="icon-button"
+              onClick={() => setShowLineageMenu((v) => !v)}
+              aria-label="Linajes"
+              aria-expanded={showLineageMenu}
+              title="Linajes"
+            >
+              <GitBranchIcon />
+            </button>
+            {showLineageMenu && (
+              <div className="popover lineage-popover">
+                <LineageChips lineages={lineages} selectedIds={selectedLineageIds} onChange={setSelectedLineageIds} />
+              </div>
+            )}
+          </div>
+
+          <button
+            type="button"
+            className="icon-button"
+            onClick={() => setShowEditForm(true)}
+            disabled={!currentMainId}
+            aria-label="Editar"
+            title="Editar"
+          >
+            <PencilIcon />
+          </button>
+          <button
+            type="button"
+            className="icon-button"
+            onClick={() => setShowTrash(true)}
+            aria-label="Papelera"
+            title="Papelera"
+          >
+            <Trash2Icon />
+          </button>
+          <button
+            type="button"
+            className="icon-button"
+            onClick={() => setShowAddForm(true)}
+            aria-label="Añadir persona"
+            title="Añadir persona"
+          >
+            <UserPlusIcon />
+          </button>
+
+          <div className="popover-anchor" ref={userMenuRef}>
+            <button
+              type="button"
+              className="icon-button"
+              onClick={() => setShowUserMenu((v) => !v)}
+              aria-label="Usuario"
+              aria-expanded={showUserMenu}
+              title="Usuario"
+            >
+              <UserIcon />
+            </button>
+            {showUserMenu && (
+              <div className="popover user-popover">
+                {me ? (
+                  <>
+                    <p className="user-popover-name">{me.name ?? me.email ?? "Usuario"}</p>
+                    {me.email && <p className="user-popover-email">{me.email}</p>}
+                    <p className="user-popover-role">Rol: {ROLE_LABEL[me.role] ?? me.role}</p>
+                  </>
+                ) : (
+                  <p className="status">Cargando…</p>
+                )}
+                <p className="field-hint">Modo autohospedado: un único usuario.</p>
+              </div>
+            )}
+          </div>
+        </div>
       </header>
-      <LineageChips lineages={lineages} selectedIds={selectedLineageIds} onChange={setSelectedLineageIds} />
-      <div className="union-legend">
-        <span>⚭ Matrimonio</span>
-        <span>⚭² 2º matrimonio (o más)</span>
-        <span>⚯ Pareja de hecho</span>
-        <span>※ Relación extramatrimonial</span>
-        <span>※² 2ª relación extramatrimonial (o más)</span>
-        <span>⚮ Divorcio/separación</span>
-        <span>✝ Unión finalizada por fallecimiento</span>
-        <span className="union-legend-hint">Pulsa un icono de unión, o el ⓘ de una tarjeta, para ver el detalle</span>
-      </div>
       {loading && <p className="status">Cargando árbol…</p>}
       {error && <p className="status status-error">{error}</p>}
       <div className="main-area">
-        <div id="FamilyChart" ref={containerRef} className="f3 tree-container" />
+        <div className="tree-canvas-wrap">
+          <div id="FamilyChart" ref={containerRef} className="f3 tree-container" />
+          <div className="legend-panel">
+            <span className="legend-item">
+              <span className="legend-icon">⚭</span>
+              <span className="legend-label">Matrimonio</span>
+            </span>
+            <span className="legend-item">
+              <span className="legend-icon">⚭²</span>
+              <span className="legend-label">2º matrimonio (o más)</span>
+            </span>
+            <span className="legend-item">
+              <span className="legend-icon">⚯</span>
+              <span className="legend-label">Pareja de hecho</span>
+            </span>
+            <span className="legend-item">
+              <span className="legend-icon">※</span>
+              <span className="legend-label">Relación extramatrimonial</span>
+            </span>
+            <span className="legend-item">
+              <span className="legend-icon">※²</span>
+              <span className="legend-label">2ª relación extramatrimonial (o más)</span>
+            </span>
+            <span className="legend-item">
+              <span className="legend-icon">⚮</span>
+              <span className="legend-label">Divorcio/separación</span>
+            </span>
+            <span className="legend-item">
+              <span className="legend-icon">✝</span>
+              <span className="legend-label">Unión finalizada por fallecimiento</span>
+            </span>
+            <span className="legend-hint">Pulsa un icono de unión, o el de una tarjeta, para ver el detalle</span>
+          </div>
+        </div>
         <Timeline people={treeData} onNavigate={handleTimelineNavigate} />
       </div>
       {showAddForm && (

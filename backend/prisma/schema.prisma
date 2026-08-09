@@ -49,8 +49,111 @@ enum ChildRelationType {
   UNKNOWN
 }
 
+// Role a user holds *within a specific tree* — permissions are scoped to
+// the tree, not to individual people or fields. A user can hold different
+// roles on different trees (e.g. owner of their own, viewer on an
+// in-law's).
+enum TreeRole {
+  OWNER
+  EDITOR
+  VIEWER
+}
+
+// A person using the app. Self-hosted deployments can get by with a
+// single row created by the seed and no real login; the hosted mode
+// (Google OAuth via Auth.js/Lucia, added later) fills `googleId` instead.
+// Both modes use the exact same schema/rows — only how a User row gets
+// created and how a request resolves "the current user" differs.
+model User {
+  id       String  @id @default(cuid())
+  email    String? @unique
+  name     String?
+  googleId String? @unique @map("google_id")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  memberships TreeMember[]
+  changes     ChangeLogEntry[]
+
+  @@map("users")
+}
+
+// A family tree. Every genealogical entity (Individual, Family, Lineage)
+// belongs to exactly one tree — v1 only ever creates one via the seed, but
+// scoping by tree_id from day one means adding multi-tree/multi-user
+// support later is additive, not a rewrite. `name` is the user-editable
+// tree title shown in the app header.
+model Tree {
+  id   String @id @default(cuid())
+  name String
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  members     TreeMember[]
+  individuals Individual[]
+  families    Family[]
+  lineages    Lineage[]
+  changes     ChangeLogEntry[]
+
+  @@map("trees")
+}
+
+// Membership + role of a user within a tree — the whole permission model:
+// owner (full control incl. members), editor (add/edit people & rels),
+// viewer (read-only). Not yet enforced by the API (no auth exists yet),
+// but the shape is in place so enforcing it later doesn't need a
+// migration.
+model TreeMember {
+  id String @id @default(cuid())
+
+  treeId String @map("tree_id")
+  tree   Tree   @relation(fields: [treeId], references: [id], onDelete: Cascade)
+
+  userId String @map("user_id")
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  role TreeRole @default(VIEWER)
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@unique([treeId, userId])
+  @@index([userId])
+  @@map("tree_members")
+}
+
+// Minimal audit trail — who changed what and when — kept as a flat,
+// append-only log rather than per-field diffs, since "simple" was the
+// point: enough to answer "who touched this" without modeling every
+// entity's change shape up front.
+model ChangeLogEntry {
+  id String @id @default(cuid())
+
+  treeId String @map("tree_id")
+  tree   Tree   @relation(fields: [treeId], references: [id], onDelete: Cascade)
+
+  userId String? @map("user_id")
+  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  // e.g. "individual.create", "individual.update", "family.delete"
+  action String
+
+  entityType String @map("entity_type")
+  entityId   String @map("entity_id")
+
+  summary String? @db.Text
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([treeId, createdAt])
+  @@map("change_log_entries")
+}
+
 model Individual {
   id String @id @default(cuid())
+
+  treeId String @map("tree_id")
+  tree   Tree   @relation(fields: [treeId], references: [id], onDelete: Cascade)
 
   givenNames String @map("given_names")
 
@@ -94,7 +197,9 @@ model Individual {
   photoUrl  String? @map("photo_url")
 
   // Original ID from a GEDCOM import, kept for round-tripping export/import.
-  gedcomXref String? @unique @map("gedcom_xref")
+  // Unique per tree, not globally — two independently imported trees can
+  // (and often do) reuse the same GEDCOM "@I1@"-style xrefs.
+  gedcomXref String? @map("gedcom_xref")
 
   createdAt DateTime  @default(now()) @map("created_at")
   updatedAt DateTime  @updatedAt @map("updated_at")
@@ -105,7 +210,8 @@ model Individual {
   childOf            FamilyChild[]
   lineages           IndividualLineage[]
 
-  @@index([surname1, givenNames])
+  @@unique([treeId, gedcomXref])
+  @@index([treeId, surname1, givenNames])
   @@map("individuals")
 }
 
@@ -118,6 +224,9 @@ model Individual {
 model Lineage {
   id String @id @default(cuid())
 
+  treeId String @map("tree_id")
+  tree   Tree   @relation(fields: [treeId], references: [id], onDelete: Cascade)
+
   name String
 
   // Hex or CSS color for the filter chip / highlighted branch in the UI.
@@ -128,6 +237,7 @@ model Lineage {
 
   individuals IndividualLineage[]
 
+  @@index([treeId])
   @@map("lineages")
 }
 
@@ -150,6 +260,9 @@ model IndividualLineage {
 model Family {
   id String @id @default(cuid())
 
+  treeId String @map("tree_id")
+  tree   Tree   @relation(fields: [treeId], references: [id], onDelete: Cascade)
+
   partner1Id String?     @map("partner1_id")
   partner1   Individual? @relation("FamilyPartner1", fields: [partner1Id], references: [id])
 
@@ -164,13 +277,15 @@ model Family {
   unionDatePrecision DatePrecision? @map("union_date_precision")
   unionPlace         String?        @map("union_place")
 
-  gedcomXref String? @unique @map("gedcom_xref")
+  // Unique per tree, not globally — see the same note on Individual.
+  gedcomXref String? @map("gedcom_xref")
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
   children FamilyChild[]
 
+  @@unique([treeId, gedcomXref])
   @@index([partner1Id])
   @@index([partner2Id])
   @@map("families")

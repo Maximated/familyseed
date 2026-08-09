@@ -1,6 +1,7 @@
 :root {
   --font-ui: "Inter", system-ui, sans-serif;
   --font-name: "Fraunces", Georgia, serif;
+  --font-title: "Playfair Display", Georgia, serif;
 
   --color-bg: #faf6ef;
   --color-forest: #1b4332;
@@ -48,36 +49,194 @@ body {
   align-items: center;
   gap: 1rem;
   padding: 0.75rem 1.5rem;
-  border-bottom: 1px solid rgba(27, 67, 50, 0.15);
 }
 
-.app-header h1 {
-  font-size: 1.25rem;
+/* The tree's own title — editable in place, so it gets a distinct
+   typeface (Playfair Display) from every other name/label in the app to
+   read as "this is the document's title," not just more UI chrome. */
+.tree-title {
+  font-family: var(--font-title);
+  font-size: 1.85rem;
+  font-weight: 700;
   margin: 0;
   flex: 1;
-  color: var(--color-forest);
+  color: rgba(27, 67, 50, 0.85);
+  cursor: pointer;
+  padding: 0.15rem 0.5rem;
+  border-radius: 6px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.header-button {
-  font-size: 0.9rem;
-  padding: 0.35rem 0.75rem;
-  border: 1px solid rgba(27, 67, 50, 0.35);
-  border-radius: 6px;
+.tree-title:hover {
+  background: rgba(27, 67, 50, 0.06);
+}
+
+.tree-title-input {
+  font-family: var(--font-title);
+  font-size: 1.85rem;
+  font-weight: 700;
+  flex: 1;
+  min-width: 0;
+  color: rgba(27, 67, 50, 0.85);
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid var(--color-amber);
+  outline: none;
+  padding: 0.15rem 0.5rem;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 1px solid rgba(27, 67, 50, 0.25);
+  border-radius: 50%;
   background: #fff;
   color: var(--color-forest);
   color-scheme: light;
   cursor: pointer;
 }
 
-.header-button:disabled {
+.icon-button:disabled {
   opacity: 0.4;
   cursor: default;
 }
 
-.header-button:not(:disabled):hover {
+.icon-button:not(:disabled):hover {
   background: var(--color-forest-light);
   border-color: var(--color-forest-light);
   color: #fff;
+}
+
+.popover-anchor {
+  position: relative;
+}
+
+@keyframes popoverOpen {
+  from {
+    opacity: 0;
+    max-height: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    max-height: 420px;
+    transform: translateY(0);
+  }
+}
+
+.popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 20;
+  min-width: 220px;
+  max-width: 320px;
+  max-height: 420px;
+  overflow-y: auto;
+  background: rgba(250, 246, 239, 0.35);
+  backdrop-filter: blur(12px) saturate(1.3);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(27, 67, 50, 0.15);
+  border: 1px solid rgba(27, 67, 50, 0.12);
+  padding: 0.75rem;
+  transform-origin: top right;
+  animation: popoverOpen 420ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes popoverItemIn {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Plain text rows instead of colored pills — the dot/tint on each chip was
+   redundant with the amber "active" convention used everywhere else, and
+   read as more chrome than the popover needed. */
+.lineage-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.lineage-list-item {
+  background: none;
+  border: none;
+  text-align: left;
+  padding: 0.3rem 0.25rem;
+  font-family: var(--font-name);
+  font-size: 0.95rem;
+  color: var(--color-forest);
+  cursor: pointer;
+  opacity: 0;
+  animation: popoverItemIn 320ms ease forwards;
+}
+
+.lineage-list-item-active {
+  color: var(--color-amber);
+  font-weight: 700;
+}
+
+.lineage-list-clear {
+  background: none;
+  border: none;
+  text-align: left;
+  padding: 0.35rem 0.25rem 0.1rem;
+  margin-top: 0.2rem;
+  border-top: 1px solid rgba(27, 67, 50, 0.15);
+  font-size: 0.8rem;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  opacity: 0;
+  animation: popoverItemIn 320ms ease forwards;
+}
+
+.user-popover-name {
+  margin: 0;
+  font-family: var(--font-name);
+  font-size: 1rem;
+  color: var(--color-forest);
+  opacity: 0;
+  animation: popoverItemIn 320ms ease forwards;
+}
+
+.user-popover-email,
+.user-popover-role {
+  margin: 0.15rem 0 0;
+  font-size: 0.8rem;
+  color: var(--color-text-secondary);
+  opacity: 0;
+  animation: popoverItemIn 320ms ease forwards;
+  animation-delay: 60ms;
+}
+
+.user-popover-role {
+  animation-delay: 120ms;
+}
+
+.user-popover .field-hint {
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid rgba(27, 67, 50, 0.1);
+  opacity: 0;
+  animation: popoverItemIn 320ms ease forwards;
+  animation-delay: 180ms;
 }
 
 .status {
@@ -95,6 +254,14 @@ body {
   flex: 1;
   display: flex;
   min-height: 0;
+}
+
+.tree-canvas-wrap {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  position: relative;
 }
 
 .tree-container {
@@ -135,6 +302,8 @@ body {
 
 .f3 g.link-text text {
   fill: var(--color-forest) !important;
+  font-size: 30px !important;
+  font-weight: 700 !important;
 }
 
 /* Lineage chips highlight matching cards without hiding the rest — a real
@@ -149,96 +318,123 @@ body {
 }
 
 .timeline {
-  width: 64px;
+  width: 132px;
   flex-shrink: 0;
-  display: flex;
-  flex-direction: column;
   overflow-y: auto;
+  overflow-x: hidden;
   background: var(--color-bg);
-  border-left: 1px solid rgba(27, 67, 50, 0.15);
   touch-action: none;
   user-select: none;
   cursor: pointer;
 }
 
-.timeline-bucket {
-  flex: 1;
-  min-height: 22px;
+.timeline-svg {
+  display: block;
+}
+
+/* The trunk is a filled tapered shape (thick base/past, thin tip/today),
+   not a stroked line — see trunkPath() in Timeline.tsx. */
+.timeline-trunk {
+  fill: var(--color-forest);
+  opacity: 0.75;
+}
+
+.timeline-branch {
+  stroke: var(--color-forest);
+  stroke-width: 1.4;
+  fill: none;
+  opacity: 0.6;
+}
+
+.timeline-leaf {
+  fill: var(--color-forest-light);
+  stroke: var(--color-forest);
+  stroke-width: 0.6;
+}
+
+.timeline-label {
+  font-family: var(--font-ui);
+  font-size: 10px;
+  font-weight: 700;
+  fill: var(--color-text-secondary);
+  dominant-baseline: middle;
+}
+
+.timeline-hit-area {
+  fill: transparent;
+}
+
+.timeline-branch-group:hover .timeline-leaf {
+  fill: var(--color-forest);
+}
+
+.timeline-branch-group:hover .timeline-branch {
+  opacity: 1;
+}
+
+.timeline-branch-group:hover .timeline-label {
+  fill: var(--color-forest);
+}
+
+.timeline-branch-active .timeline-leaf {
+  fill: var(--color-amber);
+  stroke: var(--color-amber);
+}
+
+.timeline-branch-active .timeline-branch {
+  stroke: var(--color-amber);
+  opacity: 1;
+  stroke-width: 2;
+}
+
+.timeline-branch-active .timeline-label {
+  fill: var(--color-amber);
+  font-weight: 700;
+}
+
+
+/* Floating over the tree canvas instead of pinned in the layout, so it
+   reads as a reference card rather than permanent chrome — bigger symbols
+   (the whole point of the legend), smaller labels. */
+.legend-panel {
+  position: absolute;
+  left: 50%;
+  bottom: 20px;
+  transform: translateX(-50%);
+  z-index: 5;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: center;
-  font-size: 0.7rem;
-  color: var(--color-text-secondary);
-  border-bottom: 1px solid rgba(27, 67, 50, 0.1);
-  white-space: nowrap;
+  gap: 0.3rem 0.9rem;
+  max-width: min(720px, calc(100% - 40px));
+  padding: 0.6rem 1rem;
+  border-radius: 10px;
+  background: rgba(116, 168, 146, 0.3);
+  box-shadow: 0 4px 16px rgba(27, 67, 50, 0.1);
+  border: 1px solid rgba(27, 67, 50, 0.12);
 }
 
-.timeline-bucket:hover {
-  background: rgba(27, 67, 50, 0.08);
-}
-
-.timeline-bucket-active {
-  background: var(--color-forest-light);
-  color: #fff;
-  font-weight: 600;
-}
-
-.lineage-chips {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.4rem;
-  padding: 0.5rem 1.5rem;
-  border-bottom: 1px solid rgba(27, 67, 50, 0.15);
-}
-
-.lineage-chip {
+.legend-item {
   display: inline-flex;
   align-items: center;
-  gap: 0.35rem;
-  font-size: 0.8rem;
-  padding: 0.25rem 0.65rem;
-  border-radius: 999px;
-  border: 1px solid rgba(27, 67, 50, 0.3);
-  background: #fff;
+  gap: 0.3rem;
+}
+
+.legend-icon {
+  font-size: 1.15rem;
   color: var(--color-forest);
-  cursor: pointer;
+  line-height: 1;
 }
 
-.lineage-chip-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--chip-color, #888);
-  flex-shrink: 0;
-}
-
-/* The dot keeps each lineage's own identifying color; the border/tint is
-   the shared "this filter is active" signal, same amber the tree cards
-   get highlighted with. */
-.lineage-chip-active {
-  border-color: var(--color-amber);
-  background: color-mix(in srgb, var(--color-amber) 15%, white);
-  font-weight: 600;
-}
-
-.lineage-chip-clear {
+.legend-label {
+  font-size: 0.65rem;
   color: var(--color-text-secondary);
-  border-style: dashed;
 }
 
-.union-legend {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem 1rem;
-  padding: 0.35rem 1.5rem;
-  font-size: 0.75rem;
-  color: var(--color-text-secondary);
-  border-bottom: 1px solid rgba(27, 67, 50, 0.15);
-}
-
-.union-legend-hint {
-  margin-left: auto;
+.legend-hint {
+  flex-basis: 100%;
+  font-size: 0.65rem;
   font-style: italic;
   color: var(--color-text-secondary);
 }
@@ -320,38 +516,85 @@ body {
   background: var(--color-forest-light);
 }
 
+/* Header row: a small icon badge + title/subtitle, echoing a calendar-
+   event-style card rather than a plain form-like dialog. */
+.info-panel-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.info-panel-icon {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: var(--color-other);
+  color: var(--color-forest);
+}
+
+.info-panel-icon-male {
+  background: var(--color-male);
+}
+
+.info-panel-icon-female {
+  background: var(--color-female);
+}
+
+.info-panel-icon-union {
+  background: var(--color-bg);
+  border: 1px solid rgba(27, 67, 50, 0.2);
+}
+
+.info-panel-union-symbol {
+  font-size: 1.3rem;
+}
+
+.info-panel-heading {
+  min-width: 0;
+}
+
 .info-panel-title {
-  margin-bottom: 0.15rem;
+  margin: 0;
+  font-size: 1.3rem;
 }
 
 .info-panel-subtitle {
-  margin: 0 0 1rem;
-  font-size: 0.95rem;
-  color: var(--color-text-secondary);
-}
-
-.info-panel-rows {
-  margin: 0 0 1rem;
-}
-
-.info-panel-row {
-  display: flex;
-  gap: 0.75rem;
-  padding: 0.35rem 0;
-  border-bottom: 1px solid #f0f0f0;
+  margin: 0.1rem 0 0;
   font-size: 0.9rem;
-}
-
-.info-panel-row dt {
-  flex: 0 0 110px;
   color: var(--color-text-secondary);
-  font-weight: 700;
 }
 
-.info-panel-row dd {
+.info-panel-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  margin-bottom: 1rem;
+}
+
+.info-panel-section-heading {
+  margin: 0 0 0.3rem;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--color-forest);
+}
+
+.info-panel-bullets {
   margin: 0;
-  flex: 1;
-  white-space: pre-wrap;
+  padding-left: 1.2em;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.info-panel-bullets li {
+  font-size: 0.8rem;
+  font-weight: 400;
+  line-height: 1.4;
 }
 
 .modal-backdrop {

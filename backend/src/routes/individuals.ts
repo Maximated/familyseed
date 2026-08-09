@@ -8,6 +8,7 @@ import {
   UNION_STATUS_VALUES,
   UNION_TYPE_VALUES,
 } from "../enums.js";
+import { getDefaultTreeId, logChange } from "../tree-context.js";
 
 const individualFieldsSchema = {
   type: "object",
@@ -116,12 +117,18 @@ function isActive<T extends { deletedAt: Date | null }>(person: T | null | undef
   return !!person && person.deletedAt === null;
 }
 
+function personLabel(individual: { givenNames: string; surname1: string }): string {
+  return `${individual.givenNames} ${individual.surname1}`;
+}
+
 export default async function individualRoutes(fastify: FastifyInstance) {
   fastify.get("/", async (request) => {
     const { search, trashed } = request.query as { search?: string; trashed?: string };
+    const treeId = await getDefaultTreeId();
 
     return prisma.individual.findMany({
       where: {
+        treeId,
         deletedAt: trashed === "true" ? { not: null } : null,
         ...(search
           ? {
@@ -140,9 +147,10 @@ export default async function individualRoutes(fastify: FastifyInstance) {
 
   fastify.get("/:id", async (request, reply) => {
     const { id } = request.params as { id: string };
+    const treeId = await getDefaultTreeId();
 
-    const individual = await prisma.individual.findUnique({
-      where: { id },
+    const individual = await prisma.individual.findFirst({
+      where: { id, treeId },
       include: {
         childOf: {
           include: {
@@ -238,10 +246,13 @@ export default async function individualRoutes(fastify: FastifyInstance) {
     const { individual, relationship } = request.body as CreateIndividualBody;
 
     try {
+      const treeId = await getDefaultTreeId();
+
       const result = await prisma.$transaction(async (tx) => {
         const created = await tx.individual.create({
           data: {
             ...individual,
+            treeId,
             birthDateValue: individual.birthDateValue ? new Date(individual.birthDateValue) : undefined,
             deathDateValue: individual.deathDateValue ? new Date(individual.deathDateValue) : undefined,
           },
@@ -255,7 +266,9 @@ export default async function individualRoutes(fastify: FastifyInstance) {
               if (!relationship.familyId) {
                 throw new HttpError(400, "familyId es obligatorio para relationship.kind = CHILD");
               }
-              const existingFamily = await tx.family.findUnique({ where: { id: relationship.familyId } });
+              const existingFamily = await tx.family.findFirst({
+                where: { id: relationship.familyId, treeId },
+              });
               if (!existingFamily) {
                 throw new HttpError(404, `No existe la familia ${relationship.familyId}`);
               }
@@ -275,7 +288,7 @@ export default async function individualRoutes(fastify: FastifyInstance) {
                 throw new HttpError(400, "parent1Id es obligatorio para relationship.kind = CHILD_OF_PARENTS");
               }
               const parent1 = await tx.individual.findFirst({
-                where: { id: relationship.parent1Id, deletedAt: null },
+                where: { id: relationship.parent1Id, treeId, deletedAt: null },
               });
               if (!parent1) {
                 throw new HttpError(404, `No existe el individuo ${relationship.parent1Id}`);
@@ -284,7 +297,7 @@ export default async function individualRoutes(fastify: FastifyInstance) {
               let parent2 = null;
               if (relationship.parent2Id) {
                 parent2 = await tx.individual.findFirst({
-                  where: { id: relationship.parent2Id, deletedAt: null },
+                  where: { id: relationship.parent2Id, treeId, deletedAt: null },
                 });
                 if (!parent2) {
                   throw new HttpError(404, `No existe el individuo ${relationship.parent2Id}`);
@@ -292,20 +305,24 @@ export default async function individualRoutes(fastify: FastifyInstance) {
               }
 
               family = await tx.family.findFirst({
-                where: parent2
-                  ? {
-                      OR: [
-                        { partner1Id: parent1.id, partner2Id: parent2.id },
-                        { partner1Id: parent2.id, partner2Id: parent1.id },
-                      ],
-                    }
-                  : { partner1Id: parent1.id, partner2Id: null },
+                where: {
+                  treeId,
+                  ...(parent2
+                    ? {
+                        OR: [
+                          { partner1Id: parent1.id, partner2Id: parent2.id },
+                          { partner1Id: parent2.id, partner2Id: parent1.id },
+                        ],
+                      }
+                    : { partner1Id: parent1.id, partner2Id: null }),
+                },
               });
 
               if (!family) {
                 family = await tx.family.create({
-                  data: { partner1Id: parent1.id, partner2Id: parent2?.id ?? null, unionType: "UNKNOWN" },
+                  data: { treeId, partner1Id: parent1.id, partner2Id: parent2?.id ?? null, unionType: "UNKNOWN" },
                 });
+                await logChange({ action: "family.create", entityType: "Family", entityId: family.id });
               }
 
               await tx.familyChild.create({
@@ -323,7 +340,7 @@ export default async function individualRoutes(fastify: FastifyInstance) {
                 throw new HttpError(400, "partnerId es obligatorio para relationship.kind = PARTNER");
               }
               const partner = await tx.individual.findFirst({
-                where: { id: relationship.partnerId, deletedAt: null },
+                where: { id: relationship.partnerId, treeId, deletedAt: null },
               });
               if (!partner) {
                 throw new HttpError(404, `No existe el individuo ${relationship.partnerId}`);
@@ -331,6 +348,7 @@ export default async function individualRoutes(fastify: FastifyInstance) {
 
               family = await tx.family.create({
                 data: {
+                  treeId,
                   partner1Id: partner.id,
                   partner2Id: created.id,
                   unionType: relationship.unionType ?? "UNKNOWN",
@@ -341,6 +359,7 @@ export default async function individualRoutes(fastify: FastifyInstance) {
                   unionPlace: relationship.unionPlace,
                 },
               });
+              await logChange({ action: "family.create", entityType: "Family", entityId: family.id });
               break;
             }
 
@@ -350,6 +369,13 @@ export default async function individualRoutes(fastify: FastifyInstance) {
         }
 
         return { individual: created, family };
+      });
+
+      await logChange({
+        action: "individual.create",
+        entityType: "Individual",
+        entityId: result.individual.id,
+        summary: personLabel(result.individual),
       });
 
       return reply.code(201).send(result);
@@ -365,8 +391,9 @@ export default async function individualRoutes(fastify: FastifyInstance) {
   fastify.patch("/:id", { schema: { body: updateIndividualBodySchema } }, async (request, reply) => {
     const { id } = request.params as { id: string };
     const updates = request.body as UpdateIndividualBody;
+    const treeId = await getDefaultTreeId();
 
-    const existing = await prisma.individual.findFirst({ where: { id, deletedAt: null } });
+    const existing = await prisma.individual.findFirst({ where: { id, treeId, deletedAt: null } });
     if (!existing) {
       return reply.code(404).send({ error: `No existe el individuo ${id}` });
     }
@@ -380,6 +407,13 @@ export default async function individualRoutes(fastify: FastifyInstance) {
       },
     });
 
+    await logChange({
+      action: "individual.update",
+      entityType: "Individual",
+      entityId: updated.id,
+      summary: personLabel(updated),
+    });
+
     return updated;
   });
 
@@ -388,20 +422,28 @@ export default async function individualRoutes(fastify: FastifyInstance) {
   // (see isActive/activeIds above) until restored or purged for good.
   fastify.delete("/:id", async (request, reply) => {
     const { id } = request.params as { id: string };
+    const treeId = await getDefaultTreeId();
 
-    const existing = await prisma.individual.findFirst({ where: { id, deletedAt: null } });
+    const existing = await prisma.individual.findFirst({ where: { id, treeId, deletedAt: null } });
     if (!existing) {
       return reply.code(404).send({ error: `No existe el individuo ${id}` });
     }
 
     await prisma.individual.update({ where: { id }, data: { deletedAt: new Date() } });
+    await logChange({
+      action: "individual.delete",
+      entityType: "Individual",
+      entityId: id,
+      summary: personLabel(existing),
+    });
     return reply.code(204).send();
   });
 
   fastify.post("/:id/restore", async (request, reply) => {
     const { id } = request.params as { id: string };
+    const treeId = await getDefaultTreeId();
 
-    const existing = await prisma.individual.findUnique({ where: { id } });
+    const existing = await prisma.individual.findFirst({ where: { id, treeId } });
     if (!existing) {
       return reply.code(404).send({ error: `No existe el individuo ${id}` });
     }
@@ -410,6 +452,12 @@ export default async function individualRoutes(fastify: FastifyInstance) {
     }
 
     const restored = await prisma.individual.update({ where: { id }, data: { deletedAt: null } });
+    await logChange({
+      action: "individual.restore",
+      entityType: "Individual",
+      entityId: restored.id,
+      summary: personLabel(restored),
+    });
     return restored;
   });
 }

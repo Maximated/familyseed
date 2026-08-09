@@ -2,6 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { prisma } from "../db.js";
 import { HttpError } from "../http-error.js";
 import { DATE_PRECISION_VALUES, UNION_STATUS_VALUES, UNION_TYPE_VALUES } from "../enums.js";
+import { getDefaultTreeId, logChange } from "../tree-context.js";
 
 const createFamilyBodySchema = {
   type: "object",
@@ -47,14 +48,16 @@ export default async function familyRoutes(fastify: FastifyInstance) {
     } = request.body as CreateFamilyBody;
 
     try {
+      const treeId = await getDefaultTreeId();
+
       const family = await prisma.$transaction(async (tx) => {
-        const partner1 = await tx.individual.findUnique({ where: { id: partner1Id } });
+        const partner1 = await tx.individual.findFirst({ where: { id: partner1Id, treeId } });
         if (!partner1) {
           throw new HttpError(404, `No existe el individuo ${partner1Id}`);
         }
 
         if (partner2Id) {
-          const partner2 = await tx.individual.findUnique({ where: { id: partner2Id } });
+          const partner2 = await tx.individual.findFirst({ where: { id: partner2Id, treeId } });
           if (!partner2) {
             throw new HttpError(404, `No existe el individuo ${partner2Id}`);
           }
@@ -62,6 +65,7 @@ export default async function familyRoutes(fastify: FastifyInstance) {
 
         const created = await tx.family.create({
           data: {
+            treeId,
             partner1Id,
             partner2Id: partner2Id ?? null,
             unionType: unionType ?? "UNKNOWN",
@@ -75,7 +79,7 @@ export default async function familyRoutes(fastify: FastifyInstance) {
 
         if (childrenIds?.length) {
           for (const childId of childrenIds) {
-            const child = await tx.individual.findUnique({ where: { id: childId } });
+            const child = await tx.individual.findFirst({ where: { id: childId, treeId } });
             if (!child) {
               throw new HttpError(404, `No existe el individuo ${childId}`);
             }
@@ -87,6 +91,8 @@ export default async function familyRoutes(fastify: FastifyInstance) {
 
         return created;
       });
+
+      await logChange({ action: "family.create", entityType: "Family", entityId: family.id });
 
       return reply.code(201).send(family);
     } catch (error) {

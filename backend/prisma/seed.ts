@@ -1,4 +1,4 @@
-import { PrismaClient, Sex, DatePrecision } from "@prisma/client";
+import { PrismaClient, Sex, DatePrecision, Prisma } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
@@ -31,12 +31,35 @@ type IndividualInput = {
   biography?: string;
 };
 
+type FamilyInput = {
+  partner1Id: string;
+  partner2Id: string;
+  unionType: "MARRIAGE" | "PARTNERSHIP" | "EXTRAMARITAL" | "UNKNOWN";
+  unionStatus?: "ONGOING" | "ENDED_BY_DEATH" | "DIVORCED" | "SEPARATED" | "ANNULLED";
+  unionDateText?: string;
+  unionDateValue?: Date;
+  unionDatePrecision?: DatePrecision;
+  unionPlace?: string;
+};
+
+// Every genealogical row belongs to a tree — this seed only ever creates
+// one, so it's set once here and closed over by the helpers below rather
+// than threaded through every single call site.
+let treeId: string;
+
 async function createIndividual(data: IndividualInput) {
-  return prisma.individual.create({ data });
+  const input: Prisma.IndividualUncheckedCreateInput = { ...data, treeId };
+  return prisma.individual.create({ data: input });
 }
 
 async function createLineage(name: string, color: string) {
-  return prisma.lineage.create({ data: { name, color } });
+  const input: Prisma.LineageUncheckedCreateInput = { name, color, treeId };
+  return prisma.lineage.create({ data: input });
+}
+
+async function createFamily(data: FamilyInput) {
+  const input: Prisma.FamilyUncheckedCreateInput = { ...data, treeId };
+  return prisma.family.create({ data: input });
 }
 
 async function addToLineage(individualId: string, lineageId: string) {
@@ -44,6 +67,18 @@ async function addToLineage(individualId: string, lineageId: string) {
 }
 
 async function main() {
+  // --- Tree + owner ---
+  // v1 only ever has one tree/one user, created straight from the seed
+  // (self-hosted mode needs no real login) — but every row below hangs off
+  // treeId from the start, so multi-tree/multi-user support later is
+  // additive rather than a migration.
+  const owner = await prisma.user.create({
+    data: { name: "Max Zawada", email: "maxzawada@gmail.com" },
+  });
+  const tree = await prisma.tree.create({ data: { name: "Árbol genealógico" } });
+  await prisma.treeMember.create({ data: { treeId: tree.id, userId: owner.id, role: "OWNER" } });
+  treeId = tree.id;
+
   // --- Lineages ---
   // Purely a navigation aid — membership is manual and overlapping, not
   // derived from surname1.
@@ -108,32 +143,28 @@ async function main() {
   await addToLineage(janina.id, lineageZawadzki.id);
   await addToLineage(janina.id, lineageSikora.id);
 
-  const familyBronislawMaria = await prisma.family.create({
-    data: {
-      partner1Id: bronislaw.id,
-      partner2Id: maria.id,
-      unionType: "MARRIAGE",
-      unionStatus: "ENDED_BY_DEATH",
-      unionDateText: "hacia 1946",
-      unionDateValue: new Date("1946-01-01"),
-      unionDatePrecision: DatePrecision.ABOUT,
-      unionPlace: "Kraków, Polonia",
-    },
+  const familyBronislawMaria = await createFamily({
+    partner1Id: bronislaw.id,
+    partner2Id: maria.id,
+    unionType: "MARRIAGE",
+    unionStatus: "ENDED_BY_DEATH",
+    unionDateText: "hacia 1946",
+    unionDateValue: new Date("1946-01-01"),
+    unionDatePrecision: DatePrecision.ABOUT,
+    unionPlace: "Kraków, Polonia",
   });
 
   // Bronisław's second marriage — the backend computes "2nd union" from
   // having more than one Family row, nothing to set here for that part.
-  const familyBronislawJanina = await prisma.family.create({
-    data: {
-      partner1Id: bronislaw.id,
-      partner2Id: janina.id,
-      unionType: "MARRIAGE",
-      unionStatus: "ENDED_BY_DEATH",
-      unionDateText: "1967",
-      unionDateValue: new Date("1967-01-01"),
-      unionDatePrecision: DatePrecision.EXACT,
-      unionPlace: "Kraków, Polonia",
-    },
+  const familyBronislawJanina = await createFamily({
+    partner1Id: bronislaw.id,
+    partner2Id: janina.id,
+    unionType: "MARRIAGE",
+    unionStatus: "ENDED_BY_DEATH",
+    unionDateText: "1967",
+    unionDateValue: new Date("1967-01-01"),
+    unionDatePrecision: DatePrecision.EXACT,
+    unionPlace: "Kraków, Polonia",
   });
 
   // --- Generation 2 ---
@@ -191,27 +222,23 @@ async function main() {
   });
   await addToLineage(wojciech.id, lineageNowak.id);
 
-  const familyHenrykIrena = await prisma.family.create({
-    data: {
-      partner1Id: henryk.id,
-      partner2Id: irena.id,
-      unionType: "MARRIAGE",
-      unionDateText: "1970",
-      unionDateValue: new Date("1970-01-01"),
-      unionDatePrecision: DatePrecision.EXACT,
-      unionPlace: "Kraków, Polonia",
-    },
+  const familyHenrykIrena = await createFamily({
+    partner1Id: henryk.id,
+    partner2Id: irena.id,
+    unionType: "MARRIAGE",
+    unionDateText: "1970",
+    unionDateValue: new Date("1970-01-01"),
+    unionDatePrecision: DatePrecision.EXACT,
+    unionPlace: "Kraków, Polonia",
   });
 
-  const familyKrystynaWojciech = await prisma.family.create({
-    data: {
-      partner1Id: krystyna.id,
-      partner2Id: wojciech.id,
-      unionType: "MARRIAGE",
-      unionDateText: "hacia 1990",
-      unionDatePrecision: DatePrecision.ABOUT,
-      unionPlace: "Tarnów, Polonia",
-    },
+  const familyKrystynaWojciech = await createFamily({
+    partner1Id: krystyna.id,
+    partner2Id: wojciech.id,
+    unionType: "MARRIAGE",
+    unionDateText: "hacia 1990",
+    unionDatePrecision: DatePrecision.ABOUT,
+    unionPlace: "Tarnów, Polonia",
   });
 
   // --- Generation 3 ---
@@ -294,29 +321,25 @@ async function main() {
   await addToLineage(marek.id, lineageZawadzki.id);
   await addToLineage(marek.id, lineageKowalski.id);
 
-  const familyPiotrAgnieszka = await prisma.family.create({
-    data: {
-      partner1Id: piotr.id,
-      partner2Id: agnieszka.id,
-      unionType: "MARRIAGE",
-      unionDateText: "1997",
-      unionDateValue: new Date("1997-01-01"),
-      unionDatePrecision: DatePrecision.EXACT,
-      unionPlace: "Kraków, Polonia",
-    },
+  const familyPiotrAgnieszka = await createFamily({
+    partner1Id: piotr.id,
+    partner2Id: agnieszka.id,
+    unionType: "MARRIAGE",
+    unionDateText: "1997",
+    unionDateValue: new Date("1997-01-01"),
+    unionDatePrecision: DatePrecision.EXACT,
+    unionPlace: "Kraków, Polonia",
   });
 
-  const familyAnnaMarek = await prisma.family.create({
-    data: {
-      partner1Id: anna.id,
-      partner2Id: marek.id,
-      unionType: "MARRIAGE",
-      unionStatus: "DIVORCED",
-      unionDateText: "2000",
-      unionDateValue: new Date("2000-01-01"),
-      unionDatePrecision: DatePrecision.EXACT,
-      unionPlace: "Warszawa, Polonia",
-    },
+  const familyAnnaMarek = await createFamily({
+    partner1Id: anna.id,
+    partner2Id: marek.id,
+    unionType: "MARRIAGE",
+    unionStatus: "DIVORCED",
+    unionDateText: "2000",
+    unionDateValue: new Date("2000-01-01"),
+    unionDatePrecision: DatePrecision.EXACT,
+    unionPlace: "Warszawa, Polonia",
   });
 
   // --- Generation 4 ---
@@ -380,16 +403,14 @@ async function main() {
   });
   await addToLineage(sofia.id, lineageGarciaLopez.id);
 
-  await prisma.family.create({
-    data: {
-      partner1Id: tomasz.id,
-      partner2Id: sofia.id,
-      unionType: "MARRIAGE",
-      unionDateText: "2023",
-      unionDateValue: new Date("2023-01-01"),
-      unionDatePrecision: DatePrecision.EXACT,
-      unionPlace: "Madrid, España",
-    },
+  await createFamily({
+    partner1Id: tomasz.id,
+    partner2Id: sofia.id,
+    unionType: "MARRIAGE",
+    unionDateText: "2023",
+    unionDateValue: new Date("2023-01-01"),
+    unionDatePrecision: DatePrecision.EXACT,
+    unionPlace: "Madrid, España",
   });
 
   // Extramarital relationship, concurrent with Piotr's marriage to
@@ -408,16 +429,14 @@ async function main() {
   const lineageWojcik = await createLineage("Wójcik", "#a98a4a");
   await addToLineage(ewa.id, lineageWojcik.id);
 
-  const familyPiotrEwa = await prisma.family.create({
-    data: {
-      partner1Id: piotr.id,
-      partner2Id: ewa.id,
-      unionType: "EXTRAMARITAL",
-      unionStatus: "ONGOING",
-      unionDateText: "hacia 2005",
-      unionDatePrecision: DatePrecision.ABOUT,
-      unionPlace: "Kraków, Polonia",
-    },
+  const familyPiotrEwa = await createFamily({
+    partner1Id: piotr.id,
+    partner2Id: ewa.id,
+    unionType: "EXTRAMARITAL",
+    unionStatus: "ONGOING",
+    unionDateText: "hacia 2005",
+    unionDatePrecision: DatePrecision.ABOUT,
+    unionPlace: "Kraków, Polonia",
   });
 
   const zofia = await createIndividual({
@@ -436,7 +455,7 @@ async function main() {
     data: { familyId: familyPiotrEwa.id, individualId: zofia.id, relationType: "BIOLOGICAL" },
   });
 
-  console.log("Seed completado: 17 individuos, 9 uniones familiares, 9 linajes.");
+  console.log("Seed completado: 1 árbol, 1 usuario, 17 individuos, 9 uniones familiares, 9 linajes.");
 }
 
 main()
