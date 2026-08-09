@@ -70,8 +70,9 @@ model Individual {
   // Original ID from a GEDCOM import, kept for round-tripping export/import.
   gedcomXref String? @unique @map("gedcom_xref")
 
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
 
   familiesAsPartner1 Family[]      @relation("FamilyPartner1")
   familiesAsPartner2 Family[]      @relation("FamilyPartner2")

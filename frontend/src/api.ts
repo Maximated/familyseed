@@ -15,6 +15,8 @@ export type Individual = {
   birthPlace: string | null;
   deathDateText: string | null;
   deathPlace: string | null;
+  notes: string | null;
+  deletedAt?: string | null;
 };
 
 export type Relationship =
@@ -27,20 +29,24 @@ export type Relationship =
       unionPlace?: string;
     };
 
+export type IndividualFields = {
+  givenNames: string;
+  surname: string;
+  birthSurname?: string;
+  sex?: Sex;
+  birthDateText?: string;
+  birthPlace?: string;
+  deathDateText?: string;
+  deathPlace?: string;
+  notes?: string;
+};
+
 export type CreateIndividualPayload = {
-  individual: {
-    givenNames: string;
-    surname: string;
-    birthSurname?: string;
-    sex?: Sex;
-    birthDateText?: string;
-    birthPlace?: string;
-    deathDateText?: string;
-    deathPlace?: string;
-    notes?: string;
-  };
+  individual: IndividualFields;
   relationship?: Relationship;
 };
+
+export type UpdateIndividualPayload = Partial<IndividualFields>;
 
 async function parseJsonOrThrow(res: Response) {
   const body = await res.json().catch(() => null);
@@ -72,5 +78,41 @@ export async function createIndividual(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
+  return parseJsonOrThrow(res);
+}
+
+export async function fetchIndividual(id: string): Promise<Individual> {
+  const res = await fetch(`${API_URL}/individuals/${id}`);
+  const body = await parseJsonOrThrow(res);
+  return body.individual;
+}
+
+export async function updateIndividual(
+  id: string,
+  payload: UpdateIndividualPayload,
+): Promise<Individual> {
+  const res = await fetch(`${API_URL}/individuals/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  return parseJsonOrThrow(res);
+}
+
+export async function deleteIndividual(id: string): Promise<void> {
+  const res = await fetch(`${API_URL}/individuals/${id}`, { method: "DELETE" });
+  if (!res.ok) {
+    const body = await res.json().catch(() => null);
+    throw new Error(body?.error ?? `La API respondió ${res.status}`);
+  }
+}
+
+export async function fetchTrash(): Promise<Individual[]> {
+  const res = await fetch(`${API_URL}/individuals?trashed=true`);
+  return parseJsonOrThrow(res);
+}
+
+export async function restoreIndividual(id: string): Promise<Individual> {
+  const res = await fetch(`${API_URL}/individuals/${id}/restore`, { method: "POST" });
   return parseJsonOrThrow(res);
 }

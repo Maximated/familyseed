@@ -18,7 +18,7 @@
   flex: 1;
 }
 
-.back-button {
+.header-button {
   font-size: 0.9rem;
   padding: 0.35rem 0.75rem;
   border: 1px solid #ccc;
@@ -29,12 +29,12 @@
   cursor: pointer;
 }
 
-.back-button:disabled {
+.header-button:disabled {
   opacity: 0.4;
   cursor: default;
 }
 
-.back-button:not(:disabled):hover {
+.header-button:not(:disabled):hover {
   background: #f0f0f0;
 }
 
@@ -55,21 +55,6 @@
   min-height: 0;
   /* family-chart's link/text colors are designed for this dark canvas. */
   background: var(--background-color, rgb(33, 33, 33));
-}
-
-.add-button {
-  font-size: 0.9rem;
-  padding: 0.35rem 0.75rem;
-  border: 1px solid #ccc;
-  border-radius: 6px;
-  background: #fff;
-  color: #222;
-  color-scheme: light;
-  cursor: pointer;
-}
-
-.add-button:hover {
-  background: #f0f0f0;
 }
 
 .modal-backdrop {
@@ -175,4 +160,76 @@
 .modal-actions button:disabled {
   opacity: 0.6;
   cursor: default;
+}
+
+.danger-zone {
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid #eee;
+}
+
+.delete-button {
+  font-size: 0.9rem;
+  padding: 0.4rem 0.9rem;
+  border-radius: 6px;
+  border: 1px solid #b00020;
+  background: #fff;
+  color: #b00020;
+  cursor: pointer;
+}
+
+.delete-button:hover {
+  background: #fdecee;
+}
+
+.delete-button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.delete-confirm p {
+  font-size: 0.9rem;
+  margin: 0 0 0.75rem;
+}
+
+.trash-list {
+  list-style: none;
+  margin: 0 0 1rem;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.trash-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #eee;
+  border-radius: 6px;
+}
+
+.trash-list-name {
+  font-size: 0.95rem;
+}
+
+.trash-list-meta {
+  font-size: 0.8rem;
+  color: #666;
+}
+
+.trash-list li button {
+  font-size: 0.85rem;
+  padding: 0.3rem 0.7rem;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+  background: #fff;
+  color: #222;
+  cursor: pointer;
+}
+
+.trash-list li button:hover {
+  background: #f0f0f0;
 }

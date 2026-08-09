@@ -4,6 +4,7 @@ import { prisma } from "../db.js";
 export default async function treeRoutes(fastify: FastifyInstance) {
   fastify.get("/", async () => {
     const individuals = await prisma.individual.findMany({
+      where: { deletedAt: null },
       orderBy: { createdAt: "asc" },
       include: {
         childOf: { include: { family: true } },
@@ -12,22 +13,36 @@ export default async function treeRoutes(fastify: FastifyInstance) {
       },
     });
 
+    // Families/family_children rows are never touched when an individual is
+    // soft-deleted, so a reference (parent/spouse/child id) can still point
+    // at someone who's now in the trash — drop those instead of rendering a
+    // card family-chart has no data for.
+    const activeIds = new Set(individuals.map((i) => i.id));
+
     return individuals.map((individual) => {
       const parents = new Set<string>();
       for (const familyChild of individual.childOf) {
-        if (familyChild.family.partner1Id) parents.add(familyChild.family.partner1Id);
-        if (familyChild.family.partner2Id) parents.add(familyChild.family.partner2Id);
+        if (familyChild.family.partner1Id && activeIds.has(familyChild.family.partner1Id)) {
+          parents.add(familyChild.family.partner1Id);
+        }
+        if (familyChild.family.partner2Id && activeIds.has(familyChild.family.partner2Id)) {
+          parents.add(familyChild.family.partner2Id);
+        }
       }
 
       const spouses = new Set<string>();
       const children = new Set<string>();
       for (const family of individual.familiesAsPartner1) {
-        if (family.partner2Id) spouses.add(family.partner2Id);
-        for (const child of family.children) children.add(child.individualId);
+        if (family.partner2Id && activeIds.has(family.partner2Id)) spouses.add(family.partner2Id);
+        for (const child of family.children) {
+          if (activeIds.has(child.individualId)) children.add(child.individualId);
+        }
       }
       for (const family of individual.familiesAsPartner2) {
-        if (family.partner1Id) spouses.add(family.partner1Id);
-        for (const child of family.children) children.add(child.individualId);
+        if (family.partner1Id && activeIds.has(family.partner1Id)) spouses.add(family.partner1Id);
+        for (const child of family.children) {
+          if (activeIds.has(child.individualId)) children.add(child.individualId);
+        }
       }
 
       return {

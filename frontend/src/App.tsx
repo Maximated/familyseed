@@ -4,6 +4,8 @@ import "family-chart/styles/family-chart.css";
 import "./App.css";
 import { fetchTree } from "./api";
 import AddPersonForm from "./AddPersonForm";
+import EditPersonForm from "./EditPersonForm";
+import TrashView from "./TrashView";
 
 function App() {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -14,7 +16,10 @@ function App() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [canGoBack, setCanGoBack] = useState(false);
+  const [currentMainId, setCurrentMainId] = useState<string | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
+  const [showEditForm, setShowEditForm] = useState(false);
+  const [showTrash, setShowTrash] = useState(false);
 
   const loadTree = useCallback(async (recenterOnId?: string) => {
     const data = await fetchTree();
@@ -47,11 +52,13 @@ function App() {
         }
         isGoingBackRef.current = false;
         currentMainIdRef.current = newMainId;
+        setCurrentMainId(newMainId);
       });
 
       chart.updateTree({ initial: true });
       chartRef.current = chart;
       currentMainIdRef.current = chart.getMainDatum().id;
+      setCurrentMainId(chart.getMainDatum().id);
       return;
     }
 
@@ -60,6 +67,8 @@ function App() {
       chartRef.current.updateMainId(recenterOnId);
     }
     chartRef.current.updateTree({});
+    currentMainIdRef.current = chartRef.current.getMainDatum().id;
+    setCurrentMainId(currentMainIdRef.current);
   }, []);
 
   useEffect(() => {
@@ -94,12 +103,29 @@ function App() {
     loadTree(newPersonId).catch((err: Error) => setError(err.message));
   }
 
+  function handlePersonSaved(personId: string) {
+    setShowEditForm(false);
+    loadTree(personId).catch((err: Error) => setError(err.message));
+  }
+
+  function handlePersonDeleted() {
+    setShowEditForm(false);
+    // The deleted person can no longer be a valid "back" target.
+    backStackRef.current = backStackRef.current.filter((id) => id !== currentMainId);
+    setCanGoBack(backStackRef.current.length > 0);
+    loadTree().catch((err: Error) => setError(err.message));
+  }
+
+  function handleTrashRestored() {
+    loadTree().catch((err: Error) => setError(err.message));
+  }
+
   return (
     <div className="app">
       <header className="app-header">
         <button
           type="button"
-          className="back-button"
+          className="header-button"
           onClick={handleBack}
           disabled={!canGoBack}
           aria-label="Volver"
@@ -108,7 +134,18 @@ function App() {
           ← Volver
         </button>
         <h1>Árbol genealógico</h1>
-        <button type="button" className="add-button" onClick={() => setShowAddForm(true)}>
+        <button
+          type="button"
+          className="header-button"
+          onClick={() => setShowEditForm(true)}
+          disabled={!currentMainId}
+        >
+          Editar
+        </button>
+        <button type="button" className="header-button" onClick={() => setShowTrash(true)}>
+          Papelera
+        </button>
+        <button type="button" className="header-button" onClick={() => setShowAddForm(true)}>
           + Añadir persona
         </button>
       </header>
@@ -117,6 +154,17 @@ function App() {
       <div id="FamilyChart" ref={containerRef} className="f3 tree-container" />
       {showAddForm && (
         <AddPersonForm onCreated={handlePersonCreated} onClose={() => setShowAddForm(false)} />
+      )}
+      {showEditForm && currentMainId && (
+        <EditPersonForm
+          personId={currentMainId}
+          onSaved={handlePersonSaved}
+          onDeleted={handlePersonDeleted}
+          onClose={() => setShowEditForm(false)}
+        />
+      )}
+      {showTrash && (
+        <TrashView onRestored={handleTrashRestored} onClose={() => setShowTrash(false)} />
       )}
     </div>
   );
