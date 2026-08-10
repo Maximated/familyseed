@@ -16,21 +16,26 @@
     "seed": "tsx prisma/seed.ts"
   },
   "devDependencies": {
+    "@types/node": "^22.10.5",
     "prisma": "^6.2.1",
     "tsx": "^4.19.2",
-    "typescript": "^5.7.3",
-    "@types/node": "^22.10.5"
+    "typescript": "^5.7.3"
   },
   "dependencies": {
+    "@fastify/cors": "^10.0.1",
+    "@fastify/multipart": "^10.1.0",
+    "@fastify/static": "^10.1.3",
     "@prisma/client": "^6.2.1",
     "fastify": "^5.2.0",
-    "@fastify/cors": "^10.0.1"
+    "parse-gedcom": "^2.0.1",
+    "puppeteer": "^25.5.0"
   },
   "allowScripts": {
     "@prisma/client@6.19.3": true,
     "@prisma/engines@6.19.3": true,
     "esbuild@0.28.2": true,
     "prisma@6.19.3": true,
-    "fsevents@2.3.3": true
+    "fsevents@2.3.3": true,
+    "puppeteer@25.5.0": true
   }
 }

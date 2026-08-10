@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import i18n from "./i18n";
 import type { TreePerson } from "./api";
 
 type Bucket = {
@@ -38,7 +39,7 @@ export function computeBuckets(birthYears: number[], currentYear: number): Bucke
       buckets.push({
         start: century,
         end: centuryEnd - 1,
-        label: `S. ${toRoman(century / 100 + 1)}`,
+        label: i18n.t("timeline.century", { roman: toRoman(century / 100 + 1) }),
         title: `${century}–${centuryEnd - 1}`,
         count: countInCentury,
       });

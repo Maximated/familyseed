@@ -2,13 +2,18 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import * as f3 from "family-chart";
 import "family-chart/styles/family-chart.css";
 import "./App.css";
+import { useTranslation } from "react-i18next";
+import i18n, { SUPPORTED_LANGUAGES, type SupportedLanguage } from "./i18n";
 import {
   fetchLineages,
   fetchMe,
   fetchTree,
+  mediaUrl,
+  personReportUrl,
   updateTreeName,
   type Lineage,
   type Me,
+  type ReportDirection,
   type TreePerson,
   type UnionInfo,
   type UnionStatus,
@@ -17,10 +22,33 @@ import {
 import AddPersonForm from "./AddPersonForm";
 import EditPersonForm from "./EditPersonForm";
 import TrashView from "./TrashView";
+import GedcomView from "./GedcomView";
+import IndividualsSearchView from "./IndividualsSearchView";
 import LineageChips from "./LineageChips";
 import Timeline from "./Timeline";
 import InfoPanel, { type InfoPanelData, type InfoPanelSection } from "./InfoPanel";
-import { ArrowLeftIcon, GitBranchIcon, PencilIcon, Trash2Icon, UserIcon, UserPlusIcon } from "./Icons";
+import {
+  ArrowLeftIcon,
+  ArrowUpDownIcon,
+  FileTextIcon,
+  GitBranchIcon,
+  GlobeIcon,
+  PencilIcon,
+  SearchIcon,
+  Trash2Icon,
+  UserIcon,
+  UserPlusIcon,
+} from "./Icons";
+
+const REPORT_DIRECTIONS: ReportDirection[] = ["ancestors", "descendants", "both"];
+
+// Native, untranslated names — a language switcher lists each language in
+// its own tongue, not translated into whichever language is active.
+const LANGUAGE_LABEL: Record<SupportedLanguage, string> = {
+  es: "Español",
+  en: "English",
+  pl: "Polski",
+};
 
 // family-chart's own Datum type requires `gender: 'M' | 'F'`, but our data
 // can omit it (unknown sex) — the library renders a genderless card fine at
@@ -51,12 +79,6 @@ function applyLineageHighlight(container: HTMLElement, people: TreePerson[], sel
 function pairKey(idA: string, idB: string): string {
   return [idA, idB].sort().join("_");
 }
-
-const ROLE_LABEL: Record<string, string> = {
-  OWNER: "Propietario",
-  EDITOR: "Editor",
-  VIEWER: "Lector",
-};
 
 // The datum d3 binds onto each `g.link-text` element for the marriage/
 // divorce/etc. mark on a spouse link — just enough to recover which two
@@ -98,21 +120,6 @@ function unionIcon(union: UnionInfo): string {
   return `${type}${order}${status}`;
 }
 
-const UNION_TYPE_LABEL: Record<UnionType, string> = {
-  MARRIAGE: "Matrimonio",
-  PARTNERSHIP: "Pareja de hecho",
-  EXTRAMARITAL: "Relación extramatrimonial",
-  UNKNOWN: "Desconocido",
-};
-
-const UNION_STATUS_LABEL: Record<UnionStatus, string> = {
-  ONGOING: "En curso",
-  ENDED_BY_DEATH: "Finalizada por fallecimiento",
-  DIVORCED: "Divorcio",
-  SEPARATED: "Separación",
-  ANNULLED: "Anulación",
-};
-
 function escapeHtml(value: string): string {
   return value
     .replace(/&/g, "&amp;")
@@ -126,7 +133,7 @@ function escapeHtml(value: string): string {
 // years are shown plain.
 function yearLabel(year: number | undefined, precision: unknown): string | null {
   if (year === undefined) return null;
-  return precision === "ABOUT" ? `c. ${year}` : String(year);
+  return precision === "ABOUT" ? i18n.t("common.circaYear", { year }) : String(year);
 }
 
 function formatLifespan(
@@ -137,9 +144,9 @@ function formatLifespan(
 ): string {
   const birth = yearLabel(birthYear, birthPrecision);
   const death = yearLabel(deathYear, deathPrecision);
-  if (birth && death) return `${birth} – ${death}`;
-  if (birth) return `n. ${birth}`;
-  if (death) return `† ${death}`;
+  if (birth && death) return i18n.t("common.lifespanRange", { birth, death });
+  if (birth) return i18n.t("common.bornYear", { value: birth });
+  if (death) return i18n.t("common.diedYear", { value: death });
   return "";
 }
 
@@ -156,6 +163,10 @@ type CardDatum = { data: { id: string; data: Record<string, unknown> } };
 // that didn't read as an inviting "see more" affordance.
 const EXPAND_ICON_SVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M7 8h10"/><path d="M7 12h6"/></svg>`;
 
+// Lucide's "user" glyph — the neutral placeholder shown on a card when the
+// person has no uploaded photo.
+const PERSON_ICON_SVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21a8 8 0 0 0-16 0"/><circle cx="12" cy="7" r="4"/></svg>`;
+
 function cardTemplate(d: CardDatum): string {
   const data = d.data.data;
   const name = escapeHtml(`${data["first name"] ?? ""} ${data["last name"] ?? ""}`.toString().trim());
@@ -167,14 +178,18 @@ function cardTemplate(d: CardDatum): string {
     data.birthPrecision,
     data.deathPrecision,
   );
+  const avatarHtml = data.avatar
+    ? `<img class="card-avatar" src="${escapeHtml(mediaUrl(String(data.avatar)))}" alt="" />`
+    : `<div class="card-avatar card-avatar-placeholder">${PERSON_ICON_SVG}</div>`;
   return `
     <div class="card-inner">
+      ${avatarHtml}
       <div class="card-name name-text">${name}</div>
       ${alias ? `<div class="card-alias alias-text">«${alias}»</div>` : ""}
       ${birthName ? `<div class="card-birthname name-text">${birthName}</div>` : ""}
       ${lifespan ? `<div class="card-lifespan">${escapeHtml(lifespan)}</div>` : ""}
     </div>
-    <button type="button" class="card-expand-toggle" data-person-id="${d.data.id}" title="Ver ficha completa" aria-label="Ver ficha completa">${EXPAND_ICON_SVG}</button>
+    <button type="button" class="card-expand-toggle" data-person-id="${d.data.id}" title="${escapeHtml(i18n.t("card.viewFull"))}" aria-label="${escapeHtml(i18n.t("card.viewFull"))}">${EXPAND_ICON_SVG}</button>
   `;
 }
 
@@ -193,21 +208,22 @@ function buildPersonInfoPanel(person: TreePerson): InfoPanelData {
 
   const identity: string[] = [];
   const surnameLine = [d["last name"], d["birth name"]].filter(Boolean).join(" ");
-  if (surnameLine) identity.push(`Apellidos: ${surnameLine}`);
-  if (d.alias) identity.push(`Apodo: «${String(d.alias)}»`);
-  identity.push(`Sexo: ${d.gender === "F" ? "Mujer" : d.gender === "M" ? "Hombre" : "Desconocido"}`);
-  sections.push({ heading: "Identidad", items: identity });
+  if (surnameLine) identity.push(i18n.t("infoPanel.surnames", { value: surnameLine }));
+  if (d.alias) identity.push(i18n.t("infoPanel.alias", { value: String(d.alias) }));
+  const sexKey = d.gender === "F" ? "FEMALE" : d.gender === "M" ? "MALE" : "UNKNOWN";
+  identity.push(i18n.t("infoPanel.sexLine", { value: i18n.t(`sex.${sexKey}`) }));
+  sections.push({ heading: i18n.t("infoPanel.sectionIdentity"), items: identity });
 
   const birth = [d.birthday, d["birth place"]].filter((v): v is string => typeof v === "string" && v.length > 0);
-  sections.push({ heading: "Nacimiento", items: birth.length ? birth : ["Desconocido"] });
+  sections.push({ heading: i18n.t("infoPanel.sectionBirth"), items: birth.length ? birth : [i18n.t("infoPanel.unknown")] });
 
   if (d.deathday || d["death place"]) {
     const death = [d.deathday, d["death place"]].filter((v): v is string => typeof v === "string" && v.length > 0);
-    sections.push({ heading: "Defunción", items: death });
+    sections.push({ heading: i18n.t("infoPanel.sectionDeath"), items: death });
   }
 
-  if (d.notes) sections.push({ heading: "Notas", items: splitLines(String(d.notes)) });
-  if (d.biography) sections.push({ heading: "Biografía", items: splitLines(String(d.biography)) });
+  if (d.notes) sections.push({ heading: i18n.t("infoPanel.sectionNotes"), items: splitLines(String(d.notes)) });
+  if (d.biography) sections.push({ heading: i18n.t("infoPanel.sectionBiography"), items: splitLines(String(d.biography)) });
 
   return {
     icon: <UserIcon size={20} />,
@@ -215,6 +231,7 @@ function buildPersonInfoPanel(person: TreePerson): InfoPanelData {
       d.gender === "F" ? "info-panel-icon-female" : d.gender === "M" ? "info-panel-icon-male" : "info-panel-icon-other",
     title: `${d["first name"]} ${d["last name"]}`.trim(),
     subtitle: d["birth name"] ? String(d["birth name"]) : undefined,
+    personId: person.id,
     sections,
   };
 }
@@ -225,22 +242,25 @@ function buildUnionInfoPanel(union: UnionInfo, people: TreePerson[]): InfoPanelD
   const name = (p?: TreePerson) => (p ? `${p.data["first name"]} ${p.data["last name"]}`.trim() : "?");
 
   const items = [
-    `Tipo: ${UNION_TYPE_LABEL[union.unionType]}`,
-    `Estado: ${UNION_STATUS_LABEL[union.unionStatus]}`,
-    `Fecha: ${union.unionDateText ?? "Desconocida"}`,
+    i18n.t("infoPanel.unionType", { value: i18n.t(`unionType.${union.unionType}`) }),
+    i18n.t("infoPanel.unionStatus", { value: i18n.t(`unionStatus.${union.unionStatus}`) }),
+    i18n.t("infoPanel.unionDate", { value: union.unionDateText ?? i18n.t("infoPanel.unknownDate") }),
   ];
-  if (union.unionPlace) items.push(`Lugar: ${union.unionPlace}`);
+  if (union.unionPlace) items.push(i18n.t("infoPanel.unionPlace", { value: union.unionPlace }));
 
   return {
     icon: <span className="info-panel-union-symbol">{unionIcon(union)}</span>,
     iconClassName: "info-panel-icon-union",
     title: `${name(partner1)} & ${name(partner2)}`,
-    subtitle: union.order >= 2 ? `${union.order}ª unión` : undefined,
-    sections: [{ heading: "Detalles de la unión", items }],
+    subtitle: union.order >= 2 ? i18n.t("infoPanel.unionOrder", { order: union.order }) : undefined,
+    sections: [{ heading: i18n.t("infoPanel.unionHeading"), items }],
+    familyId: union.id,
+    notes: union.notes,
   };
 }
 
 function App() {
+  const { t } = useTranslation();
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<ReturnType<typeof f3.createChart> | null>(null);
   const backStackRef = useRef<string[]>([]);
@@ -251,6 +271,8 @@ function App() {
   const selectedLineageIdsRef = useRef<Set<string>>(new Set());
   const lineageMenuRef = useRef<HTMLDivElement>(null);
   const userMenuRef = useRef<HTMLDivElement>(null);
+  const languageMenuRef = useRef<HTMLDivElement>(null);
+  const reportMenuRef = useRef<HTMLDivElement>(null);
 
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -259,6 +281,8 @@ function App() {
   const [showAddForm, setShowAddForm] = useState(false);
   const [showEditForm, setShowEditForm] = useState(false);
   const [showTrash, setShowTrash] = useState(false);
+  const [showGedcom, setShowGedcom] = useState(false);
+  const [showSearch, setShowSearch] = useState(false);
   const [treeData, setTreeData] = useState<TreePerson[]>([]);
   const [lineages, setLineages] = useState<Lineage[]>([]);
   const [selectedLineageIds, setSelectedLineageIds] = useState<Set<string>>(new Set());
@@ -268,6 +292,8 @@ function App() {
   const [titleDraft, setTitleDraft] = useState("");
   const [showLineageMenu, setShowLineageMenu] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [showLanguageMenu, setShowLanguageMenu] = useState(false);
+  const [showReportMenu, setShowReportMenu] = useState(false);
   const [me, setMe] = useState<Me | null>(null);
 
   const runHighlight = useCallback(() => {
@@ -311,7 +337,7 @@ function App() {
       if (!containerRef.current) return;
       setTreeName(name);
       if (!people.length) {
-        setError("No hay individuos en la base de datos todavía.");
+        setError(t("app.noIndividuals"));
         return;
       }
 
@@ -383,7 +409,7 @@ function App() {
       currentMainIdRef.current = chartRef.current.getMainDatum().id;
       setCurrentMainId(currentMainIdRef.current);
     },
-    [runHighlight, wireCardAndUnionClicks],
+    [runHighlight, wireCardAndUnionClicks, t],
   );
 
   useEffect(() => {
@@ -424,7 +450,7 @@ function App() {
   }, [selectedLineageIds, runHighlight]);
 
   useEffect(() => {
-    if (!showLineageMenu && !showUserMenu) return;
+    if (!showLineageMenu && !showUserMenu && !showLanguageMenu && !showReportMenu) return;
 
     function handlePointerDown(event: PointerEvent) {
       const target = event.target as Node;
@@ -434,11 +460,17 @@ function App() {
       if (showUserMenu && userMenuRef.current && !userMenuRef.current.contains(target)) {
         setShowUserMenu(false);
       }
+      if (showLanguageMenu && languageMenuRef.current && !languageMenuRef.current.contains(target)) {
+        setShowLanguageMenu(false);
+      }
+      if (showReportMenu && reportMenuRef.current && !reportMenuRef.current.contains(target)) {
+        setShowReportMenu(false);
+      }
     }
 
     document.addEventListener("pointerdown", handlePointerDown);
     return () => document.removeEventListener("pointerdown", handlePointerDown);
-  }, [showLineageMenu, showUserMenu]);
+  }, [showLineageMenu, showUserMenu, showLanguageMenu, showReportMenu]);
 
   function handleTitleClick() {
     setTitleDraft(treeName);
@@ -484,6 +516,20 @@ function App() {
     chart.updateTree({});
   }
 
+  // Used by the info panel's Relaciones tab — clicking a relative both
+  // re-centers the tree on them (like any other navigation) and swaps the
+  // panel to their own record, so drilling through a family reads as one
+  // continuous walk instead of navigate-then-reopen.
+  function handleNavigateToPerson(personId: string) {
+    const chart = chartRef.current;
+    if (chart) {
+      chart.updateMainId(personId);
+      chart.updateTree({});
+    }
+    const person = treeDataRef.current.find((p) => p.id === personId);
+    if (person) setInfoPanel(buildPersonInfoPanel(person));
+  }
+
   function handlePersonCreated(newPersonId: string) {
     setShowAddForm(false);
     loadTree(newPersonId).catch((err: Error) => setError(err.message));
@@ -506,6 +552,13 @@ function App() {
     loadTree().catch((err: Error) => setError(err.message));
   }
 
+  function handleGedcomImported() {
+    loadTree().catch((err: Error) => setError(err.message));
+  }
+
+  const currentPerson = currentMainId ? treeData.find((p) => p.id === currentMainId) : undefined;
+  const currentPersonName = currentPerson ? `${currentPerson.data["first name"]} ${currentPerson.data["last name"]}`.trim() : null;
+
   return (
     <div className="app">
       <header className="app-header">
@@ -514,8 +567,8 @@ function App() {
           className="icon-button"
           onClick={handleBack}
           disabled={!canGoBack}
-          aria-label="Volver"
-          title="Volver"
+          aria-label={t("app.back")}
+          title={t("app.back")}
         >
           <ArrowLeftIcon />
         </button>
@@ -531,20 +584,30 @@ function App() {
             autoFocus
           />
         ) : (
-          <h1 className="tree-title" onClick={handleTitleClick} title="Pulsa para renombrar el árbol">
-            {treeName || "Árbol genealógico"}
+          <h1 className="tree-title" onClick={handleTitleClick} title={t("app.titleHint")}>
+            {treeName || t("app.defaultTitle")}
           </h1>
         )}
 
         <div className="header-actions">
+          <button
+            type="button"
+            className="icon-button"
+            onClick={() => setShowSearch(true)}
+            aria-label={t("app.search")}
+            title={t("app.search")}
+          >
+            <SearchIcon />
+          </button>
+
           <div className="popover-anchor" ref={lineageMenuRef}>
             <button
               type="button"
               className="icon-button"
               onClick={() => setShowLineageMenu((v) => !v)}
-              aria-label="Linajes"
+              aria-label={t("app.lineages")}
               aria-expanded={showLineageMenu}
-              title="Linajes"
+              title={t("app.lineages")}
             >
               <GitBranchIcon />
             </button>
@@ -560,17 +623,58 @@ function App() {
             className="icon-button"
             onClick={() => setShowEditForm(true)}
             disabled={!currentMainId}
-            aria-label="Editar"
-            title="Editar"
+            aria-label={t("app.edit")}
+            title={t("app.edit")}
           >
             <PencilIcon />
           </button>
+
+          <div className="popover-anchor" ref={reportMenuRef}>
+            <button
+              type="button"
+              className="icon-button"
+              onClick={() => setShowReportMenu((v) => !v)}
+              disabled={!currentMainId}
+              aria-label={t("app.report")}
+              aria-expanded={showReportMenu}
+              title={t("app.report")}
+            >
+              <FileTextIcon />
+            </button>
+            {showReportMenu && currentMainId && (
+              <div className="popover report-popover">
+                {REPORT_DIRECTIONS.map((direction) => (
+                  <a
+                    key={direction}
+                    className="report-popover-item"
+                    href={personReportUrl(currentMainId, direction)}
+                    target="_blank"
+                    rel="noreferrer"
+                    onClick={() => setShowReportMenu(false)}
+                  >
+                    {t(`report.${direction}`)}
+                  </a>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <button
+            type="button"
+            className="icon-button"
+            onClick={() => setShowGedcom(true)}
+            aria-label={t("app.gedcom")}
+            title={t("app.gedcom")}
+          >
+            <ArrowUpDownIcon />
+          </button>
+
           <button
             type="button"
             className="icon-button"
             onClick={() => setShowTrash(true)}
-            aria-label="Papelera"
-            title="Papelera"
+            aria-label={t("app.trash")}
+            title={t("app.trash")}
           >
             <Trash2Icon />
           </button>
@@ -578,8 +682,8 @@ function App() {
             type="button"
             className="icon-button"
             onClick={() => setShowAddForm(true)}
-            aria-label="Añadir persona"
-            title="Añadir persona"
+            aria-label={t("app.addPerson")}
+            title={t("app.addPerson")}
           >
             <UserPlusIcon />
           </button>
@@ -589,9 +693,9 @@ function App() {
               type="button"
               className="icon-button"
               onClick={() => setShowUserMenu((v) => !v)}
-              aria-label="Usuario"
+              aria-label={t("app.user")}
               aria-expanded={showUserMenu}
-              title="Usuario"
+              title={t("app.user")}
             >
               <UserIcon />
             </button>
@@ -599,20 +703,51 @@ function App() {
               <div className="popover user-popover">
                 {me ? (
                   <>
-                    <p className="user-popover-name">{me.name ?? me.email ?? "Usuario"}</p>
+                    <p className="user-popover-name">{me.name ?? me.email ?? t("app.defaultUserName")}</p>
                     {me.email && <p className="user-popover-email">{me.email}</p>}
-                    <p className="user-popover-role">Rol: {ROLE_LABEL[me.role] ?? me.role}</p>
+                    <p className="user-popover-role">{t("app.role", { role: t(`roles.${me.role}`, me.role) })}</p>
                   </>
                 ) : (
-                  <p className="status">Cargando…</p>
+                  <p className="status">{t("common.loading")}</p>
                 )}
-                <p className="field-hint">Modo autohospedado: un único usuario.</p>
+                <p className="field-hint">{t("app.selfHostedHint")}</p>
+              </div>
+            )}
+          </div>
+
+          <div className="popover-anchor" ref={languageMenuRef}>
+            <button
+              type="button"
+              className="icon-button"
+              onClick={() => setShowLanguageMenu((v) => !v)}
+              aria-label={t("app.language")}
+              aria-expanded={showLanguageMenu}
+              title={t("app.language")}
+            >
+              <GlobeIcon />
+            </button>
+            {showLanguageMenu && (
+              <div className="popover language-popover">
+                {SUPPORTED_LANGUAGES.map((lang) => (
+                  <button
+                    key={lang}
+                    type="button"
+                    className={`language-popover-item${i18n.language === lang ? " language-popover-item-active" : ""}`}
+                    onClick={() => {
+                      i18n.changeLanguage(lang);
+                      setShowLanguageMenu(false);
+                    }}
+                    aria-pressed={i18n.language === lang}
+                  >
+                    {LANGUAGE_LABEL[lang]}
+                  </button>
+                ))}
               </div>
             )}
           </div>
         </div>
       </header>
-      {loading && <p className="status">Cargando árbol…</p>}
+      {loading && <p className="status">{t("app.loadingTree")}</p>}
       {error && <p className="status status-error">{error}</p>}
       <div className="main-area">
         <div className="tree-canvas-wrap">
@@ -620,33 +755,33 @@ function App() {
           <div className="legend-panel">
             <span className="legend-item">
               <span className="legend-icon">⚭</span>
-              <span className="legend-label">Matrimonio</span>
+              <span className="legend-label">{t("legend.marriage")}</span>
             </span>
             <span className="legend-item">
               <span className="legend-icon">⚭²</span>
-              <span className="legend-label">2º matrimonio (o más)</span>
+              <span className="legend-label">{t("legend.marriage2")}</span>
             </span>
             <span className="legend-item">
               <span className="legend-icon">⚯</span>
-              <span className="legend-label">Pareja de hecho</span>
+              <span className="legend-label">{t("legend.partnership")}</span>
             </span>
             <span className="legend-item">
               <span className="legend-icon">※</span>
-              <span className="legend-label">Relación extramatrimonial</span>
+              <span className="legend-label">{t("legend.extramarital")}</span>
             </span>
             <span className="legend-item">
               <span className="legend-icon">※²</span>
-              <span className="legend-label">2ª relación extramatrimonial (o más)</span>
+              <span className="legend-label">{t("legend.extramarital2")}</span>
             </span>
             <span className="legend-item">
               <span className="legend-icon">⚮</span>
-              <span className="legend-label">Divorcio/separación</span>
+              <span className="legend-label">{t("legend.endedByDivorce")}</span>
             </span>
             <span className="legend-item">
               <span className="legend-icon">✝</span>
-              <span className="legend-label">Unión finalizada por fallecimiento</span>
+              <span className="legend-label">{t("legend.endedByDeath")}</span>
             </span>
-            <span className="legend-hint">Pulsa un icono de unión, o el de una tarjeta, para ver el detalle</span>
+            <span className="legend-hint">{t("legend.hint")}</span>
           </div>
         </div>
         <Timeline people={treeData} onNavigate={handleTimelineNavigate} />
@@ -665,7 +800,20 @@ function App() {
       {showTrash && (
         <TrashView onRestored={handleTrashRestored} onClose={() => setShowTrash(false)} />
       )}
-      {infoPanel && <InfoPanel data={infoPanel} onClose={() => setInfoPanel(null)} />}
+      {showGedcom && (
+        <GedcomView
+          currentPersonId={currentMainId}
+          currentPersonName={currentPersonName}
+          onImported={handleGedcomImported}
+          onClose={() => setShowGedcom(false)}
+        />
+      )}
+      {showSearch && (
+        <IndividualsSearchView onNavigateToPerson={handleNavigateToPerson} onClose={() => setShowSearch(false)} />
+      )}
+      {infoPanel && (
+        <InfoPanel data={infoPanel} onClose={() => setInfoPanel(null)} onNavigateToPerson={handleNavigateToPerson} />
+      )}
     </div>
   );
 }

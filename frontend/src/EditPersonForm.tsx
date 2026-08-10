@@ -1,12 +1,16 @@
 import { useEffect, useState } from "react";
+import { Trans, useTranslation } from "react-i18next";
 import {
   deleteIndividual,
   fetchIndividual,
+  mediaUrl,
   updateIndividual,
+  uploadPersonPhoto,
   type Individual,
   type Sex,
   type UpdateIndividualPayload,
 } from "./api";
+import { resizeImage } from "./media";
 
 type Props = {
   personId: string;
@@ -16,6 +20,7 @@ type Props = {
 };
 
 export default function EditPersonForm({ personId, onSaved, onDeleted, onClose }: Props) {
+  const { t } = useTranslation();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -32,6 +37,8 @@ export default function EditPersonForm({ personId, onSaved, onDeleted, onClose }
   const [deathPlace, setDeathPlace] = useState("");
   const [notes, setNotes] = useState("");
   const [biography, setBiography] = useState("");
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
 
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -51,15 +58,23 @@ export default function EditPersonForm({ personId, onSaved, onDeleted, onClose }
         setDeathPlace(person.deathPlace ?? "");
         setNotes(person.notes ?? "");
         setBiography(person.biography ?? "");
+        setPhotoPreview(person.photoUrl ? mediaUrl(person.photoUrl) : null);
       })
       .catch((err: Error) => setError(err.message))
       .finally(() => setLoading(false));
   }, [personId]);
 
+  function handlePhotoChange(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    setPhotoFile(file);
+    setPhotoPreview(URL.createObjectURL(file));
+  }
+
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
     if (!givenNames.trim() || !surname1.trim()) {
-      setError("El nombre y el primer apellido son obligatorios.");
+      setError(t("editPerson.validationRequired"));
       return;
     }
 
@@ -81,6 +96,15 @@ export default function EditPersonForm({ personId, onSaved, onDeleted, onClose }
         biography: biography.trim() || undefined,
       };
       await updateIndividual(personId, payload);
+
+      if (photoFile) {
+        const resized = await resizeImage(photoFile, 500, 0.85);
+        await uploadPersonPhoto(personId, resized, photoFile.name).catch(() => {
+          // The rest of the edit already saved — a failed photo upload
+          // shouldn't block finishing.
+        });
+      }
+
       onSaved(personId);
     } catch (err) {
       setError((err as Error).message);
@@ -108,92 +132,97 @@ export default function EditPersonForm({ personId, onSaved, onDeleted, onClose }
         onClick={(e) => e.stopPropagation()}
         onSubmit={handleSubmit}
       >
-        <h2>Editar persona</h2>
+        <h2>{t("editPerson.title")}</h2>
 
         {loading ? (
-          <p className="status">Cargando…</p>
+          <p className="status">{t("common.loading")}</p>
         ) : (
           <>
             <fieldset>
-              <legend>Datos de la persona</legend>
+              <legend>{t("editPerson.personLegend")}</legend>
               <label>
-                Nombre
+                {t("personFields.photo")}
+                <input type="file" accept="image/*" onChange={handlePhotoChange} />
+              </label>
+              {photoPreview && <img src={photoPreview} alt={t("personFields.photoPreviewAlt")} className="photo-preview" />}
+              <label>
+                {t("personFields.givenNames")}
                 <input value={givenNames} onChange={(e) => setGivenNames(e.target.value)} required />
               </label>
               <label>
-                Primer apellido (paterno en España, único en Polonia)
+                {t("personFields.surname1")}
                 <input value={surname1} onChange={(e) => setSurname1(e.target.value)} required />
               </label>
               <label>
-                Segundo apellido (materno — opcional, convención española)
+                {t("personFields.surname2")}
                 <input value={surname2} onChange={(e) => setSurname2(e.target.value)} />
               </label>
               <label>
-                Primer apellido de nacimiento (si difiere del actual)
+                {t("personFields.surname1BirthName")}
                 <input
-                  placeholder="ej. Kowalski"
+                  placeholder={t("personFields.surname1BirthNamePlaceholder")}
                   value={surname1BirthName}
                   onChange={(e) => setSurname1BirthName(e.target.value)}
                 />
               </label>
               <label>
-                Apodo o alias (opcional)
+                {t("personFields.alias")}
                 <input
-                  placeholder="ej. Boni"
+                  placeholder={t("personFields.aliasPlaceholder")}
                   value={alias}
                   onChange={(e) => setAlias(e.target.value)}
                 />
               </label>
               <label>
-                Sexo
+                {t("personFields.sex")}
                 <select value={sex} onChange={(e) => setSex(e.target.value as Sex)}>
-                  <option value="UNKNOWN">Desconocido</option>
-                  <option value="MALE">Hombre</option>
-                  <option value="FEMALE">Mujer</option>
+                  <option value="UNKNOWN">{t("personFields.sexUnknown")}</option>
+                  <option value="MALE">{t("personFields.sexMale")}</option>
+                  <option value="FEMALE">{t("personFields.sexFemale")}</option>
                 </select>
               </label>
               <label>
-                Fecha de nacimiento
+                {t("personFields.birthDate")}
                 <input
                   type="text"
-                  placeholder="ej. 1950, hacia 1927, 12 marzo 1925"
+                  placeholder={t("personFields.birthDatePlaceholder")}
                   value={birthDateText}
                   onChange={(e) => setBirthDateText(e.target.value)}
                 />
               </label>
               <label>
-                Lugar de nacimiento
+                {t("personFields.birthPlace")}
                 <input
-                  placeholder="ej. Kraków, Polonia"
+                  placeholder={t("personFields.placePlaceholder")}
                   value={birthPlace}
                   onChange={(e) => setBirthPlace(e.target.value)}
                 />
               </label>
               <label>
-                Fecha de defunción
+                {t("personFields.deathDate")}
                 <input
                   type="text"
-                  placeholder="ej. 1998, hacia 1965, 2 noviembre 1998"
+                  placeholder={t("personFields.deathDatePlaceholder")}
                   value={deathDateText}
                   onChange={(e) => setDeathDateText(e.target.value)}
                 />
               </label>
               <label>
-                Lugar de defunción
+                {t("personFields.deathPlace")}
                 <input
-                  placeholder="ej. Kraków, Polonia"
+                  placeholder={t("personFields.placePlaceholder")}
                   value={deathPlace}
                   onChange={(e) => setDeathPlace(e.target.value)}
                 />
               </label>
               <label>
-                Notas
+                {t("personFields.notes")}
                 <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} />
               </label>
               <label>
-                Biografía
+                {t("personFields.biography")}
                 <textarea
-                  placeholder="Un relato breve sobre esta persona: su vida, oficio, anécdotas…"
+                  placeholder={t("personFields.biographyPlaceholder")}
                   value={biography}
                   onChange={(e) => setBiography(e.target.value)}
                   rows={4}
@@ -205,10 +234,10 @@ export default function EditPersonForm({ personId, onSaved, onDeleted, onClose }
 
             <div className="modal-actions">
               <button type="button" onClick={onClose} disabled={submitting || deleting}>
-                Cancelar
+                {t("common.cancel")}
               </button>
               <button type="submit" disabled={submitting || deleting}>
-                {submitting ? "Guardando…" : "Guardar"}
+                {submitting ? t("common.saving") : t("common.save")}
               </button>
             </div>
 
@@ -220,13 +249,16 @@ export default function EditPersonForm({ personId, onSaved, onDeleted, onClose }
                   onClick={() => setConfirmingDelete(true)}
                   disabled={submitting || deleting}
                 >
-                  Eliminar persona
+                  {t("editPerson.deletePerson")}
                 </button>
               ) : (
                 <div className="delete-confirm">
                   <p>
-                    ¿Seguro que quieres eliminar a <strong>{givenNames} {surname1}</strong>?
-                    Pasará a la papelera — podrás restaurarla más tarde si te equivocas.
+                    <Trans
+                      i18nKey="editPerson.confirmDelete"
+                      values={{ name: `${givenNames} ${surname1}` }}
+                      components={{ 1: <strong /> }}
+                    />
                   </p>
                   <div className="modal-actions">
                     <button
@@ -234,7 +266,7 @@ export default function EditPersonForm({ personId, onSaved, onDeleted, onClose }
                       onClick={() => setConfirmingDelete(false)}
                       disabled={deleting}
                     >
-                      Cancelar
+                      {t("common.cancel")}
                     </button>
                     <button
                       type="button"
@@ -242,7 +274,7 @@ export default function EditPersonForm({ personId, onSaved, onDeleted, onClose }
                       onClick={handleConfirmDelete}
                       disabled={deleting}
                     >
-                      {deleting ? "Eliminando…" : "Sí, eliminar"}
+                      {deleting ? t("editPerson.deleting") : t("editPerson.confirmYes")}
                     </button>
                   </div>
                 </div>

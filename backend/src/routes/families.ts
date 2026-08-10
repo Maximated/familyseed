@@ -33,6 +33,30 @@ type CreateFamilyBody = {
   childrenIds?: string[];
 };
 
+const updateFamilyBodySchema = {
+  type: "object",
+  properties: {
+    unionType: { type: "string", enum: UNION_TYPE_VALUES },
+    unionStatus: { type: "string", enum: UNION_STATUS_VALUES },
+    unionDateText: { type: "string" },
+    unionDateValue: { type: "string", format: "date" },
+    unionDatePrecision: { type: "string", enum: DATE_PRECISION_VALUES },
+    unionPlace: { type: "string" },
+    notes: { type: "string" },
+  },
+  additionalProperties: false,
+};
+
+type UpdateFamilyBody = {
+  unionType?: (typeof UNION_TYPE_VALUES)[number];
+  unionStatus?: (typeof UNION_STATUS_VALUES)[number];
+  unionDateText?: string;
+  unionDateValue?: string;
+  unionDatePrecision?: (typeof DATE_PRECISION_VALUES)[number];
+  unionPlace?: string;
+  notes?: string;
+};
+
 export default async function familyRoutes(fastify: FastifyInstance) {
   fastify.post("/", { schema: { body: createFamilyBodySchema } }, async (request, reply) => {
     const {
@@ -102,5 +126,28 @@ export default async function familyRoutes(fastify: FastifyInstance) {
       request.log.error(error);
       return reply.code(500).send({ error: "Error interno" });
     }
+  });
+
+  fastify.patch("/:id", { schema: { body: updateFamilyBodySchema } }, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const updates = request.body as UpdateFamilyBody;
+    const treeId = await getDefaultTreeId();
+
+    const existing = await prisma.family.findFirst({ where: { id, treeId } });
+    if (!existing) {
+      return reply.code(404).send({ error: `No existe la familia ${id}` });
+    }
+
+    const updated = await prisma.family.update({
+      where: { id },
+      data: {
+        ...updates,
+        unionDateValue: updates.unionDateValue ? new Date(updates.unionDateValue) : undefined,
+      },
+    });
+
+    await logChange({ action: "family.update", entityType: "Family", entityId: updated.id });
+
+    return updated;
   });
 }

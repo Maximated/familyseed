@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import type { Lineage } from "./api";
 
 type Props = {
@@ -7,6 +8,7 @@ type Props = {
 };
 
 export default function LineageChips({ lineages, selectedIds, onChange }: Props) {
+  const { t } = useTranslation();
   if (lineages.length === 0) return null;
 
   function toggle(id: string) {
@@ -40,7 +42,7 @@ export default function LineageChips({ lineages, selectedIds, onChange }: Props)
           style={{ animationDelay: `${lineages.length * 45}ms` }}
           onClick={() => onChange(new Set())}
         >
-          Limpiar
+          {t("lineageChips.clear")}
         </button>
       )}
     </div>

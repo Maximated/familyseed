@@ -1,12 +1,15 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   createIndividual,
   fetchIndividuals,
+  uploadPersonPhoto,
   type Individual,
   type Relationship,
   type Sex,
   type UnionType,
 } from "./api";
+import { resizeImage } from "./media";
 
 type RelationshipKind = "NONE" | "CHILD_OF_PARENTS" | "PARTNER";
 
@@ -22,6 +25,7 @@ function personLabel(person: Individual) {
 }
 
 export default function AddPersonForm({ onCreated, onClose }: Props) {
+  const { t } = useTranslation();
   const [individuals, setIndividuals] = useState<Individual[]>([]);
   const [relationshipKind, setRelationshipKind] = useState<RelationshipKind>("CHILD_OF_PARENTS");
   const [parent1Id, setParent1Id] = useState("");
@@ -43,9 +47,18 @@ export default function AddPersonForm({ onCreated, onClose }: Props) {
   const [deathPlace, setDeathPlace] = useState("");
   const [notes, setNotes] = useState("");
   const [biography, setBiography] = useState("");
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  function handlePhotoChange(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    setPhotoFile(file);
+    setPhotoPreview(URL.createObjectURL(file));
+  }
 
   useEffect(() => {
     fetchIndividuals()
@@ -75,13 +88,13 @@ export default function AddPersonForm({ onCreated, onClose }: Props) {
 
   function validate(): string | null {
     if (!givenNames.trim() || !surname1.trim()) {
-      return "El nombre y el primer apellido son obligatorios.";
+      return t("addPerson.validationRequired");
     }
     if (relationshipKind === "CHILD_OF_PARENTS" && !parent1Id) {
-      return "Elige al menos un padre/madre.";
+      return t("addPerson.validationParent");
     }
     if (relationshipKind === "PARTNER" && !partnerId) {
-      return "Elige la persona con la que forma pareja.";
+      return t("addPerson.validationPartner");
     }
     return null;
   }
@@ -114,6 +127,15 @@ export default function AddPersonForm({ onCreated, onClose }: Props) {
         },
         relationship: buildRelationship(),
       });
+
+      if (photoFile) {
+        const resized = await resizeImage(photoFile, 500, 0.85);
+        await uploadPersonPhoto(individual.id, resized, photoFile.name).catch(() => {
+          // The person is already created — a failed photo upload shouldn't
+          // block finishing the form, just leave the avatar unset.
+        });
+      }
+
       onCreated(individual.id);
     } catch (err) {
       setError((err as Error).message);
@@ -129,22 +151,22 @@ export default function AddPersonForm({ onCreated, onClose }: Props) {
         onClick={(e) => e.stopPropagation()}
         onSubmit={handleSubmit}
       >
-        <h2>Añadir persona</h2>
+        <h2>{t("addPerson.title")}</h2>
 
         <fieldset>
-          <legend>Relación con el árbol</legend>
+          <legend>{t("addPerson.relationshipLegend")}</legend>
           <label>
             <input
               type="radio"
               checked={relationshipKind === "CHILD_OF_PARENTS"}
               onChange={() => setRelationshipKind("CHILD_OF_PARENTS")}
             />
-            Es hijo/a de
+            {t("addPerson.childOf")}
           </label>
           {relationshipKind === "CHILD_OF_PARENTS" && (
             <div className="indent">
               <select value={parent1Id} onChange={(e) => setParent1Id(e.target.value)}>
-                <option value="">— Padre/madre —</option>
+                <option value="">{t("addPerson.parentPlaceholder")}</option>
                 {individuals.map((p) => (
                   <option key={p.id} value={p.id}>
                     {personLabel(p)}
@@ -152,19 +174,14 @@ export default function AddPersonForm({ onCreated, onClose }: Props) {
                 ))}
               </select>
               <select value={parent2Id} onChange={(e) => setParent2Id(e.target.value)}>
-                <option value="">— Otro padre/madre (opcional) —</option>
+                <option value="">{t("addPerson.otherParentPlaceholder")}</option>
                 {individuals.map((p) => (
                   <option key={p.id} value={p.id}>
                     {personLabel(p)}
                   </option>
                 ))}
               </select>
-              <p className="field-hint">
-                Si los dos padres elegidos no tienen ya una unión registrada entre
-                ellos, se crea una unión nueva solo para ellos dos — así se
-                representan también los hijos de relaciones extramatrimoniales o
-                de una pareja no registrada como matrimonio.
-              </p>
+              <p className="field-hint">{t("addPerson.unionHint")}</p>
             </div>
           )}
 
@@ -174,12 +191,12 @@ export default function AddPersonForm({ onCreated, onClose }: Props) {
               checked={relationshipKind === "PARTNER"}
               onChange={() => setRelationshipKind("PARTNER")}
             />
-            Es cónyuge/pareja de
+            {t("addPerson.partnerOf")}
           </label>
           {relationshipKind === "PARTNER" && (
             <div className="indent">
               <select value={partnerId} onChange={(e) => setPartnerId(e.target.value)}>
-                <option value="">— Persona —</option>
+                <option value="">{t("addPerson.partnerPlaceholder")}</option>
                 {individuals.map((p) => (
                   <option key={p.id} value={p.id}>
                     {personLabel(p)}
@@ -187,20 +204,20 @@ export default function AddPersonForm({ onCreated, onClose }: Props) {
                 ))}
               </select>
               <select value={unionType} onChange={(e) => setUnionType(e.target.value as UnionType)}>
-                <option value="MARRIAGE">Matrimonio</option>
-                <option value="PARTNERSHIP">Pareja de hecho</option>
-                <option value="EXTRAMARITAL">Relación extramatrimonial</option>
-                <option value="UNKNOWN">Desconocido</option>
+                <option value="MARRIAGE">{t("unionType.MARRIAGE")}</option>
+                <option value="PARTNERSHIP">{t("unionType.PARTNERSHIP")}</option>
+                <option value="EXTRAMARITAL">{t("unionType.EXTRAMARITAL")}</option>
+                <option value="UNKNOWN">{t("unionType.UNKNOWN")}</option>
               </select>
               <input
                 type="text"
-                placeholder="Fecha de la unión (ej. 1997, hacia 1990)"
+                placeholder={t("addPerson.unionDatePlaceholder")}
                 value={unionDateText}
                 onChange={(e) => setUnionDateText(e.target.value)}
               />
               <input
                 type="text"
-                placeholder="ej. Kraków, Polonia"
+                placeholder={t("personFields.placePlaceholder")}
                 value={unionPlace}
                 onChange={(e) => setUnionPlace(e.target.value)}
               />
@@ -213,90 +230,95 @@ export default function AddPersonForm({ onCreated, onClose }: Props) {
               checked={relationshipKind === "NONE"}
               onChange={() => setRelationshipKind("NONE")}
             />
-            Sin relación conocida (nuevo ancestro)
+            {t("addPerson.noRelation")}
           </label>
         </fieldset>
 
         <fieldset>
-          <legend>Datos de la persona</legend>
+          <legend>{t("addPerson.personLegend")}</legend>
           <label>
-            Nombre
+            {t("personFields.photo")}
+            <input type="file" accept="image/*" onChange={handlePhotoChange} />
+          </label>
+          {photoPreview && <img src={photoPreview} alt={t("personFields.photoPreviewAlt")} className="photo-preview" />}
+          <label>
+            {t("personFields.givenNames")}
             <input value={givenNames} onChange={(e) => setGivenNames(e.target.value)} required />
           </label>
           <label>
-            Primer apellido (paterno en España, único en Polonia)
+            {t("personFields.surname1")}
             <input value={surname1} onChange={(e) => setSurname1(e.target.value)} required />
           </label>
           <label>
-            Segundo apellido (materno — opcional, convención española)
+            {t("personFields.surname2")}
             <input value={surname2} onChange={(e) => setSurname2(e.target.value)} />
           </label>
           <label>
-            Primer apellido de nacimiento (si difiere del actual)
+            {t("personFields.surname1BirthName")}
             <input
-              placeholder="ej. Kowalski"
+              placeholder={t("personFields.surname1BirthNamePlaceholder")}
               value={surname1BirthName}
               onChange={(e) => setSurname1BirthName(e.target.value)}
             />
           </label>
           <label>
-            Apodo o alias (opcional)
+            {t("personFields.alias")}
             <input
-              placeholder="ej. Boni"
+              placeholder={t("personFields.aliasPlaceholder")}
               value={alias}
               onChange={(e) => setAlias(e.target.value)}
             />
           </label>
           <label>
-            Sexo
+            {t("personFields.sex")}
             <select value={sex} onChange={(e) => setSex(e.target.value as Sex)}>
-              <option value="UNKNOWN">Desconocido</option>
-              <option value="MALE">Hombre</option>
-              <option value="FEMALE">Mujer</option>
+              <option value="UNKNOWN">{t("personFields.sexUnknown")}</option>
+              <option value="MALE">{t("personFields.sexMale")}</option>
+              <option value="FEMALE">{t("personFields.sexFemale")}</option>
             </select>
           </label>
           <label>
-            Fecha de nacimiento
+            {t("personFields.birthDate")}
             <input
               type="text"
-              placeholder="ej. 1950, hacia 1927, 12 marzo 1925"
+              placeholder={t("personFields.birthDatePlaceholder")}
               value={birthDateText}
               onChange={(e) => setBirthDateText(e.target.value)}
             />
           </label>
           <label>
-            Lugar de nacimiento
+            {t("personFields.birthPlace")}
             <input
-              placeholder="ej. Kraków, Polonia"
+              placeholder={t("personFields.placePlaceholder")}
               value={birthPlace}
               onChange={(e) => setBirthPlace(e.target.value)}
             />
           </label>
           <label>
-            Fecha de defunción
+            {t("personFields.deathDate")}
             <input
               type="text"
-              placeholder="ej. 1998, hacia 1965, 2 noviembre 1998"
+              placeholder={t("personFields.deathDatePlaceholder")}
               value={deathDateText}
               onChange={(e) => setDeathDateText(e.target.value)}
             />
           </label>
           <label>
-            Lugar de defunción
+            {t("personFields.deathPlace")}
             <input
-              placeholder="ej. Kraków, Polonia"
+              placeholder={t("personFields.placePlaceholder")}
               value={deathPlace}
               onChange={(e) => setDeathPlace(e.target.value)}
             />
           </label>
           <label>
-            Notas
+            {t("personFields.notes")}
             <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} />
           </label>
           <label>
-            Biografía
+            {t("personFields.biography")}
             <textarea
-              placeholder="Un relato breve sobre esta persona: su vida, oficio, anécdotas…"
+              placeholder={t("personFields.biographyPlaceholder")}
               value={biography}
               onChange={(e) => setBiography(e.target.value)}
               rows={4}
@@ -308,10 +330,10 @@ export default function AddPersonForm({ onCreated, onClose }: Props) {
 
         <div className="modal-actions">
           <button type="button" onClick={onClose} disabled={submitting}>
-            Cancelar
+            {t("common.cancel")}
           </button>
           <button type="submit" disabled={submitting}>
-            {submitting ? "Guardando…" : "Guardar"}
+            {submitting ? t("common.saving") : t("common.save")}
           </button>
         </div>
       </form>

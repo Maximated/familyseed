@@ -95,6 +95,7 @@ model Tree {
   families    Family[]
   lineages    Lineage[]
   changes     ChangeLogEntry[]
+  media       PersonMedia[]
 
   @@map("trees")
 }
@@ -209,6 +210,7 @@ model Individual {
   familiesAsPartner2 Family[]            @relation("FamilyPartner2")
   childOf            FamilyChild[]
   lineages           IndividualLineage[]
+  media              PersonMedia[]
 
   @@unique([treeId, gedcomXref])
   @@index([treeId, surname1, givenNames])
@@ -277,6 +279,11 @@ model Family {
   unionDatePrecision DatePrecision? @map("union_date_precision")
   unionPlace         String?        @map("union_place")
 
+  // Free-text annotation on this union/"event" — the same kind of note an
+  // Individual can carry, just scoped to the marriage/partnership itself
+  // rather than one person.
+  notes String? @db.Text
+
   // Unique per tree, not globally — see the same note on Individual.
   gedcomXref String? @map("gedcom_xref")
 
@@ -307,4 +314,34 @@ model FamilyChild {
   @@unique([familyId, individualId])
   @@index([individualId])
   @@map("family_children")
+}
+
+enum MediaType {
+  PHOTO
+  DOCUMENT
+}
+
+// Photos/documents attached to a person from the info-panel gallery —
+// separate from Individual.photoUrl (the single profile picture shown on
+// the tree card itself). Files live on disk under uploads/<treeId>/
+// <individualId>/; this row just points at the served path.
+model PersonMedia {
+  id String @id @default(cuid())
+
+  treeId String @map("tree_id")
+  tree   Tree   @relation(fields: [treeId], references: [id], onDelete: Cascade)
+
+  individualId String     @map("individual_id")
+  individual   Individual @relation(fields: [individualId], references: [id], onDelete: Cascade)
+
+  type     MediaType
+  url      String
+  filename String
+  mimeType String? @map("mime_type")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([individualId])
+  @@index([treeId])
+  @@map("person_media")
 }

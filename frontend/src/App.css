@@ -11,6 +11,7 @@
   --color-other: #dccbea;
   --color-amber: #e07a29;
   --color-text-secondary: #374151;
+  --color-tree-black: #1c1c1c;
 }
 
 body {
@@ -103,7 +104,8 @@ body {
   padding: 0;
   border: 1px solid rgba(27, 67, 50, 0.25);
   border-radius: 50%;
-  background: #fff;
+  background: rgba(255, 255, 255, 0.4);
+  backdrop-filter: blur(8px);
   color: var(--color-forest);
   color-scheme: light;
   cursor: pointer;
@@ -115,8 +117,8 @@ body {
 }
 
 .icon-button:not(:disabled):hover {
-  background: var(--color-forest-light);
-  border-color: var(--color-forest-light);
+  background: var(--color-amber);
+  border-color: var(--color-amber);
   color: #fff;
 }
 
@@ -146,8 +148,8 @@ body {
   max-width: 320px;
   max-height: 420px;
   overflow-y: auto;
-  background: rgba(250, 246, 239, 0.35);
-  backdrop-filter: blur(12px) saturate(1.3);
+  background: rgba(250, 246, 239, 0.18);
+  backdrop-filter: blur(14px) saturate(1.3);
   border-radius: 10px;
   box-shadow: 0 8px 24px rgba(27, 67, 50, 0.15);
   border: 1px solid rgba(27, 67, 50, 0.12);
@@ -186,6 +188,11 @@ body {
   cursor: pointer;
   opacity: 0;
   animation: popoverItemIn 320ms ease forwards;
+  transition: color 120ms ease;
+}
+
+.lineage-list-item:hover {
+  color: var(--color-amber);
 }
 
 .lineage-list-item-active {
@@ -237,6 +244,100 @@ body {
   opacity: 0;
   animation: popoverItemIn 320ms ease forwards;
   animation-delay: 180ms;
+}
+
+.language-popover {
+  min-width: 140px;
+}
+
+.language-popover-item {
+  display: block;
+  width: 100%;
+  background: none;
+  border: none;
+  text-align: left;
+  padding: 0.3rem 0.25rem;
+  font-family: var(--font-name);
+  font-size: 0.95rem;
+  color: var(--color-forest);
+  cursor: pointer;
+  opacity: 0;
+  animation: popoverItemIn 320ms ease forwards;
+  transition: color 120ms ease;
+}
+
+.language-popover-item:hover {
+  color: var(--color-amber);
+}
+
+.language-popover-item-active {
+  color: var(--color-amber);
+  font-weight: 700;
+}
+
+.report-popover {
+  min-width: 200px;
+}
+
+.report-popover-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 0.3rem 0.25rem;
+  font-family: var(--font-name);
+  font-size: 0.95rem;
+  color: var(--color-forest);
+  text-decoration: none;
+  cursor: pointer;
+  opacity: 0;
+  animation: popoverItemIn 320ms ease forwards;
+  transition: color 120ms ease;
+}
+
+.report-popover-item:hover {
+  color: var(--color-amber);
+}
+
+.gedcom-dropzone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+  padding: 2rem 1rem;
+  border: 2px dashed rgba(27, 67, 50, 0.3);
+  border-radius: 10px;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 150ms ease, background 150ms ease;
+}
+
+.gedcom-dropzone p {
+  margin: 0;
+}
+
+.gedcom-dropzone:hover,
+.gedcom-dropzone-active {
+  border-color: var(--color-amber);
+  background: rgba(224, 122, 41, 0.08);
+}
+
+.gedcom-export-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.gedcom-export-item {
+  color: var(--color-forest);
+  font-family: var(--font-name);
+  font-size: 0.95rem;
+  text-decoration: none;
+  transition: color 120ms ease;
+}
+
+.gedcom-export-item:hover {
+  color: var(--color-amber);
 }
 
 .status {
@@ -335,21 +436,22 @@ body {
 /* The trunk is a filled tapered shape (thick base/past, thin tip/today),
    not a stroked line — see trunkPath() in Timeline.tsx. */
 .timeline-trunk {
-  fill: var(--color-forest);
-  opacity: 0.75;
+  fill: var(--color-tree-black);
+  opacity: 0.85;
 }
 
 .timeline-branch {
-  stroke: var(--color-forest);
+  stroke: var(--color-tree-black);
   stroke-width: 1.4;
   fill: none;
-  opacity: 0.6;
+  opacity: 0.65;
 }
 
 .timeline-leaf {
-  fill: var(--color-forest-light);
-  stroke: var(--color-forest);
+  fill: var(--color-tree-black);
+  stroke: var(--color-tree-black);
   stroke-width: 0.6;
+  opacity: 0.85;
 }
 
 .timeline-label {
@@ -365,7 +467,8 @@ body {
 }
 
 .timeline-branch-group:hover .timeline-leaf {
-  fill: var(--color-forest);
+  fill: var(--color-tree-black);
+  opacity: 1;
 }
 
 .timeline-branch-group:hover .timeline-branch {
@@ -373,7 +476,7 @@ body {
 }
 
 .timeline-branch-group:hover .timeline-label {
-  fill: var(--color-forest);
+  fill: var(--color-tree-black);
 }
 
 .timeline-branch-active .timeline-leaf {
@@ -410,7 +513,7 @@ body {
   max-width: min(720px, calc(100% - 40px));
   padding: 0.6rem 1rem;
   border-radius: 10px;
-  background: rgba(116, 168, 146, 0.3);
+  background: rgba(116, 168, 146, 0.16);
   box-shadow: 0 4px 16px rgba(27, 67, 50, 0.1);
   border: 1px solid rgba(27, 67, 50, 0.12);
 }
@@ -446,14 +549,36 @@ body {
    long names truncate with an ellipsis rather than resizing the card. */
 .f3 .card-inner {
   width: 170px;
-  height: 68px;
-  padding: 6px 10px;
+  height: 128px;
+  padding: 8px 10px;
   border-radius: 6px;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   overflow: hidden;
+}
+
+.card-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  object-fit: cover;
+  margin-bottom: 4px;
+  flex-shrink: 0;
+}
+
+.card-avatar-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.45);
+  color: inherit;
+}
+
+.card-avatar-placeholder svg {
+  width: 26px;
+  height: 26px;
 }
 
 .card-name,
@@ -513,7 +638,7 @@ body {
 }
 
 .card-expand-toggle:hover {
-  background: var(--color-forest-light);
+  background: var(--color-amber);
 }
 
 /* Header row: a small icon badge + title/subtitle, echoing a calendar-
@@ -569,6 +694,135 @@ body {
   color: var(--color-text-secondary);
 }
 
+.info-panel-tabs {
+  display: flex;
+  gap: 1.25rem;
+  margin-bottom: 1rem;
+  border-bottom: 1px solid rgba(27, 67, 50, 0.15);
+}
+
+.info-panel-tab {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: 0.3rem 0.1rem 0.5rem;
+  margin-bottom: -1px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+}
+
+.info-panel-tab:hover {
+  color: var(--color-amber);
+}
+
+.info-panel-tab-active {
+  color: var(--color-forest);
+  border-bottom-color: var(--color-amber);
+}
+
+.person-media-tab {
+  margin-bottom: 1rem;
+}
+
+.media-photo-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.media-photo-item {
+  position: relative;
+  aspect-ratio: 1;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.media-photo-item img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.media-doc-list {
+  list-style: none;
+  margin: 0 0 0.75rem;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.media-doc-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.4rem 0.5rem;
+  border: 1px solid rgba(27, 67, 50, 0.15);
+  border-radius: 6px;
+  font-size: 0.85rem;
+}
+
+.media-doc-list a {
+  color: var(--color-forest);
+  text-decoration: none;
+  word-break: break-all;
+}
+
+.media-doc-list a:hover {
+  color: var(--color-amber);
+}
+
+.media-delete-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  border: none;
+  border-radius: 50%;
+  background: rgba(27, 67, 50, 0.7);
+  color: #fff;
+  font-size: 0.9rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.media-photo-item .media-delete-button {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+}
+
+.media-delete-button:hover {
+  background: var(--color-amber);
+}
+
+.media-upload-button {
+  font-size: 0.85rem;
+  padding: 0.4rem 0.8rem;
+  border-radius: 6px;
+  border: 1px dashed rgba(27, 67, 50, 0.35);
+  background: none;
+  color: var(--color-forest);
+  cursor: pointer;
+}
+
+.media-upload-button:hover {
+  border-color: var(--color-amber);
+  color: var(--color-amber);
+}
+
+.media-upload-button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
 .info-panel-sections {
   display: flex;
   flex-direction: column;
@@ -595,6 +849,77 @@ body {
   font-size: 0.8rem;
   font-weight: 400;
   line-height: 1.4;
+}
+
+.relations-tab {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  margin-bottom: 1rem;
+}
+
+.relations-group-heading {
+  margin: 0 0 0.3rem;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--color-forest);
+}
+
+.relations-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.relations-item {
+  background: none;
+  border: none;
+  padding: 0.15rem 0;
+  text-align: left;
+  font-family: var(--font-name);
+  font-size: 0.85rem;
+  color: var(--color-forest);
+  cursor: pointer;
+  transition: color 120ms ease;
+}
+
+.relations-item:hover {
+  color: var(--color-amber);
+}
+
+.union-notes-textarea {
+  width: 100%;
+  resize: vertical;
+  margin-top: 0.3rem;
+}
+
+.union-notes-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 0.4rem;
+}
+
+.search-year-range {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+  color: var(--color-text-secondary);
+}
+
+.trash-list li button.search-result-item {
+  width: 100%;
+  text-align: left;
+  font-family: var(--font-name);
+  transition: color 120ms ease, border-color 120ms ease;
+}
+
+.trash-list li button.search-result-item:hover {
+  color: var(--color-amber);
+  border-color: var(--color-amber);
 }
 
 .modal-backdrop {
@@ -673,6 +998,15 @@ body {
   font-size: 0.8rem;
   color: var(--color-text-secondary);
   margin: 0;
+}
+
+.photo-preview {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  object-fit: cover;
+  margin: 0.25rem 0 0.75rem;
+  border: 1px solid rgba(27, 67, 50, 0.2);
 }
 
 .modal-actions {

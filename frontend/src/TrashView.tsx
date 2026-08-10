@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { fetchTrash, restoreIndividual, type Individual } from "./api";
 
 type Props = {
@@ -6,12 +7,19 @@ type Props = {
   onClose: () => void;
 };
 
-function formatDeletedAt(deletedAt: string | null | undefined) {
+const DATE_LOCALE: Record<string, string> = { es: "es-ES", en: "en-US", pl: "pl-PL" };
+
+function formatDeletedAt(deletedAt: string | null | undefined, language: string) {
   if (!deletedAt) return "";
-  return new Date(deletedAt).toLocaleDateString("es-ES", { year: "numeric", month: "long", day: "numeric" });
+  return new Date(deletedAt).toLocaleDateString(DATE_LOCALE[language] ?? "es-ES", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
 }
 
 export default function TrashView({ onRestored, onClose }: Props) {
+  const { t, i18n } = useTranslation();
   const [people, setPeople] = useState<Individual[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -44,13 +52,13 @@ export default function TrashView({ onRestored, onClose }: Props) {
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal-panel" onClick={(e) => e.stopPropagation()}>
-        <h2>Papelera</h2>
+        <h2>{t("trash.title")}</h2>
 
-        {loading && <p className="status">Cargando…</p>}
+        {loading && <p className="status">{t("common.loading")}</p>}
         {error && <p className="status status-error">{error}</p>}
 
         {!loading && people.length === 0 && (
-          <p className="status">No hay nadie en la papelera.</p>
+          <p className="status">{t("trash.empty")}</p>
         )}
 
         {people.length > 0 && (
@@ -61,14 +69,16 @@ export default function TrashView({ onRestored, onClose }: Props) {
                   <div className="trash-list-name">
                     {person.givenNames} {[person.surname1, person.surname2].filter(Boolean).join(" ")}
                   </div>
-                  <div className="trash-list-meta">Eliminado el {formatDeletedAt(person.deletedAt)}</div>
+                  <div className="trash-list-meta">
+                    {t("trash.deletedOn", { date: formatDeletedAt(person.deletedAt, i18n.language) })}
+                  </div>
                 </div>
                 <button
                   type="button"
                   onClick={() => handleRestore(person.id)}
                   disabled={restoringId === person.id}
                 >
-                  {restoringId === person.id ? "Restaurando…" : "Restaurar"}
+                  {restoringId === person.id ? t("trash.restoring") : t("trash.restore")}
                 </button>
               </li>
             ))}
@@ -77,7 +87,7 @@ export default function TrashView({ onRestored, onClose }: Props) {
 
         <div className="modal-actions">
           <button type="button" onClick={onClose}>
-            Cerrar
+            {t("common.close")}
           </button>
         </div>
       </div>

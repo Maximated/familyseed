@@ -9,6 +9,10 @@ import {
   UNION_TYPE_VALUES,
 } from "../enums.js";
 import { getDefaultTreeId, logChange } from "../tree-context.js";
+import { deleteUploadByUrl, saveUpload } from "../uploads.js";
+import { buildTreeData } from "../tree-data.js";
+import { renderReportHtml, renderReportPdf, type ReportDirection } from "../report.js";
+import { downloadFilename } from "../filename.js";
 
 const individualFieldsSchema = {
   type: "object",
@@ -122,24 +126,49 @@ function personLabel(individual: { givenNames: string; surname1: string }): stri
 }
 
 export default async function individualRoutes(fastify: FastifyInstance) {
+  // Custom filters reuse the same fields the tree navigation already
+  // exposes (lineage chips, birth years for the timeline) — this is a
+  // second view over that data, not a new filtering concept.
   fastify.get("/", async (request) => {
-    const { search, trashed } = request.query as { search?: string; trashed?: string };
+    const { search, trashed, lineageId, birthYearFrom, birthYearTo, place } = request.query as {
+      search?: string;
+      trashed?: string;
+      lineageId?: string;
+      birthYearFrom?: string;
+      birthYearTo?: string;
+      place?: string;
+    };
     const treeId = await getDefaultTreeId();
+
+    const and: Array<Record<string, unknown>> = [];
+    if (search) {
+      and.push({
+        OR: [
+          { givenNames: { contains: search } },
+          { surname1: { contains: search } },
+          { surname2: { contains: search } },
+          { surname1BirthName: { contains: search } },
+        ],
+      });
+    }
+    if (lineageId) {
+      and.push({ lineages: { some: { lineageId } } });
+    }
+    if (place) {
+      and.push({ OR: [{ birthPlace: { contains: place } }, { deathPlace: { contains: place } }] });
+    }
+    if (birthYearFrom) {
+      and.push({ birthDateValue: { gte: new Date(Date.UTC(Number(birthYearFrom), 0, 1)) } });
+    }
+    if (birthYearTo) {
+      and.push({ birthDateValue: { lte: new Date(Date.UTC(Number(birthYearTo), 11, 31, 23, 59, 59)) } });
+    }
 
     return prisma.individual.findMany({
       where: {
         treeId,
         deletedAt: trashed === "true" ? { not: null } : null,
-        ...(search
-          ? {
-              OR: [
-                { givenNames: { contains: search } },
-                { surname1: { contains: search } },
-                { surname2: { contains: search } },
-                { surname1BirthName: { contains: search } },
-              ],
-            }
-          : {}),
+        ...(and.length ? { AND: and } : {}),
       },
       orderBy: [{ surname1: "asc" }, { givenNames: "asc" }],
     });
@@ -459,5 +488,118 @@ export default async function individualRoutes(fastify: FastifyInstance) {
       summary: personLabel(restored),
     });
     return restored;
+  });
+
+  // Single profile photo shown on the tree card itself — distinct from the
+  // photos/documents gallery below.
+  fastify.post("/:id/photo", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const treeId = await getDefaultTreeId();
+
+    const existing = await prisma.individual.findFirst({ where: { id, treeId, deletedAt: null } });
+    if (!existing) {
+      return reply.code(404).send({ error: `No existe el individuo ${id}` });
+    }
+
+    const file = await request.file();
+    if (!file) {
+      return reply.code(400).send({ error: "No se recibió ningún archivo" });
+    }
+    if (!file.mimetype.startsWith("image/")) {
+      return reply.code(400).send({ error: "El archivo debe ser una imagen" });
+    }
+
+    const buffer = await file.toBuffer();
+    const { url } = await saveUpload(treeId, id, file.filename, buffer);
+
+    const updated = await prisma.individual.update({ where: { id }, data: { photoUrl: url } });
+    await logChange({
+      action: "individual.photo",
+      entityType: "Individual",
+      entityId: id,
+      summary: personLabel(updated),
+    });
+    return updated;
+  });
+
+  // Photos/documents gallery attached to a person (shown as tabs in the
+  // info panel) — separate from the single profile photo above.
+  fastify.get("/:id/media", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const treeId = await getDefaultTreeId();
+
+    const individual = await prisma.individual.findFirst({ where: { id, treeId } });
+    if (!individual) {
+      return reply.code(404).send({ error: `No existe el individuo ${id}` });
+    }
+
+    return prisma.personMedia.findMany({ where: { individualId: id, treeId }, orderBy: { createdAt: "desc" } });
+  });
+
+  fastify.post("/:id/media", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const treeId = await getDefaultTreeId();
+
+    const individual = await prisma.individual.findFirst({ where: { id, treeId, deletedAt: null } });
+    if (!individual) {
+      return reply.code(404).send({ error: `No existe el individuo ${id}` });
+    }
+
+    const file = await request.file();
+    if (!file) {
+      return reply.code(400).send({ error: "No se recibió ningún archivo" });
+    }
+
+    const buffer = await file.toBuffer();
+    const { url } = await saveUpload(treeId, id, file.filename, buffer);
+    const type = file.mimetype.startsWith("image/") ? "PHOTO" : "DOCUMENT";
+
+    const media = await prisma.personMedia.create({
+      data: { treeId, individualId: id, type, url, filename: file.filename, mimeType: file.mimetype },
+    });
+    await logChange({ action: "media.create", entityType: "PersonMedia", entityId: media.id, summary: file.filename });
+    return reply.code(201).send(media);
+  });
+
+  fastify.delete("/:id/media/:mediaId", async (request, reply) => {
+    const { id, mediaId } = request.params as { id: string; mediaId: string };
+    const treeId = await getDefaultTreeId();
+
+    const media = await prisma.personMedia.findFirst({ where: { id: mediaId, individualId: id, treeId } });
+    if (!media) {
+      return reply.code(404).send({ error: "No existe ese archivo" });
+    }
+
+    await prisma.personMedia.delete({ where: { id: mediaId } });
+    await deleteUploadByUrl(media.url);
+    await logChange({ action: "media.delete", entityType: "PersonMedia", entityId: mediaId, summary: media.filename });
+    return reply.code(204).send();
+  });
+
+  // PDF report of a person's ascendants/descendants — walks the very same
+  // rels.parents/rels.children graph GET /tree hands to the frontend for
+  // navigation (see buildTreeData/walkGraph in tree-data.ts), so the report
+  // can never show a different family shape than the tree UI does.
+  fastify.get("/:id/report", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const { direction: rawDirection } = request.query as { direction?: string };
+    const direction: ReportDirection =
+      rawDirection === "ancestors" || rawDirection === "descendants" ? rawDirection : "both";
+
+    const treeId = await getDefaultTreeId();
+    const individual = await prisma.individual.findFirst({ where: { id, treeId, deletedAt: null } });
+    if (!individual) {
+      return reply.code(404).send({ error: `No existe el individuo ${id}` });
+    }
+
+    const tree = await prisma.tree.findUniqueOrThrow({ where: { id: treeId } });
+    const { people } = await buildTreeData(treeId);
+    const html = await renderReportHtml(people, id, tree.name, direction);
+    const pdf = await renderReportPdf(html);
+
+    const filenameSafe = downloadFilename(personLabel(individual), "informe");
+    reply.header("Content-Type", "application/pdf");
+    reply.header("Content-Disposition", `attachment; filename="${filenameSafe}.pdf"`);
+    return reply.send(pdf);
   });
 }

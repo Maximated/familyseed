@@ -1,0 +1,206 @@
+{
+  "common": {
+    "cancel": "Cancelar",
+    "close": "Cerrar",
+    "loading": "Cargando…",
+    "save": "Guardar",
+    "saving": "Guardando…",
+    "circaYear": "c. {{year}}",
+    "bornYear": "n. {{value}}",
+    "diedYear": "† {{value}}",
+    "lifespanRange": "{{birth}} – {{death}}"
+  },
+  "app": {
+    "defaultTitle": "Árbol genealógico",
+    "titleHint": "Pulsa para renombrar el árbol",
+    "loadingTree": "Cargando árbol…",
+    "noIndividuals": "No hay individuos en la base de datos todavía.",
+    "back": "Volver",
+    "lineages": "Linajes",
+    "edit": "Editar",
+    "trash": "Papelera",
+    "addPerson": "Añadir persona",
+    "user": "Usuario",
+    "defaultUserName": "Usuario",
+    "language": "Idioma",
+    "report": "Informe PDF",
+    "gedcom": "Importar/exportar GEDCOM",
+    "search": "Buscar personas",
+    "role": "Rol: {{role}}",
+    "selfHostedHint": "Modo autohospedado: un único usuario."
+  },
+  "roles": {
+    "OWNER": "Propietario",
+    "EDITOR": "Editor",
+    "VIEWER": "Lector"
+  },
+  "unionType": {
+    "MARRIAGE": "Matrimonio",
+    "PARTNERSHIP": "Pareja de hecho",
+    "EXTRAMARITAL": "Relación extramatrimonial",
+    "UNKNOWN": "Desconocido"
+  },
+  "unionStatus": {
+    "ONGOING": "En curso",
+    "ENDED_BY_DEATH": "Finalizada por fallecimiento",
+    "DIVORCED": "Divorcio",
+    "SEPARATED": "Separación",
+    "ANNULLED": "Anulación"
+  },
+  "legend": {
+    "marriage": "Matrimonio",
+    "marriage2": "2º matrimonio (o más)",
+    "partnership": "Pareja de hecho",
+    "extramarital": "Relación extramatrimonial",
+    "extramarital2": "2ª relación extramatrimonial (o más)",
+    "endedByDivorce": "Divorcio/separación",
+    "endedByDeath": "Unión finalizada por fallecimiento",
+    "hint": "Pulsa un icono de unión, o el de una tarjeta, para ver el detalle"
+  },
+  "card": {
+    "viewFull": "Ver ficha completa"
+  },
+  "sex": {
+    "MALE": "Hombre",
+    "FEMALE": "Mujer",
+    "UNKNOWN": "Desconocido"
+  },
+  "infoPanel": {
+    "tabFicha": "Ficha",
+    "tabRelaciones": "Relaciones",
+    "tabFotos": "Fotos",
+    "tabDocumentos": "Documentos",
+    "sectionIdentity": "Identidad",
+    "sectionBirth": "Nacimiento",
+    "sectionDeath": "Defunción",
+    "sectionNotes": "Notas",
+    "sectionBiography": "Biografía",
+    "surnames": "Apellidos: {{value}}",
+    "alias": "Apodo: «{{value}}»",
+    "sexLine": "Sexo: {{value}}",
+    "unknown": "Desconocido",
+    "unionHeading": "Detalles de la unión",
+    "unionType": "Tipo: {{value}}",
+    "unionStatus": "Estado: {{value}}",
+    "unionDate": "Fecha: {{value}}",
+    "unionPlace": "Lugar: {{value}}",
+    "unknownDate": "Desconocida",
+    "unionOrder": "{{order}}ª unión"
+  },
+  "media": {
+    "noPhotos": "Todavía no hay fotos.",
+    "noDocuments": "Todavía no hay documentos.",
+    "addPhoto": "+ Añadir foto",
+    "addDocument": "+ Añadir documento",
+    "uploading": "Subiendo…",
+    "deletePhoto": "Eliminar foto",
+    "deleteDocument": "Eliminar documento"
+  },
+  "personFields": {
+    "photo": "Fotografía",
+    "photoPreviewAlt": "Vista previa",
+    "givenNames": "Nombre",
+    "surname1": "Primer apellido (paterno en España, único en Polonia)",
+    "surname2": "Segundo apellido (materno — opcional, convención española)",
+    "surname1BirthName": "Primer apellido de nacimiento (si difiere del actual)",
+    "surname1BirthNamePlaceholder": "ej. Kowalski",
+    "alias": "Apodo o alias (opcional)",
+    "aliasPlaceholder": "ej. Boni",
+    "sex": "Sexo",
+    "sexUnknown": "Desconocido",
+    "sexMale": "Hombre",
+    "sexFemale": "Mujer",
+    "birthDate": "Fecha de nacimiento",
+    "birthDatePlaceholder": "ej. 1950, hacia 1927, 12 marzo 1925",
+    "birthPlace": "Lugar de nacimiento",
+    "placePlaceholder": "ej. Kraków, Polonia",
+    "deathDate": "Fecha de defunción",
+    "deathDatePlaceholder": "ej. 1998, hacia 1965, 2 noviembre 1998",
+    "deathPlace": "Lugar de defunción",
+    "notes": "Notas",
+    "biography": "Biografía",
+    "biographyPlaceholder": "Un relato breve sobre esta persona: su vida, oficio, anécdotas…"
+  },
+  "addPerson": {
+    "title": "Añadir persona",
+    "relationshipLegend": "Relación con el árbol",
+    "childOf": "Es hijo/a de",
+    "parentPlaceholder": "— Padre/madre —",
+    "otherParentPlaceholder": "— Otro padre/madre (opcional) —",
+    "unionHint": "Si los dos padres elegidos no tienen ya una unión registrada entre ellos, se crea una unión nueva solo para ellos dos — así se representan también los hijos de relaciones extramatrimoniales o de una pareja no registrada como matrimonio.",
+    "partnerOf": "Es cónyuge/pareja de",
+    "partnerPlaceholder": "— Persona —",
+    "unionDatePlaceholder": "Fecha de la unión (ej. 1997, hacia 1990)",
+    "noRelation": "Sin relación conocida (nuevo ancestro)",
+    "personLegend": "Datos de la persona",
+    "validationRequired": "El nombre y el primer apellido son obligatorios.",
+    "validationParent": "Elige al menos un padre/madre.",
+    "validationPartner": "Elige la persona con la que forma pareja."
+  },
+  "editPerson": {
+    "title": "Editar persona",
+    "personLegend": "Datos de la persona",
+    "validationRequired": "El nombre y el primer apellido son obligatorios.",
+    "deletePerson": "Eliminar persona",
+    "confirmDelete": "¿Seguro que quieres eliminar a <1>{{name}}</1>? Pasará a la papelera — podrás restaurarla más tarde si te equivocas.",
+    "confirmYes": "Sí, eliminar",
+    "deleting": "Eliminando…"
+  },
+  "trash": {
+    "title": "Papelera",
+    "empty": "No hay nadie en la papelera.",
+    "deletedOn": "Eliminado el {{date}}",
+    "restore": "Restaurar",
+    "restoring": "Restaurando…"
+  },
+  "lineageChips": {
+    "clear": "Limpiar"
+  },
+  "report": {
+    "ancestors": "Ascendientes",
+    "descendants": "Descendientes",
+    "both": "Ascendientes y descendientes"
+  },
+  "search": {
+    "title": "Buscar personas",
+    "namePlaceholder": "Nombre o apellido…",
+    "lineageAll": "— Todos los linajes —",
+    "birthFrom": "Nacido desde",
+    "birthTo": "hasta",
+    "placePlaceholder": "Lugar de nacimiento o defunción…",
+    "noResults": "No hay nadie que coincida con estos filtros.",
+    "resultsCount_one": "{{count}} persona encontrada",
+    "resultsCount_other": "{{count}} personas encontradas"
+  },
+  "unionNotes": {
+    "heading": "Notas de la unión",
+    "placeholder": "Añade una nota sobre esta unión…"
+  },
+  "relations": {
+    "parents": "Padres",
+    "siblings": "Hermanos",
+    "partners": "Cónyuges/parejas",
+    "children": "Hijos",
+    "none": "Ninguno"
+  },
+  "gedcom": {
+    "title": "Importar / exportar GEDCOM",
+    "importHeading": "Importar",
+    "dropHint": "Suelta aquí tu archivo GEDCOM (.ged)",
+    "dropHintOrBrowse": "o haz clic para elegir un archivo",
+    "importing": "Importando…",
+    "importSuccess": "Importado: {{individuals}} individuos y {{families}} familias.",
+    "importErrorType": "El archivo debe tener extensión .ged",
+    "exportHeading": "Exportar",
+    "exportFullTree": "Exportar árbol completo (.ged)",
+    "exportAncestorsOf": "Exportar ascendientes de {{name}} (.ged)",
+    "exportDescendantsOf": "Exportar descendientes de {{name}} (.ged)",
+    "exportHint": "Compatible con Gramps, Webtrees y otras herramientas de genealogía."
+  },
+  "timeline": {
+    "century": "S. {{roman}}"
+  },
+  "errors": {
+    "apiResponded": "La API respondió {{status}}"
+  }
+}
