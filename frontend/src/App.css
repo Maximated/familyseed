@@ -95,6 +95,10 @@ body {
   gap: 0.4rem;
 }
 
+/* Bare icon, no circular stroke/background — a soft shadow + slight lift on
+   hover instead, the same idea as the person-card hover effect (see
+   family-chart's own `.f3 div.card:hover .card-inner` rule) scaled down for
+   an icon-sized target. */
 .icon-button {
   display: inline-flex;
   align-items: center;
@@ -102,13 +106,13 @@ body {
   width: 36px;
   height: 36px;
   padding: 0;
-  border: 1px solid rgba(27, 67, 50, 0.25);
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.4);
-  backdrop-filter: blur(8px);
+  border: none;
+  border-radius: 8px;
+  background: none;
   color: var(--color-forest);
   color-scheme: light;
   cursor: pointer;
+  transition: box-shadow 150ms ease, transform 150ms ease, color 150ms ease;
 }
 
 .icon-button:disabled {
@@ -117,9 +121,9 @@ body {
 }
 
 .icon-button:not(:disabled):hover {
-  background: var(--color-amber);
-  border-color: var(--color-amber);
-  color: #fff;
+  color: var(--color-amber);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
+  transform: translateY(-1px);
 }
 
 .popover-anchor {
@@ -214,38 +218,6 @@ body {
   animation: popoverItemIn 320ms ease forwards;
 }
 
-.user-popover-name {
-  margin: 0;
-  font-family: var(--font-name);
-  font-size: 1rem;
-  color: var(--color-forest);
-  opacity: 0;
-  animation: popoverItemIn 320ms ease forwards;
-}
-
-.user-popover-email,
-.user-popover-role {
-  margin: 0.15rem 0 0;
-  font-size: 0.8rem;
-  color: var(--color-text-secondary);
-  opacity: 0;
-  animation: popoverItemIn 320ms ease forwards;
-  animation-delay: 60ms;
-}
-
-.user-popover-role {
-  animation-delay: 120ms;
-}
-
-.user-popover .field-hint {
-  margin-top: 0.5rem;
-  padding-top: 0.5rem;
-  border-top: 1px solid rgba(27, 67, 50, 0.1);
-  opacity: 0;
-  animation: popoverItemIn 320ms ease forwards;
-  animation-delay: 180ms;
-}
-
 .language-popover {
   min-width: 140px;
 }
@@ -273,29 +245,6 @@ body {
 .language-popover-item-active {
   color: var(--color-amber);
   font-weight: 700;
-}
-
-.report-popover {
-  min-width: 200px;
-}
-
-.report-popover-item {
-  display: block;
-  width: 100%;
-  text-align: left;
-  padding: 0.3rem 0.25rem;
-  font-family: var(--font-name);
-  font-size: 0.95rem;
-  color: var(--color-forest);
-  text-decoration: none;
-  cursor: pointer;
-  opacity: 0;
-  animation: popoverItemIn 320ms ease forwards;
-  transition: color 120ms ease;
-}
-
-.report-popover-item:hover {
-  color: var(--color-amber);
 }
 
 .gedcom-dropzone {
@@ -638,6 +587,41 @@ body {
 }
 
 .card-expand-toggle:hover {
+  background: var(--color-amber);
+}
+
+/* Opposite corner from the expand toggle, hover-revealed (unlike the
+   always-visible expand icon) to keep the card uncluttered by default —
+   editing a specific person is one hover away instead of always on show. */
+.card-edit-toggle {
+  position: absolute;
+  top: -6px;
+  left: -6px;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  border: 1px solid var(--color-bg);
+  background: var(--color-forest);
+  color: var(--color-bg);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 150ms ease, background 150ms ease;
+}
+
+.card:hover .card-edit-toggle {
+  opacity: 1;
+}
+
+.card-edit-toggle svg {
+  width: 12px;
+  height: 12px;
+}
+
+.card-edit-toggle:hover {
   background: var(--color-amber);
 }
 
@@ -1013,6 +997,18 @@ body {
   display: flex;
   justify-content: flex-end;
   gap: 0.5rem;
+}
+
+.modal-actions button.info-panel-copy-button {
+  margin-right: auto;
+  font-size: 0.85rem;
+  color: var(--color-text-secondary);
+  background: none;
+  border: none;
+}
+
+.modal-actions button.info-panel-copy-button:hover {
+  color: var(--color-amber);
 }
 
 .modal-actions button {

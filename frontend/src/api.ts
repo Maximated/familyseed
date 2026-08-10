@@ -407,3 +407,26 @@ export async function updateFamilyNotes(treeId: string, id: string, notes: strin
   });
   await throwIfNotOk(res);
 }
+
+export type CopyMode = "single" | "lineage";
+
+export type CopyIndividualPayload = {
+  destTreeId: string;
+  mode: CopyMode;
+  direction?: "ancestors" | "descendants";
+};
+
+// Not tree-scoped in the URL (no /trees/:treeId prefix) — copying spans a
+// source and a destination tree at once, so the backend resolves both from
+// the request body instead of a single URL param.
+export async function copyIndividual(
+  id: string,
+  payload: CopyIndividualPayload,
+): Promise<{ individuals: number; families: number }> {
+  const res = await apiFetch(`/individuals/${id}/copy`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  return parseJsonOrThrow(res);
+}

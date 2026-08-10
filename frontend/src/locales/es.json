@@ -173,6 +173,19 @@
     "resultsCount_one": "{{count}} persona encontrada",
     "resultsCount_other": "{{count}} personas encontradas"
   },
+  "copyPerson": {
+    "action": "Copiar a otro árbol…",
+    "title": "Copiar {{name}} a otro árbol",
+    "destTree": "Árbol de destino",
+    "destTreePlaceholder": "— Elige un árbol —",
+    "noDestTrees": "No tienes ningún otro árbol donde puedas escribir.",
+    "modeSingle": "Solo esta persona (sin relaciones)",
+    "modeLineage": "Esta persona junto con su rama",
+    "direction": "Rama a copiar",
+    "success": "Copiado: {{individuals}} personas y {{families}} familias.",
+    "submit": "Copiar",
+    "submitting": "Copiando…"
+  },
   "personPicker": {
     "placeholder": "Busca una persona…",
     "noResults": "Sin resultados",

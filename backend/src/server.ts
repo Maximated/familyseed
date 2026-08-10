@@ -10,6 +10,7 @@ import treeRoutes from "./routes/tree.js";
 import lineageRoutes from "./routes/lineages.js";
 import gedcomRoutes from "./routes/gedcom.js";
 import treesRoutes from "./routes/trees.js";
+import copyRoutes from "./routes/copy.js";
 import authRoutes, { requireAuth } from "./routes/auth.js";
 import { requireTreeMembership } from "./tree-membership.js";
 import { uploadsRoot } from "./uploads.js";
@@ -31,6 +32,9 @@ await app.register(fastifyStatic, { root: uploadsRoot(), prefix: "/uploads/", de
 
 await app.register(authRoutes, { prefix: "/auth" });
 await app.register(treesRoutes, { prefix: "/trees" });
+// Top-level (not nested under /trees/:treeId) — copying spans a source and
+// a destination tree at once, so it does its own dual-membership check.
+await app.register(copyRoutes, { prefix: "/individuals" });
 
 // Everything genealogical lives under /trees/:treeId — one preHandler here
 // resolves+validates the caller's membership on that specific tree once,

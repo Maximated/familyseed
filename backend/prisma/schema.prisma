@@ -207,6 +207,15 @@ model Individual {
   // (and often do) reuse the same GEDCOM "@I1@"-style xrefs.
   gedcomXref String? @map("gedcom_xref")
 
+  // Set when this row was created by "copy person"/"copy lineage" between
+  // trees — points at the individual it was copied from (in whatever tree
+  // that was). Nothing reads this for matching/deduplication yet; it's
+  // provenance for a future "detect duplicates across trees" pass.
+  // SetNull on delete: losing the original shouldn't cascade-delete the copy.
+  originIndividualId String?      @map("origin_individual_id")
+  originIndividual   Individual?  @relation("IndividualOrigin", fields: [originIndividualId], references: [id], onDelete: SetNull)
+  copiedAs           Individual[] @relation("IndividualOrigin")
+
   createdAt DateTime  @default(now()) @map("created_at")
   updatedAt DateTime  @updatedAt @map("updated_at")
   deletedAt DateTime? @map("deleted_at")
@@ -219,6 +228,7 @@ model Individual {
 
   @@unique([treeId, gedcomXref])
   @@index([treeId, surname1, givenNames])
+  @@index([originIndividualId])
   @@map("individuals")
 }
 

@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import PersonMediaTab from "./PersonMedia";
 import RelationsTab from "./RelationsTab";
 import UnionNotesEditor from "./UnionNotesEditor";
+import CopyPersonModal from "./CopyPersonModal";
 
 export type InfoPanelSection = {
   heading: string;
@@ -34,6 +35,7 @@ type Tab = "ficha" | "relaciones" | "fotos" | "documentos";
 export default function InfoPanel({ treeId, data, onClose, onNavigateToPerson }: Props) {
   const { t } = useTranslation();
   const [tab, setTab] = useState<Tab>("ficha");
+  const [showCopyModal, setShowCopyModal] = useState(false);
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
@@ -85,11 +87,24 @@ export default function InfoPanel({ treeId, data, onClose, onNavigateToPerson }:
         )}
 
         <div className="modal-actions">
+          {data.personId && (
+            <button type="button" className="info-panel-copy-button" onClick={() => setShowCopyModal(true)}>
+              {t("copyPerson.action")}
+            </button>
+          )}
           <button type="button" onClick={onClose}>
             {t("common.close")}
           </button>
         </div>
       </div>
+      {showCopyModal && data.personId && (
+        <CopyPersonModal
+          treeId={treeId}
+          personId={data.personId}
+          personName={data.title}
+          onClose={() => setShowCopyModal(false)}
+        />
+      )}
     </div>
   );
 }

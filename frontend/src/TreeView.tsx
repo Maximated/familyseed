@@ -4,53 +4,27 @@ import "family-chart/styles/family-chart.css";
 import "./App.css";
 import { useTranslation } from "react-i18next";
 import { Link, useParams } from "react-router-dom";
-import i18n, { SUPPORTED_LANGUAGES, type SupportedLanguage } from "./i18n";
+import i18n from "./i18n";
 import {
   fetchLineages,
   fetchTree,
   mediaUrl,
-  personReportUrl,
   updateTreeName,
   type Lineage,
-  type ReportDirection,
   type TreePerson,
   type TreeRole,
   type UnionInfo,
   type UnionStatus,
   type UnionType,
 } from "./api";
-import { useAuth } from "./AuthContext";
 import AddPersonForm from "./AddPersonForm";
 import EditPersonForm from "./EditPersonForm";
 import TrashView from "./TrashView";
-import GedcomView from "./GedcomView";
 import IndividualsSearchView from "./IndividualsSearchView";
 import LineageChips from "./LineageChips";
 import Timeline from "./Timeline";
 import InfoPanel, { type InfoPanelData, type InfoPanelSection } from "./InfoPanel";
-import {
-  ArrowLeftIcon,
-  ArrowUpDownIcon,
-  FileTextIcon,
-  GitBranchIcon,
-  GlobeIcon,
-  HomeIcon,
-  PencilIcon,
-  SearchIcon,
-  Trash2Icon,
-  UserIcon,
-  UserPlusIcon,
-} from "./Icons";
-
-const REPORT_DIRECTIONS: ReportDirection[] = ["ancestors", "descendants", "both"];
-
-// Native, untranslated names — a language switcher lists each language in
-// its own tongue, not translated into whichever language is active.
-const LANGUAGE_LABEL: Record<SupportedLanguage, string> = {
-  es: "Español",
-  en: "English",
-  pl: "Polski",
-};
+import { ArrowLeftIcon, GitBranchIcon, HomeIcon, SearchIcon, Trash2Icon, UserIcon, UserPlusIcon } from "./Icons";
 
 // family-chart's own Datum type requires `gender: 'M' | 'F'`, but our data
 // can omit it (unknown sex) — the library renders a genderless card fine at
@@ -165,6 +139,11 @@ type CardDatum = { data: { id: string; data: Record<string, unknown> } };
 // that didn't read as an inviting "see more" affordance.
 const EXPAND_ICON_SVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M7 8h10"/><path d="M7 12h6"/></svg>`;
 
+// Lucide's "pencil" glyph — same path data as Icons.tsx's PencilIcon,
+// duplicated here as a raw string since cardTemplate builds plain HTML
+// (family-chart owns that DOM, not React).
+const EDIT_ICON_SVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .622.622l4.353-1.321a2 2 0 0 0 .83-.497Z"/><path d="m15 5 4 4"/></svg>`;
+
 // Lucide's "user" glyph — the neutral placeholder shown on a card when the
 // person has no uploaded photo.
 const PERSON_ICON_SVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21a8 8 0 0 0-16 0"/><circle cx="12" cy="7" r="4"/></svg>`;
@@ -192,6 +171,7 @@ function cardTemplate(d: CardDatum): string {
       ${lifespan ? `<div class="card-lifespan">${escapeHtml(lifespan)}</div>` : ""}
     </div>
     <button type="button" class="card-expand-toggle" data-person-id="${d.data.id}" title="${escapeHtml(i18n.t("card.viewFull"))}" aria-label="${escapeHtml(i18n.t("card.viewFull"))}">${EXPAND_ICON_SVG}</button>
+    <button type="button" class="card-edit-toggle" data-person-id="${d.data.id}" title="${escapeHtml(i18n.t("app.edit"))}" aria-label="${escapeHtml(i18n.t("app.edit"))}">${EDIT_ICON_SVG}</button>
   `;
 }
 
@@ -263,7 +243,6 @@ function buildUnionInfoPanel(union: UnionInfo, people: TreePerson[]): InfoPanelD
 
 function App() {
   const { t } = useTranslation();
-  const { user } = useAuth();
   const { treeId } = useParams<{ treeId: string }>();
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<ReturnType<typeof f3.createChart> | null>(null);
@@ -274,18 +253,13 @@ function App() {
   const unionsByPairKeyRef = useRef<Map<string, UnionInfo>>(new Map());
   const selectedLineageIdsRef = useRef<Set<string>>(new Set());
   const lineageMenuRef = useRef<HTMLDivElement>(null);
-  const userMenuRef = useRef<HTMLDivElement>(null);
-  const languageMenuRef = useRef<HTMLDivElement>(null);
-  const reportMenuRef = useRef<HTMLDivElement>(null);
 
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [canGoBack, setCanGoBack] = useState(false);
-  const [currentMainId, setCurrentMainId] = useState<string | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
-  const [showEditForm, setShowEditForm] = useState(false);
+  const [editingPersonId, setEditingPersonId] = useState<string | null>(null);
   const [showTrash, setShowTrash] = useState(false);
-  const [showGedcom, setShowGedcom] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
   const [treeData, setTreeData] = useState<TreePerson[]>([]);
   const [lineages, setLineages] = useState<Lineage[]>([]);
@@ -296,9 +270,6 @@ function App() {
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState("");
   const [showLineageMenu, setShowLineageMenu] = useState(false);
-  const [showUserMenu, setShowUserMenu] = useState(false);
-  const [showLanguageMenu, setShowLanguageMenu] = useState(false);
-  const [showReportMenu, setShowReportMenu] = useState(false);
 
   const runHighlight = useCallback(() => {
     if (!containerRef.current) return;
@@ -317,6 +288,15 @@ function App() {
         e.stopPropagation();
         const person = treeDataRef.current.find((p) => p.id === btn.dataset.personId);
         if (person) setInfoPanel(buildPersonInfoPanel(person));
+      };
+    });
+
+    // Opens the edit form for exactly the person whose card was clicked —
+    // no more "edit the currently centered person" indirection.
+    container.querySelectorAll<HTMLButtonElement>(".card-edit-toggle").forEach((btn) => {
+      btn.onclick = (e) => {
+        e.stopPropagation();
+        if (btn.dataset.personId) setEditingPersonId(btn.dataset.personId);
       };
     });
 
@@ -387,7 +367,6 @@ function App() {
             }
             isGoingBackRef.current = false;
             currentMainIdRef.current = newMainId;
-            setCurrentMainId(newMainId);
             // Navigating to someone else makes a pinned lineage highlight
             // stale — without this, everyone stays dimmed with no way to
             // tell why, since the chip itself still looks selected.
@@ -403,7 +382,6 @@ function App() {
         chart.updateTree({ initial: true });
         chartRef.current = chart;
         currentMainIdRef.current = chart.getMainDatum().id;
-        setCurrentMainId(chart.getMainDatum().id);
         return;
       }
 
@@ -413,7 +391,6 @@ function App() {
       }
       chartRef.current.updateTree({});
       currentMainIdRef.current = chartRef.current.getMainDatum().id;
-      setCurrentMainId(currentMainIdRef.current);
     },
     [runHighlight, wireCardAndUnionClicks, t, treeId],
   );
@@ -458,27 +435,18 @@ function App() {
   }, [selectedLineageIds, runHighlight]);
 
   useEffect(() => {
-    if (!showLineageMenu && !showUserMenu && !showLanguageMenu && !showReportMenu) return;
+    if (!showLineageMenu) return;
 
     function handlePointerDown(event: PointerEvent) {
       const target = event.target as Node;
-      if (showLineageMenu && lineageMenuRef.current && !lineageMenuRef.current.contains(target)) {
+      if (lineageMenuRef.current && !lineageMenuRef.current.contains(target)) {
         setShowLineageMenu(false);
-      }
-      if (showUserMenu && userMenuRef.current && !userMenuRef.current.contains(target)) {
-        setShowUserMenu(false);
-      }
-      if (showLanguageMenu && languageMenuRef.current && !languageMenuRef.current.contains(target)) {
-        setShowLanguageMenu(false);
-      }
-      if (showReportMenu && reportMenuRef.current && !reportMenuRef.current.contains(target)) {
-        setShowReportMenu(false);
       }
     }
 
     document.addEventListener("pointerdown", handlePointerDown);
     return () => document.removeEventListener("pointerdown", handlePointerDown);
-  }, [showLineageMenu, showUserMenu, showLanguageMenu, showReportMenu]);
+  }, [showLineageMenu]);
 
   function handleTitleClick() {
     setTitleDraft(treeName);
@@ -544,28 +512,21 @@ function App() {
   }
 
   function handlePersonSaved(personId: string) {
-    setShowEditForm(false);
+    setEditingPersonId(null);
     loadTree(personId).catch((err: Error) => setError(err.message));
   }
 
   function handlePersonDeleted() {
-    setShowEditForm(false);
     // The deleted person can no longer be a valid "back" target.
-    backStackRef.current = backStackRef.current.filter((id) => id !== currentMainId);
+    backStackRef.current = backStackRef.current.filter((id) => id !== editingPersonId);
     setCanGoBack(backStackRef.current.length > 0);
+    setEditingPersonId(null);
     loadTree().catch((err: Error) => setError(err.message));
   }
 
   function handleTrashRestored() {
     loadTree().catch((err: Error) => setError(err.message));
   }
-
-  function handleGedcomImported() {
-    loadTree().catch((err: Error) => setError(err.message));
-  }
-
-  const currentPerson = currentMainId ? treeData.find((p) => p.id === currentMainId) : undefined;
-  const currentPersonName = currentPerson ? `${currentPerson.data["first name"]} ${currentPerson.data["last name"]}`.trim() : null;
 
   if (!treeId) return null;
 
@@ -634,57 +595,6 @@ function App() {
           <button
             type="button"
             className="icon-button"
-            onClick={() => setShowEditForm(true)}
-            disabled={!currentMainId}
-            aria-label={t("app.edit")}
-            title={t("app.edit")}
-          >
-            <PencilIcon />
-          </button>
-
-          <div className="popover-anchor" ref={reportMenuRef}>
-            <button
-              type="button"
-              className="icon-button"
-              onClick={() => setShowReportMenu((v) => !v)}
-              disabled={!currentMainId}
-              aria-label={t("app.report")}
-              aria-expanded={showReportMenu}
-              title={t("app.report")}
-            >
-              <FileTextIcon />
-            </button>
-            {showReportMenu && currentMainId && (
-              <div className="popover report-popover">
-                {REPORT_DIRECTIONS.map((direction) => (
-                  <a
-                    key={direction}
-                    className="report-popover-item"
-                    href={personReportUrl(treeId, currentMainId, direction)}
-                    target="_blank"
-                    rel="noreferrer"
-                    onClick={() => setShowReportMenu(false)}
-                  >
-                    {t(`report.${direction}`)}
-                  </a>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <button
-            type="button"
-            className="icon-button"
-            onClick={() => setShowGedcom(true)}
-            aria-label={t("app.gedcom")}
-            title={t("app.gedcom")}
-          >
-            <ArrowUpDownIcon />
-          </button>
-
-          <button
-            type="button"
-            className="icon-button"
             onClick={() => setShowTrash(true)}
             aria-label={t("app.trash")}
             title={t("app.trash")}
@@ -695,68 +605,12 @@ function App() {
             type="button"
             className="icon-button"
             onClick={() => setShowAddForm(true)}
+            disabled={treeRole === "VIEWER"}
             aria-label={t("app.addPerson")}
             title={t("app.addPerson")}
           >
             <UserPlusIcon />
           </button>
-
-          <div className="popover-anchor" ref={userMenuRef}>
-            <button
-              type="button"
-              className="icon-button"
-              onClick={() => setShowUserMenu((v) => !v)}
-              aria-label={t("app.user")}
-              aria-expanded={showUserMenu}
-              title={t("app.user")}
-            >
-              <UserIcon />
-            </button>
-            {showUserMenu && (
-              <div className="popover user-popover">
-                {user ? (
-                  <>
-                    <p className="user-popover-name">{user.name ?? user.email ?? t("app.defaultUserName")}</p>
-                    {user.email && <p className="user-popover-email">{user.email}</p>}
-                    {treeRole && <p className="user-popover-role">{t("app.role", { role: t(`roles.${treeRole}`) })}</p>}
-                  </>
-                ) : (
-                  <p className="status">{t("common.loading")}</p>
-                )}
-              </div>
-            )}
-          </div>
-
-          <div className="popover-anchor" ref={languageMenuRef}>
-            <button
-              type="button"
-              className="icon-button"
-              onClick={() => setShowLanguageMenu((v) => !v)}
-              aria-label={t("app.language")}
-              aria-expanded={showLanguageMenu}
-              title={t("app.language")}
-            >
-              <GlobeIcon />
-            </button>
-            {showLanguageMenu && (
-              <div className="popover language-popover">
-                {SUPPORTED_LANGUAGES.map((lang) => (
-                  <button
-                    key={lang}
-                    type="button"
-                    className={`language-popover-item${i18n.language === lang ? " language-popover-item-active" : ""}`}
-                    onClick={() => {
-                      i18n.changeLanguage(lang);
-                      setShowLanguageMenu(false);
-                    }}
-                    aria-pressed={i18n.language === lang}
-                  >
-                    {LANGUAGE_LABEL[lang]}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
         </div>
       </header>
       {loading && <p className="status">{t("app.loadingTree")}</p>}
@@ -801,26 +655,17 @@ function App() {
       {showAddForm && (
         <AddPersonForm treeId={treeId} onCreated={handlePersonCreated} onClose={() => setShowAddForm(false)} />
       )}
-      {showEditForm && currentMainId && (
+      {editingPersonId && (
         <EditPersonForm
           treeId={treeId}
-          personId={currentMainId}
+          personId={editingPersonId}
           onSaved={handlePersonSaved}
           onDeleted={handlePersonDeleted}
-          onClose={() => setShowEditForm(false)}
+          onClose={() => setEditingPersonId(null)}
         />
       )}
       {showTrash && (
         <TrashView treeId={treeId} onRestored={handleTrashRestored} onClose={() => setShowTrash(false)} />
-      )}
-      {showGedcom && (
-        <GedcomView
-          treeId={treeId}
-          initialPersonId={currentMainId}
-          initialPersonName={currentPersonName}
-          onImported={handleGedcomImported}
-          onClose={() => setShowGedcom(false)}
-        />
       )}
       {showSearch && (
         <IndividualsSearchView treeId={treeId} onNavigateToPerson={handleNavigateToPerson} onClose={() => setShowSearch(false)} />
