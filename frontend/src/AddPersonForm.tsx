@@ -14,6 +14,7 @@ import { resizeImage } from "./media";
 type RelationshipKind = "NONE" | "CHILD_OF_PARENTS" | "PARTNER";
 
 type Props = {
+  treeId: string;
   onCreated: (newPersonId: string) => void;
   onClose: () => void;
 };
@@ -24,7 +25,7 @@ function personLabel(person: Individual) {
   return `${person.givenNames} ${surname}${year}`;
 }
 
-export default function AddPersonForm({ onCreated, onClose }: Props) {
+export default function AddPersonForm({ treeId, onCreated, onClose }: Props) {
   const { t } = useTranslation();
   const [individuals, setIndividuals] = useState<Individual[]>([]);
   const [relationshipKind, setRelationshipKind] = useState<RelationshipKind>("CHILD_OF_PARENTS");
@@ -61,10 +62,10 @@ export default function AddPersonForm({ onCreated, onClose }: Props) {
   }
 
   useEffect(() => {
-    fetchIndividuals()
+    fetchIndividuals(treeId)
       .then(setIndividuals)
       .catch((err: Error) => setError(err.message));
-  }, []);
+  }, [treeId]);
 
   function buildRelationship(): Relationship | undefined {
     if (relationshipKind === "CHILD_OF_PARENTS") {
@@ -110,7 +111,7 @@ export default function AddPersonForm({ onCreated, onClose }: Props) {
     setSubmitting(true);
     setError(null);
     try {
-      const { individual } = await createIndividual({
+      const { individual } = await createIndividual(treeId, {
         individual: {
           givenNames: givenNames.trim(),
           surname1: surname1.trim(),
@@ -130,7 +131,7 @@ export default function AddPersonForm({ onCreated, onClose }: Props) {
 
       if (photoFile) {
         const resized = await resizeImage(photoFile, 500, 0.85);
-        await uploadPersonPhoto(individual.id, resized, photoFile.name).catch(() => {
+        await uploadPersonPhoto(treeId, individual.id, resized, photoFile.name).catch(() => {
           // The person is already created — a failed photo upload shouldn't
           // block finishing the form, just leave the avatar unset.
         });

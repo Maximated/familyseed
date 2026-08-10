@@ -16,6 +16,7 @@
     "loadingTree": "Cargando árbol…",
     "noIndividuals": "No hay individuos en la base de datos todavía.",
     "back": "Volver",
+    "backHome": "Mis árboles",
     "lineages": "Linajes",
     "edit": "Editar",
     "trash": "Papelera",
@@ -172,6 +173,11 @@
     "resultsCount_one": "{{count}} persona encontrada",
     "resultsCount_other": "{{count}} personas encontradas"
   },
+  "personPicker": {
+    "placeholder": "Busca una persona…",
+    "noResults": "Sin resultados",
+    "change": "Cambiar"
+  },
   "unionNotes": {
     "heading": "Notas de la unión",
     "placeholder": "Añade una nota sobre esta unión…"
@@ -202,5 +208,30 @@
   },
   "errors": {
     "apiResponded": "La API respondió {{status}}"
+  },
+  "auth": {
+    "loginTitle": "Iniciar sesión",
+    "registerTitle": "Crear cuenta",
+    "email": "Email",
+    "password": "Contraseña",
+    "name": "Nombre (opcional)",
+    "loginButton": "Entrar",
+    "loginButtonBusy": "Entrando…",
+    "registerButton": "Crear cuenta",
+    "registerButtonBusy": "Creando…",
+    "noAccount": "¿No tienes cuenta? Créala",
+    "hasAccount": "¿Ya tienes cuenta? Inicia sesión",
+    "logout": "Cerrar sesión"
+  },
+  "home": {
+    "title": "Tus árboles genealógicos",
+    "ownedHeading": "Tus árboles",
+    "sharedHeading": "Árboles compartidos contigo",
+    "ownedEmpty": "Todavía no has creado ningún árbol.",
+    "sharedEmpty": "Nadie ha compartido un árbol contigo todavía.",
+    "createTree": "Crear árbol nuevo",
+    "createTreePlaceholder": "Nombre del árbol nuevo…",
+    "createTreeSubmit": "Crear",
+    "createTreeCancel": "Cancelar"
   }
 }

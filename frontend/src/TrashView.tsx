@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { fetchTrash, restoreIndividual, type Individual } from "./api";
 
 type Props = {
+  treeId: string;
   onRestored: () => void;
   onClose: () => void;
 };
@@ -18,7 +19,7 @@ function formatDeletedAt(deletedAt: string | null | undefined, language: string)
   });
 }
 
-export default function TrashView({ onRestored, onClose }: Props) {
+export default function TrashView({ treeId, onRestored, onClose }: Props) {
   const { t, i18n } = useTranslation();
   const [people, setPeople] = useState<Individual[]>([]);
   const [loading, setLoading] = useState(true);
@@ -27,19 +28,19 @@ export default function TrashView({ onRestored, onClose }: Props) {
 
   function load() {
     setLoading(true);
-    fetchTrash()
+    fetchTrash(treeId)
       .then(setPeople)
       .catch((err: Error) => setError(err.message))
       .finally(() => setLoading(false));
   }
 
-  useEffect(load, []);
+  useEffect(load, [treeId]);
 
   async function handleRestore(id: string) {
     setRestoringId(id);
     setError(null);
     try {
-      await restoreIndividual(id);
+      await restoreIndividual(treeId, id);
       setPeople((prev) => prev.filter((p) => p.id !== id));
       onRestored();
     } catch (err) {

@@ -8,7 +8,7 @@ import {
   UNION_STATUS_VALUES,
   UNION_TYPE_VALUES,
 } from "../enums.js";
-import { getDefaultTreeId, logChange } from "../tree-context.js";
+import { logChange } from "../tree-context.js";
 import { deleteUploadByUrl, saveUpload } from "../uploads.js";
 import { buildTreeData } from "../tree-data.js";
 import { renderReportHtml, renderReportPdf, type ReportDirection } from "../report.js";
@@ -138,7 +138,7 @@ export default async function individualRoutes(fastify: FastifyInstance) {
       birthYearTo?: string;
       place?: string;
     };
-    const treeId = await getDefaultTreeId();
+    const treeId = request.treeId!;
 
     const and: Array<Record<string, unknown>> = [];
     if (search) {
@@ -176,7 +176,7 @@ export default async function individualRoutes(fastify: FastifyInstance) {
 
   fastify.get("/:id", async (request, reply) => {
     const { id } = request.params as { id: string };
-    const treeId = await getDefaultTreeId();
+    const treeId = request.treeId!;
 
     const individual = await prisma.individual.findFirst({
       where: { id, treeId },
@@ -275,7 +275,7 @@ export default async function individualRoutes(fastify: FastifyInstance) {
     const { individual, relationship } = request.body as CreateIndividualBody;
 
     try {
-      const treeId = await getDefaultTreeId();
+      const treeId = request.treeId!;
 
       const result = await prisma.$transaction(async (tx) => {
         const created = await tx.individual.create({
@@ -351,7 +351,13 @@ export default async function individualRoutes(fastify: FastifyInstance) {
                 family = await tx.family.create({
                   data: { treeId, partner1Id: parent1.id, partner2Id: parent2?.id ?? null, unionType: "UNKNOWN" },
                 });
-                await logChange({ action: "family.create", entityType: "Family", entityId: family.id });
+                await logChange({
+                  treeId,
+                  userId: request.userId ?? null,
+                  action: "family.create",
+                  entityType: "Family",
+                  entityId: family.id,
+                });
               }
 
               await tx.familyChild.create({
@@ -388,7 +394,13 @@ export default async function individualRoutes(fastify: FastifyInstance) {
                   unionPlace: relationship.unionPlace,
                 },
               });
-              await logChange({ action: "family.create", entityType: "Family", entityId: family.id });
+              await logChange({
+                treeId,
+                userId: request.userId ?? null,
+                action: "family.create",
+                entityType: "Family",
+                entityId: family.id,
+              });
               break;
             }
 
@@ -401,6 +413,8 @@ export default async function individualRoutes(fastify: FastifyInstance) {
       });
 
       await logChange({
+        treeId,
+        userId: request.userId ?? null,
         action: "individual.create",
         entityType: "Individual",
         entityId: result.individual.id,
@@ -420,7 +434,7 @@ export default async function individualRoutes(fastify: FastifyInstance) {
   fastify.patch("/:id", { schema: { body: updateIndividualBodySchema } }, async (request, reply) => {
     const { id } = request.params as { id: string };
     const updates = request.body as UpdateIndividualBody;
-    const treeId = await getDefaultTreeId();
+    const treeId = request.treeId!;
 
     const existing = await prisma.individual.findFirst({ where: { id, treeId, deletedAt: null } });
     if (!existing) {
@@ -437,6 +451,8 @@ export default async function individualRoutes(fastify: FastifyInstance) {
     });
 
     await logChange({
+      treeId,
+      userId: request.userId ?? null,
       action: "individual.update",
       entityType: "Individual",
       entityId: updated.id,
@@ -451,7 +467,7 @@ export default async function individualRoutes(fastify: FastifyInstance) {
   // (see isActive/activeIds above) until restored or purged for good.
   fastify.delete("/:id", async (request, reply) => {
     const { id } = request.params as { id: string };
-    const treeId = await getDefaultTreeId();
+    const treeId = request.treeId!;
 
     const existing = await prisma.individual.findFirst({ where: { id, treeId, deletedAt: null } });
     if (!existing) {
@@ -460,6 +476,8 @@ export default async function individualRoutes(fastify: FastifyInstance) {
 
     await prisma.individual.update({ where: { id }, data: { deletedAt: new Date() } });
     await logChange({
+      treeId,
+      userId: request.userId ?? null,
       action: "individual.delete",
       entityType: "Individual",
       entityId: id,
@@ -470,7 +488,7 @@ export default async function individualRoutes(fastify: FastifyInstance) {
 
   fastify.post("/:id/restore", async (request, reply) => {
     const { id } = request.params as { id: string };
-    const treeId = await getDefaultTreeId();
+    const treeId = request.treeId!;
 
     const existing = await prisma.individual.findFirst({ where: { id, treeId } });
     if (!existing) {
@@ -482,6 +500,8 @@ export default async function individualRoutes(fastify: FastifyInstance) {
 
     const restored = await prisma.individual.update({ where: { id }, data: { deletedAt: null } });
     await logChange({
+      treeId,
+      userId: request.userId ?? null,
       action: "individual.restore",
       entityType: "Individual",
       entityId: restored.id,
@@ -494,7 +514,7 @@ export default async function individualRoutes(fastify: FastifyInstance) {
   // photos/documents gallery below.
   fastify.post("/:id/photo", async (request, reply) => {
     const { id } = request.params as { id: string };
-    const treeId = await getDefaultTreeId();
+    const treeId = request.treeId!;
 
     const existing = await prisma.individual.findFirst({ where: { id, treeId, deletedAt: null } });
     if (!existing) {
@@ -514,6 +534,8 @@ export default async function individualRoutes(fastify: FastifyInstance) {
 
     const updated = await prisma.individual.update({ where: { id }, data: { photoUrl: url } });
     await logChange({
+      treeId,
+      userId: request.userId ?? null,
       action: "individual.photo",
       entityType: "Individual",
       entityId: id,
@@ -526,7 +548,7 @@ export default async function individualRoutes(fastify: FastifyInstance) {
   // info panel) — separate from the single profile photo above.
   fastify.get("/:id/media", async (request, reply) => {
     const { id } = request.params as { id: string };
-    const treeId = await getDefaultTreeId();
+    const treeId = request.treeId!;
 
     const individual = await prisma.individual.findFirst({ where: { id, treeId } });
     if (!individual) {
@@ -538,7 +560,7 @@ export default async function individualRoutes(fastify: FastifyInstance) {
 
   fastify.post("/:id/media", async (request, reply) => {
     const { id } = request.params as { id: string };
-    const treeId = await getDefaultTreeId();
+    const treeId = request.treeId!;
 
     const individual = await prisma.individual.findFirst({ where: { id, treeId, deletedAt: null } });
     if (!individual) {
@@ -557,13 +579,20 @@ export default async function individualRoutes(fastify: FastifyInstance) {
     const media = await prisma.personMedia.create({
       data: { treeId, individualId: id, type, url, filename: file.filename, mimeType: file.mimetype },
     });
-    await logChange({ action: "media.create", entityType: "PersonMedia", entityId: media.id, summary: file.filename });
+    await logChange({
+      treeId,
+      userId: request.userId ?? null,
+      action: "media.create",
+      entityType: "PersonMedia",
+      entityId: media.id,
+      summary: file.filename,
+    });
     return reply.code(201).send(media);
   });
 
   fastify.delete("/:id/media/:mediaId", async (request, reply) => {
     const { id, mediaId } = request.params as { id: string; mediaId: string };
-    const treeId = await getDefaultTreeId();
+    const treeId = request.treeId!;
 
     const media = await prisma.personMedia.findFirst({ where: { id: mediaId, individualId: id, treeId } });
     if (!media) {
@@ -572,7 +601,14 @@ export default async function individualRoutes(fastify: FastifyInstance) {
 
     await prisma.personMedia.delete({ where: { id: mediaId } });
     await deleteUploadByUrl(media.url);
-    await logChange({ action: "media.delete", entityType: "PersonMedia", entityId: mediaId, summary: media.filename });
+    await logChange({
+      treeId,
+      userId: request.userId ?? null,
+      action: "media.delete",
+      entityType: "PersonMedia",
+      entityId: mediaId,
+      summary: media.filename,
+    });
     return reply.code(204).send();
   });
 
@@ -586,7 +622,7 @@ export default async function individualRoutes(fastify: FastifyInstance) {
     const direction: ReportDirection =
       rawDirection === "ancestors" || rawDirection === "descendants" ? rawDirection : "both";
 
-    const treeId = await getDefaultTreeId();
+    const treeId = request.treeId!;
     const individual = await prisma.individual.findFirst({ where: { id, treeId, deletedAt: null } });
     if (!individual) {
       return reply.code(404).send({ error: `No existe el individuo ${id}` });

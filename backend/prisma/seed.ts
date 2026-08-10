@@ -1,4 +1,5 @@
 import { PrismaClient, Sex, DatePrecision, Prisma } from "@prisma/client";
+import { hashPassword } from "../src/auth.js";
 
 const prisma = new PrismaClient();
 
@@ -72,8 +73,9 @@ async function main() {
   // (self-hosted mode needs no real login) — but every row below hangs off
   // treeId from the start, so multi-tree/multi-user support later is
   // additive rather than a migration.
+  const seedPassword = process.env.SEED_USER_PASSWORD ?? "changeme123";
   const owner = await prisma.user.create({
-    data: { name: "Max Zawada", email: "maxzawada@gmail.com" },
+    data: { name: "Max Zawada", email: "maxzawada@gmail.com", passwordHash: await hashPassword(seedPassword) },
   });
   const tree = await prisma.tree.create({ data: { name: "Árbol genealógico" } });
   await prisma.treeMember.create({ data: { treeId: tree.id, userId: owner.id, role: "OWNER" } });

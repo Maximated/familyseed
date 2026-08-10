@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { fetchIndividualRelations, type Individual, type IndividualRelations } from "./api";
 
 type Props = {
+  treeId: string;
   personId: string;
   onNavigate: (personId: string) => void;
 };
@@ -42,7 +43,7 @@ function RelationGroup({
   );
 }
 
-export default function RelationsTab({ personId, onNavigate }: Props) {
+export default function RelationsTab({ treeId, personId, onNavigate }: Props) {
   const { t } = useTranslation();
   const [data, setData] = useState<IndividualRelations | null>(null);
   const [loading, setLoading] = useState(true);
@@ -51,7 +52,7 @@ export default function RelationsTab({ personId, onNavigate }: Props) {
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    fetchIndividualRelations(personId)
+    fetchIndividualRelations(treeId, personId)
       .then((result) => {
         if (!cancelled) setData(result);
       })
@@ -64,7 +65,7 @@ export default function RelationsTab({ personId, onNavigate }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [personId]);
+  }, [treeId, personId]);
 
   if (loading) return <p className="status">{t("common.loading")}</p>;
   if (error) return <p className="status status-error">{error}</p>;

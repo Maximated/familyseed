@@ -11,11 +11,12 @@ import {
 import { resizeImage } from "./media";
 
 type Props = {
+  treeId: string;
   personId: string;
   type: PersonMediaType;
 };
 
-export default function PersonMediaTab({ personId, type }: Props) {
+export default function PersonMediaTab({ treeId, personId, type }: Props) {
   const { t } = useTranslation();
   const [items, setItems] = useState<PersonMediaItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -26,7 +27,7 @@ export default function PersonMediaTab({ personId, type }: Props) {
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    fetchPersonMedia(personId)
+    fetchPersonMedia(treeId, personId)
       .then((all) => {
         if (!cancelled) setItems(all.filter((m) => m.type === type));
       })
@@ -39,7 +40,7 @@ export default function PersonMediaTab({ personId, type }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [personId, type]);
+  }, [treeId, personId, type]);
 
   async function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -50,7 +51,7 @@ export default function PersonMediaTab({ personId, type }: Props) {
     setError(null);
     try {
       const upload = type === "PHOTO" ? await resizeImage(file, 900, 0.85) : file;
-      const created = await uploadPersonMedia(personId, upload, file.name);
+      const created = await uploadPersonMedia(treeId, personId, upload, file.name);
       setItems((prev) => [created, ...prev]);
     } catch (err) {
       setError((err as Error).message);
@@ -61,7 +62,7 @@ export default function PersonMediaTab({ personId, type }: Props) {
 
   async function handleDelete(mediaId: string) {
     try {
-      await deletePersonMedia(personId, mediaId);
+      await deletePersonMedia(treeId, personId, mediaId);
       setItems((prev) => prev.filter((m) => m.id !== mediaId));
     } catch (err) {
       setError((err as Error).message);

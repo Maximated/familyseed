@@ -23,6 +23,7 @@ export type InfoPanelData = {
 };
 
 type Props = {
+  treeId: string;
   data: InfoPanelData;
   onClose: () => void;
   onNavigateToPerson: (personId: string) => void;
@@ -30,7 +31,7 @@ type Props = {
 
 type Tab = "ficha" | "relaciones" | "fotos" | "documentos";
 
-export default function InfoPanel({ data, onClose, onNavigateToPerson }: Props) {
+export default function InfoPanel({ treeId, data, onClose, onNavigateToPerson }: Props) {
   const { t } = useTranslation();
   const [tab, setTab] = useState<Tab>("ficha");
 
@@ -72,12 +73,16 @@ export default function InfoPanel({ data, onClose, onNavigateToPerson }: Props) 
                 </ul>
               </div>
             ))}
-            {data.familyId && <UnionNotesEditor familyId={data.familyId} initialNotes={data.notes ?? ""} />}
+            {data.familyId && <UnionNotesEditor treeId={treeId} familyId={data.familyId} initialNotes={data.notes ?? ""} />}
           </div>
         )}
-        {tab === "relaciones" && data.personId && <RelationsTab personId={data.personId} onNavigate={onNavigateToPerson} />}
-        {tab === "fotos" && data.personId && <PersonMediaTab personId={data.personId} type="PHOTO" />}
-        {tab === "documentos" && data.personId && <PersonMediaTab personId={data.personId} type="DOCUMENT" />}
+        {tab === "relaciones" && data.personId && (
+          <RelationsTab treeId={treeId} personId={data.personId} onNavigate={onNavigateToPerson} />
+        )}
+        {tab === "fotos" && data.personId && <PersonMediaTab treeId={treeId} personId={data.personId} type="PHOTO" />}
+        {tab === "documentos" && data.personId && (
+          <PersonMediaTab treeId={treeId} personId={data.personId} type="DOCUMENT" />
+        )}
 
         <div className="modal-actions">
           <button type="button" onClick={onClose}>

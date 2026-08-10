@@ -3,11 +3,12 @@ import { useTranslation } from "react-i18next";
 import { updateFamilyNotes } from "./api";
 
 type Props = {
+  treeId: string;
   familyId: string;
   initialNotes: string;
 };
 
-export default function UnionNotesEditor({ familyId, initialNotes }: Props) {
+export default function UnionNotesEditor({ treeId, familyId, initialNotes }: Props) {
   const { t } = useTranslation();
   const [notes, setNotes] = useState(initialNotes);
   const [saving, setSaving] = useState(false);
@@ -18,7 +19,7 @@ export default function UnionNotesEditor({ familyId, initialNotes }: Props) {
     setSaving(true);
     setError(null);
     try {
-      await updateFamilyNotes(familyId, notes);
+      await updateFamilyNotes(treeId, familyId, notes);
     } catch (err) {
       setError((err as Error).message);
     } finally {

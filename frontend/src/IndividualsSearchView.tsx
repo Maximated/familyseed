@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { fetchIndividuals, fetchLineages, type Individual, type Lineage } from "./api";
 
 type Props = {
+  treeId: string;
   onNavigateToPerson: (personId: string) => void;
   onClose: () => void;
 };
@@ -13,7 +14,7 @@ function personLine(p: Individual): string {
   return `${[p.givenNames, surname].filter(Boolean).join(" ")}${year}`;
 }
 
-export default function IndividualsSearchView({ onNavigateToPerson, onClose }: Props) {
+export default function IndividualsSearchView({ treeId, onNavigateToPerson, onClose }: Props) {
   const { t } = useTranslation();
   const [search, setSearch] = useState("");
   const [lineageId, setLineageId] = useState("");
@@ -27,18 +28,18 @@ export default function IndividualsSearchView({ onNavigateToPerson, onClose }: P
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchLineages()
+    fetchLineages(treeId)
       .then(setLineages)
       .catch(() => {
         // Purely a filter option — the rest of the screen still works without it.
       });
-  }, []);
+  }, [treeId]);
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
     const timeout = setTimeout(() => {
-      fetchIndividuals({
+      fetchIndividuals(treeId, {
         search: search.trim() || undefined,
         lineageId: lineageId || undefined,
         birthYearFrom: birthYearFrom ? Number(birthYearFrom) : undefined,
@@ -59,7 +60,7 @@ export default function IndividualsSearchView({ onNavigateToPerson, onClose }: P
       cancelled = true;
       clearTimeout(timeout);
     };
-  }, [search, lineageId, birthYearFrom, birthYearTo, place]);
+  }, [treeId, search, lineageId, birthYearFrom, birthYearTo, place]);
 
   return (
     <div className="modal-backdrop" onClick={onClose}>

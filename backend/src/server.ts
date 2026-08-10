@@ -1,29 +1,52 @@
 import { mkdir } from "node:fs/promises";
-import Fastify from "fastify";
+import Fastify, { type FastifyInstance } from "fastify";
 import cors from "@fastify/cors";
+import cookie from "@fastify/cookie";
 import multipart from "@fastify/multipart";
 import fastifyStatic from "@fastify/static";
 import individualRoutes from "./routes/individuals.js";
 import familyRoutes from "./routes/families.js";
 import treeRoutes from "./routes/tree.js";
 import lineageRoutes from "./routes/lineages.js";
-import meRoutes from "./routes/me.js";
 import gedcomRoutes from "./routes/gedcom.js";
+import treesRoutes from "./routes/trees.js";
+import authRoutes, { requireAuth } from "./routes/auth.js";
+import { requireTreeMembership } from "./tree-membership.js";
 import { uploadsRoot } from "./uploads.js";
 
 const app = Fastify({ logger: true });
 
 await mkdir(uploadsRoot(), { recursive: true });
 
-await app.register(cors, { origin: true });
+// `credentials: true` (not `origin: "*"`-compatible) so the browser will
+// actually send/accept the signed session cookie cross-origin in dev
+// (frontend :5173 -> backend :3001).
+await app.register(cors, { origin: true, credentials: true });
+await app.register(cookie, {
+  secret: process.env.COOKIE_SECRET ?? "dev-only-insecure-secret-change-me",
+  hook: "onRequest",
+});
 await app.register(multipart, { limits: { fileSize: 15 * 1024 * 1024 } });
 await app.register(fastifyStatic, { root: uploadsRoot(), prefix: "/uploads/", decorateReply: false });
-await app.register(individualRoutes, { prefix: "/individuals" });
-await app.register(familyRoutes, { prefix: "/families" });
-await app.register(treeRoutes, { prefix: "/tree" });
-await app.register(lineageRoutes, { prefix: "/lineages" });
-await app.register(meRoutes, { prefix: "/me" });
-await app.register(gedcomRoutes, { prefix: "/gedcom" });
+
+await app.register(authRoutes, { prefix: "/auth" });
+await app.register(treesRoutes, { prefix: "/trees" });
+
+// Everything genealogical lives under /trees/:treeId — one preHandler here
+// resolves+validates the caller's membership on that specific tree once,
+// instead of every nested route re-deriving "the tree" itself.
+async function treeScopedRoutes(fastify: FastifyInstance) {
+  fastify.addHook("preHandler", requireAuth);
+  fastify.addHook("preHandler", requireTreeMembership);
+
+  await fastify.register(treeRoutes);
+  await fastify.register(individualRoutes, { prefix: "/individuals" });
+  await fastify.register(familyRoutes, { prefix: "/families" });
+  await fastify.register(lineageRoutes, { prefix: "/lineages" });
+  await fastify.register(gedcomRoutes, { prefix: "/gedcom" });
+}
+
+await app.register(treeScopedRoutes, { prefix: "/trees/:treeId" });
 
 app.get("/health", async () => ({ status: "ok" }));
 

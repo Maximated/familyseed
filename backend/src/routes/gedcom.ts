@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { prisma } from "../db.js";
-import { getDefaultTreeId, logChange } from "../tree-context.js";
+import { logChange } from "../tree-context.js";
 import { buildTreeData, walkGraph } from "../tree-data.js";
 import { importGedcomIntoTree, serializeGedcom } from "../gedcom.js";
 import { downloadFilename } from "../filename.js";
@@ -12,7 +12,7 @@ export default async function gedcomRoutes(fastify: FastifyInstance) {
   // rows instead of duplicating them, via the unique (treeId, gedcomXref)
   // constraint already on both models.
   fastify.post("/import", async (request, reply) => {
-    const treeId = await getDefaultTreeId();
+    const treeId = request.treeId!;
 
     const file = await request.file();
     if (!file) {
@@ -32,6 +32,8 @@ export default async function gedcomRoutes(fastify: FastifyInstance) {
     }
 
     await logChange({
+      treeId,
+      userId: request.userId ?? null,
       action: "gedcom.import",
       entityType: "Tree",
       entityId: treeId,
@@ -47,7 +49,7 @@ export default async function gedcomRoutes(fastify: FastifyInstance) {
   // not a separate query.
   fastify.get("/export", async (request, reply) => {
     const { personId, direction } = request.query as { personId?: string; direction?: string };
-    const treeId = await getDefaultTreeId();
+    const treeId = request.treeId!;
     const tree = await prisma.tree.findUniqueOrThrow({ where: { id: treeId } });
 
     let includedIds: Set<string> | null = null;

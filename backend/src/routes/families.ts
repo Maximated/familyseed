@@ -2,7 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { prisma } from "../db.js";
 import { HttpError } from "../http-error.js";
 import { DATE_PRECISION_VALUES, UNION_STATUS_VALUES, UNION_TYPE_VALUES } from "../enums.js";
-import { getDefaultTreeId, logChange } from "../tree-context.js";
+import { logChange } from "../tree-context.js";
 
 const createFamilyBodySchema = {
   type: "object",
@@ -72,7 +72,7 @@ export default async function familyRoutes(fastify: FastifyInstance) {
     } = request.body as CreateFamilyBody;
 
     try {
-      const treeId = await getDefaultTreeId();
+      const treeId = request.treeId!;
 
       const family = await prisma.$transaction(async (tx) => {
         const partner1 = await tx.individual.findFirst({ where: { id: partner1Id, treeId } });
@@ -116,7 +116,13 @@ export default async function familyRoutes(fastify: FastifyInstance) {
         return created;
       });
 
-      await logChange({ action: "family.create", entityType: "Family", entityId: family.id });
+      await logChange({
+        treeId,
+        userId: request.userId ?? null,
+        action: "family.create",
+        entityType: "Family",
+        entityId: family.id,
+      });
 
       return reply.code(201).send(family);
     } catch (error) {
@@ -131,7 +137,7 @@ export default async function familyRoutes(fastify: FastifyInstance) {
   fastify.patch("/:id", { schema: { body: updateFamilyBodySchema } }, async (request, reply) => {
     const { id } = request.params as { id: string };
     const updates = request.body as UpdateFamilyBody;
-    const treeId = await getDefaultTreeId();
+    const treeId = request.treeId!;
 
     const existing = await prisma.family.findFirst({ where: { id, treeId } });
     if (!existing) {
@@ -146,7 +152,13 @@ export default async function familyRoutes(fastify: FastifyInstance) {
       },
     });
 
-    await logChange({ action: "family.update", entityType: "Family", entityId: updated.id });
+    await logChange({
+      treeId,
+      userId: request.userId ?? null,
+      action: "family.update",
+      entityType: "Family",
+      entityId: updated.id,
+    });
 
     return updated;
   });

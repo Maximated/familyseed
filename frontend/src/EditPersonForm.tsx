@@ -13,13 +13,14 @@ import {
 import { resizeImage } from "./media";
 
 type Props = {
+  treeId: string;
   personId: string;
   onSaved: (personId: string) => void;
   onDeleted: () => void;
   onClose: () => void;
 };
 
-export default function EditPersonForm({ personId, onSaved, onDeleted, onClose }: Props) {
+export default function EditPersonForm({ treeId, personId, onSaved, onDeleted, onClose }: Props) {
   const { t } = useTranslation();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -44,7 +45,7 @@ export default function EditPersonForm({ personId, onSaved, onDeleted, onClose }
   const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
-    fetchIndividual(personId)
+    fetchIndividual(treeId, personId)
       .then((person: Individual) => {
         setGivenNames(person.givenNames);
         setSurname1(person.surname1);
@@ -62,7 +63,7 @@ export default function EditPersonForm({ personId, onSaved, onDeleted, onClose }
       })
       .catch((err: Error) => setError(err.message))
       .finally(() => setLoading(false));
-  }, [personId]);
+  }, [treeId, personId]);
 
   function handlePhotoChange(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -95,11 +96,11 @@ export default function EditPersonForm({ personId, onSaved, onDeleted, onClose }
         notes: notes.trim() || undefined,
         biography: biography.trim() || undefined,
       };
-      await updateIndividual(personId, payload);
+      await updateIndividual(treeId, personId, payload);
 
       if (photoFile) {
         const resized = await resizeImage(photoFile, 500, 0.85);
-        await uploadPersonPhoto(personId, resized, photoFile.name).catch(() => {
+        await uploadPersonPhoto(treeId, personId, resized, photoFile.name).catch(() => {
           // The rest of the edit already saved — a failed photo upload
           // shouldn't block finishing.
         });
@@ -117,7 +118,7 @@ export default function EditPersonForm({ personId, onSaved, onDeleted, onClose }
     setDeleting(true);
     setError(null);
     try {
-      await deleteIndividual(personId);
+      await deleteIndividual(treeId, personId);
       onDeleted();
     } catch (err) {
       setError((err as Error).message);

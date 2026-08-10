@@ -1,21 +1,30 @@
 import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { gedcomExportUrl, importGedcom } from "./api";
+import { gedcomExportUrl, importGedcom, type Individual } from "./api";
+import PersonPicker from "./PersonPicker";
 
 type Props = {
-  currentPersonId: string | null;
-  currentPersonName: string | null;
+  treeId: string;
+  initialPersonId?: string | null;
+  initialPersonName?: string | null;
   onImported: () => void;
   onClose: () => void;
 };
 
-export default function GedcomView({ currentPersonId, currentPersonName, onImported, onClose }: Props) {
+function personLabel(p: Individual): string {
+  const surname = [p.surname1, p.surname2].filter(Boolean).join(" ");
+  return [p.givenNames, surname].filter(Boolean).join(" ");
+}
+
+export default function GedcomView({ treeId, initialPersonId, initialPersonName, onImported, onClose }: Props) {
   const { t } = useTranslation();
   const [dragging, setDragging] = useState(false);
   const [importing, setImporting] = useState(false);
   const [result, setResult] = useState<{ individuals: number; families: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [personId, setPersonId] = useState<string | null>(initialPersonId ?? null);
+  const [personName, setPersonName] = useState<string | null>(initialPersonName ?? null);
 
   async function handleFile(file: File) {
     if (!file.name.toLowerCase().endsWith(".ged")) {
@@ -26,7 +35,7 @@ export default function GedcomView({ currentPersonId, currentPersonName, onImpor
     setError(null);
     setResult(null);
     try {
-      const imported = await importGedcom(file);
+      const imported = await importGedcom(treeId, file);
       setResult(imported);
       onImported();
     } catch (err) {
@@ -80,30 +89,38 @@ export default function GedcomView({ currentPersonId, currentPersonName, onImpor
         <fieldset>
           <legend>{t("gedcom.exportHeading")}</legend>
           <div className="gedcom-export-list">
-            <a className="gedcom-export-item" href={gedcomExportUrl()} target="_blank" rel="noreferrer">
+            <a className="gedcom-export-item" href={gedcomExportUrl(treeId)} target="_blank" rel="noreferrer">
               {t("gedcom.exportFullTree")}
             </a>
-            {currentPersonId && currentPersonName && (
-              <>
-                <a
-                  className="gedcom-export-item"
-                  href={gedcomExportUrl(currentPersonId, "ancestors")}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  {t("gedcom.exportAncestorsOf", { name: currentPersonName })}
-                </a>
-                <a
-                  className="gedcom-export-item"
-                  href={gedcomExportUrl(currentPersonId, "descendants")}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  {t("gedcom.exportDescendantsOf", { name: currentPersonName })}
-                </a>
-              </>
-            )}
           </div>
+          <PersonPicker
+            treeId={treeId}
+            selectedName={personName}
+            onSelect={(person) => {
+              setPersonId(person.id);
+              setPersonName(personLabel(person));
+            }}
+          />
+          {personId && personName && (
+            <div className="gedcom-export-list">
+              <a
+                className="gedcom-export-item"
+                href={gedcomExportUrl(treeId, personId, "ancestors")}
+                target="_blank"
+                rel="noreferrer"
+              >
+                {t("gedcom.exportAncestorsOf", { name: personName })}
+              </a>
+              <a
+                className="gedcom-export-item"
+                href={gedcomExportUrl(treeId, personId, "descendants")}
+                target="_blank"
+                rel="noreferrer"
+              >
+                {t("gedcom.exportDescendantsOf", { name: personName })}
+              </a>
+            </div>
+          )}
           <p className="field-hint">{t("gedcom.exportHint")}</p>
         </fieldset>
 
