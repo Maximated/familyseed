@@ -6,17 +6,21 @@ import { useAuth } from "./AuthContext";
 import LanguageSwitcher from "./LanguageSwitcher";
 import GedcomView from "./GedcomView";
 import TreeReportModal from "./TreeReportModal";
+import ShareTreeModal from "./ShareTreeModal";
+import { ArrowUpDownIcon, FileTextIcon, ShareIcon } from "./Icons";
 
 function TreeRow({
   tree,
   onOpen,
   onGedcom,
   onReport,
+  onShare,
 }: {
   tree: TreeSummary;
   onOpen: (id: string) => void;
   onGedcom: (id: string) => void;
   onReport: (id: string) => void;
+  onShare: (id: string) => void;
 }) {
   const { t } = useTranslation();
   return (
@@ -28,24 +32,42 @@ function TreeRow({
       <div className="home-tree-actions">
         <button
           type="button"
-          className="home-tree-action"
+          className="icon-button"
+          aria-label={t("app.gedcom")}
+          title={t("app.gedcom")}
           onClick={(e) => {
             e.stopPropagation();
             onGedcom(tree.id);
           }}
         >
-          {t("app.gedcom")}
+          <ArrowUpDownIcon />
         </button>
         <button
           type="button"
-          className="home-tree-action"
+          className="icon-button"
+          aria-label={t("app.report")}
+          title={t("app.report")}
           onClick={(e) => {
             e.stopPropagation();
             onReport(tree.id);
           }}
         >
-          {t("app.report")}
+          <FileTextIcon />
         </button>
+        {tree.role === "OWNER" && (
+          <button
+            type="button"
+            className="icon-button"
+            aria-label={t("app.share")}
+            title={t("app.share")}
+            onClick={(e) => {
+              e.stopPropagation();
+              onShare(tree.id);
+            }}
+          >
+            <ShareIcon />
+          </button>
+        )}
       </div>
     </li>
   );
@@ -65,6 +87,7 @@ export default function HomeScreen() {
   const [submitting, setSubmitting] = useState(false);
   const [gedcomTreeId, setGedcomTreeId] = useState<string | null>(null);
   const [reportTreeId, setReportTreeId] = useState<string | null>(null);
+  const [shareTreeId, setShareTreeId] = useState<string | null>(null);
 
   function load() {
     setLoading(true);
@@ -131,6 +154,7 @@ export default function HomeScreen() {
                     onOpen={handleOpen}
                     onGedcom={setGedcomTreeId}
                     onReport={setReportTreeId}
+                    onShare={setShareTreeId}
                   />
                 ))}
               </ul>
@@ -150,6 +174,7 @@ export default function HomeScreen() {
                     onOpen={handleOpen}
                     onGedcom={setGedcomTreeId}
                     onReport={setReportTreeId}
+                    onShare={setShareTreeId}
                   />
                 ))}
               </ul>
@@ -184,6 +209,7 @@ export default function HomeScreen() {
         <GedcomView treeId={gedcomTreeId} onImported={() => {}} onClose={() => setGedcomTreeId(null)} />
       )}
       {reportTreeId && <TreeReportModal treeId={reportTreeId} onClose={() => setReportTreeId(null)} />}
+      {shareTreeId && <ShareTreeModal treeId={shareTreeId} onClose={() => setShareTreeId(null)} />}
     </div>
   );
 }

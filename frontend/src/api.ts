@@ -5,6 +5,7 @@ const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3001";
 export type Sex = "MALE" | "FEMALE" | "UNKNOWN";
 export type UnionType = "MARRIAGE" | "PARTNERSHIP" | "EXTRAMARITAL" | "UNKNOWN";
 export type UnionStatus = "ONGOING" | "ENDED_BY_DEATH" | "DIVORCED" | "SEPARATED" | "ANNULLED";
+export type DatePrecision = "EXACT" | "ABOUT" | "BEFORE" | "AFTER" | "UNKNOWN";
 
 export type UnionInfo = {
   id: string;
@@ -69,13 +70,20 @@ export type Individual = {
   alias: string | null;
   sex: Sex;
   birthDateText: string | null;
+  birthDateValue: string | null;
+  birthDatePrecision: DatePrecision | null;
   birthPlace: string | null;
   deathDateText: string | null;
+  deathDateValue: string | null;
+  deathDatePrecision: DatePrecision | null;
   deathPlace: string | null;
   notes: string | null;
   biography: string | null;
   photoUrl: string | null;
   deletedAt?: string | null;
+  // Only populated by fetchIndividualRelations (GET /:id) — list/create/
+  // update responses don't include it.
+  lineageIds?: string[];
 };
 
 export type PersonMediaType = "PHOTO" | "DOCUMENT";
@@ -99,21 +107,29 @@ export type Relationship =
       unionStatus?: UnionStatus;
       unionDateText?: string;
       unionPlace?: string;
-    };
+    }
+  | { kind: "PARENT_OF"; childId: string };
 
 export type IndividualFields = {
   givenNames: string;
   surname1: string;
-  surname2?: string;
-  surname1BirthName?: string;
-  alias?: string;
+  // `null` (not just omission) explicitly clears the field on the backend —
+  // see EditPersonForm, which sends it whenever the user empties one of
+  // these out. Omitting the key entirely leaves the existing value alone.
+  surname2?: string | null;
+  surname1BirthName?: string | null;
+  alias?: string | null;
   sex?: Sex;
-  birthDateText?: string;
-  birthPlace?: string;
-  deathDateText?: string;
-  deathPlace?: string;
-  notes?: string;
-  biography?: string;
+  birthDateText?: string | null;
+  birthDateValue?: string | null;
+  birthDatePrecision?: DatePrecision | null;
+  birthPlace?: string | null;
+  deathDateText?: string | null;
+  deathDateValue?: string | null;
+  deathDatePrecision?: DatePrecision | null;
+  deathPlace?: string | null;
+  notes?: string | null;
+  biography?: string | null;
 };
 
 export type CreateIndividualPayload = {
@@ -208,6 +224,43 @@ export async function createTree(name: string): Promise<TreeSummary> {
   return parseJsonOrThrow(res);
 }
 
+export type ShareRole = "EDITOR" | "VIEWER";
+
+export type TreeMemberInfo = {
+  userId: string;
+  email: string | null;
+  name: string | null;
+  role: TreeRole;
+};
+
+export async function fetchTreeMembers(treeId: string): Promise<TreeMemberInfo[]> {
+  const res = await apiFetch(`/trees/${treeId}/members`);
+  return parseJsonOrThrow(res);
+}
+
+export async function addTreeMember(treeId: string, email: string, role: ShareRole): Promise<TreeMemberInfo> {
+  const res = await apiFetch(`/trees/${treeId}/members`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, role }),
+  });
+  return parseJsonOrThrow(res);
+}
+
+export async function updateTreeMemberRole(treeId: string, userId: string, role: ShareRole): Promise<void> {
+  const res = await apiFetch(`/trees/${treeId}/members/${userId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ role }),
+  });
+  await throwIfNotOk(res);
+}
+
+export async function removeTreeMember(treeId: string, userId: string): Promise<void> {
+  const res = await apiFetch(`/trees/${treeId}/members/${userId}`, { method: "DELETE" });
+  await throwIfNotOk(res);
+}
+
 // ---------------------------------------------------------------------
 // Uploaded files (photos/documents) — served at a relative /uploads/...
 // path already scoped by treeId server-side, so this just needs the origin.
@@ -266,6 +319,29 @@ export async function updateTreeName(treeId: string, name: string): Promise<{ id
 export async function fetchLineages(treeId: string): Promise<Lineage[]> {
   const res = await apiFetch(`/trees/${treeId}/lineages`);
   return parseJsonOrThrow(res);
+}
+
+export async function createLineage(treeId: string, name: string, color?: string): Promise<Lineage> {
+  const res = await apiFetch(`/trees/${treeId}/lineages`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name, color }),
+  });
+  return parseJsonOrThrow(res);
+}
+
+export async function addIndividualLineage(treeId: string, id: string, lineageId: string): Promise<void> {
+  const res = await apiFetch(`/trees/${treeId}/individuals/${id}/lineages`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ lineageId }),
+  });
+  await throwIfNotOk(res);
+}
+
+export async function removeIndividualLineage(treeId: string, id: string, lineageId: string): Promise<void> {
+  const res = await apiFetch(`/trees/${treeId}/individuals/${id}/lineages/${lineageId}`, { method: "DELETE" });
+  await throwIfNotOk(res);
 }
 
 export async function createIndividual(
@@ -429,4 +505,15 @@ export async function copyIndividual(
     body: JSON.stringify(payload),
   });
   return parseJsonOrThrow(res);
+}
+
+// Links an already-existing individual as a parent of another — the
+// recovery path when someone was created without a relationship first.
+export async function addParent(treeId: string, personId: string, parentId: string): Promise<void> {
+  const res = await apiFetch(`/trees/${treeId}/individuals/${personId}/parents`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ parentId }),
+  });
+  await throwIfNotOk(res);
 }

@@ -24,13 +24,74 @@ import IndividualsSearchView from "./IndividualsSearchView";
 import LineageChips from "./LineageChips";
 import Timeline from "./Timeline";
 import InfoPanel, { type InfoPanelData, type InfoPanelSection } from "./InfoPanel";
-import { ArrowLeftIcon, GitBranchIcon, HomeIcon, SearchIcon, Trash2Icon, UserIcon, UserPlusIcon } from "./Icons";
+import {
+  ArrowLeftIcon,
+  GitBranchIcon,
+  HomeIcon,
+  MaximizeIcon,
+  SearchIcon,
+  ShareIcon,
+  Trash2Icon,
+  UserIcon,
+  UserPlusIcon,
+} from "./Icons";
+import ShareTreeModal from "./ShareTreeModal";
+
+// Generous enough that a realistic family tree's every reachable ancestor/
+// descendant renders — family-chart has no separate "show every person"
+// mode, it only ever renders what's reachable from the current main person
+// within these depth limits (plus that person's own siblings, see
+// setShowSiblingsOfMain above), so "show the whole tree" means widening
+// this rather than switching rendering modes.
+const FIT_ALL_DEPTH = 50;
+const DEFAULT_DEPTH = 3;
 
 // family-chart's own Datum type requires `gender: 'M' | 'F'`, but our data
 // can omit it (unknown sex) — the library renders a genderless card fine at
 // runtime, its type just doesn't spell out that case. Cast at the boundary
 // rather than fighting the stricter type throughout this file.
 type ChartData = Parameters<typeof f3.createChart>[1];
+
+// Walks up via each person's first recorded parent until there's no parent
+// left on file — used to pick a starting point for "ver todo el árbol" that
+// makes every sibling-of-a-sibling (and their spouses) a proper descendant
+// instead of a bolted-on sibling node (see handleFitAll for why that
+// distinction matters to family-chart's renderer). Picking parents[0]
+// consistently (rather than trying both sides) keeps this a single
+// deterministic walk up one lineage rather than a multi-root search.
+//
+// A person with no parents on file (someone who married into the family,
+// with their own ancestry never entered) is a dead end for that walk even
+// though their spouse's side may go back further — without crossing over,
+// centering on that in-law would leave the button doing nothing at all.
+// So whenever the walk hits someone with no recorded parents, it checks
+// their spouses for one that *does* have parents and continues from there.
+function findTopAncestorId(startId: string, people: TreePerson[]): string {
+  const byId = new Map(people.map((p) => [p.id, p]));
+  const visited = new Set<string>([startId]);
+  let topId = startId;
+  let current = byId.get(startId);
+  while (current) {
+    if (current.rels.parents.length > 0) {
+      const nextId = current.rels.parents[0];
+      if (visited.has(nextId)) break;
+      const next = byId.get(nextId);
+      if (!next) break;
+      visited.add(nextId);
+      topId = nextId;
+      current = next;
+      continue;
+    }
+    const spouseWithParents = current.rels.spouses
+      .map((id) => byId.get(id))
+      .find((sp): sp is TreePerson => !!sp && !visited.has(sp.id) && sp.rels.parents.length > 0);
+    if (!spouseWithParents) break;
+    visited.add(spouseWithParents.id);
+    topId = spouseWithParents.id;
+    current = spouseWithParents;
+  }
+  return topId;
+}
 
 function applyLineageHighlight(container: HTMLElement, people: TreePerson[], selectedIds: Set<string>) {
   const lineagesById = new Map(people.map((p) => [p.id, p.data.lineageIds ?? []]));
@@ -247,6 +308,7 @@ function App() {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<ReturnType<typeof f3.createChart> | null>(null);
   const backStackRef = useRef<string[]>([]);
+  const depthModeRef = useRef<"default" | "fitAll">("default");
   const currentMainIdRef = useRef<string | null>(null);
   const isGoingBackRef = useRef(false);
   const treeDataRef = useRef<TreePerson[]>([]);
@@ -261,6 +323,7 @@ function App() {
   const [editingPersonId, setEditingPersonId] = useState<string | null>(null);
   const [showTrash, setShowTrash] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
+  const [showShareModal, setShowShareModal] = useState(false);
   const [treeData, setTreeData] = useState<TreePerson[]>([]);
   const [lineages, setLineages] = useState<Lineage[]>([]);
   const [selectedLineageIds, setSelectedLineageIds] = useState<Set<string>>(new Set());
@@ -341,10 +404,29 @@ function App() {
         // real cards below are built from cardTemplate instead.
         card.setCardDisplay([["first name", "last name"], ["birth name"]]);
         card.setCardInnerHtmlCreator(cardTemplate);
-        // Bound how many generations render at once so the initial "fit"
-        // stays readable no matter how large the real family tree grows.
-        chart.setAncestryDepth(3);
-        chart.setProgenyDepth(3);
+        // The very first render of a tree opens on the widest view (same
+        // depth + top-ancestor centering as "ver todo el árbol") rather
+        // than a narrow 3-generation slice — landing on a view where half
+        // the family is invisible until you go hunt for the right button
+        // isn't a good first impression. Later navigation still narrows
+        // back down to DEFAULT_DEPTH (see handleBack).
+        depthModeRef.current = "fitAll";
+        chart.setAncestryDepth(FIT_ALL_DEPTH);
+        chart.setProgenyDepth(FIT_ALL_DEPTH);
+        // Off by default in family-chart — without this, the centered
+        // person's own brothers/sisters vanish from the canvas (they only
+        // show up when a parent is centered instead, since siblings are
+        // then rendered as that parent's children).
+        chart.setShowSiblingsOfMain(true);
+        // family-chart otherwise auto-inserts a client-only "unknown spouse"
+        // placeholder card for anyone with children but only one recorded
+        // parent. That card has a generated id with no backing Individual
+        // row, but our cardTemplate still puts edit/expand buttons on it —
+        // clicking edit 404s ("No existe el individuo ..."), and clicking
+        // the card itself re-centers the whole tree on that dead end. The
+        // app has no UI wired to family-chart's own "fill in this spouse"
+        // form, so the placeholder is pure confusion; disable it entirely.
+        chart.setSingleParentEmptyCard(false);
 
         // Marriage/divorce/etc. marks on the spouse link — looked up by pair
         // of ids from a ref so this stays fresh across data reloads without
@@ -379,7 +461,8 @@ function App() {
           wireCardAndUnionClicks();
         });
 
-        chart.updateTree({ initial: true });
+        chart.updateMainId(findTopAncestorId(people[0].id, people));
+        chart.updateTree({ initial: true, tree_position: "fit" });
         chartRef.current = chart;
         currentMainIdRef.current = chart.getMainDatum().id;
         return;
@@ -479,10 +562,43 @@ function App() {
     const previousId = backStackRef.current.pop();
     if (!chart || !previousId) return;
 
+    // "Ver todo el árbol" widens how many generations render (see
+    // handleFitAll below) — stepping back to a previously visited person is
+    // a good moment to return to the normal focused view instead of
+    // carrying that wide view forward indefinitely.
+    if (depthModeRef.current === "fitAll") {
+      depthModeRef.current = "default";
+      chart.setAncestryDepth(DEFAULT_DEPTH);
+      chart.setProgenyDepth(DEFAULT_DEPTH);
+    }
+
     isGoingBackRef.current = true;
     chart.updateMainId(previousId);
     chart.updateTree({});
     setCanGoBack(backStackRef.current.length > 0);
+  }
+
+  // family-chart has no "show every person" mode of its own — it only ever
+  // renders what's reachable from the current main person within the
+  // ancestry/progeny depth limits, plus that person's own spouses and (with
+  // setShowSiblingsOfMain) siblings. Critically, a *sibling's* spouse is
+  // never shown that way — the library builds siblings-of-main as a special
+  // case bolted on after spouse-attachment already ran, so an in-law who
+  // only connects to the tree through a sibling stays invisible no matter
+  // how wide the depth goes, unless that sibling is main. Re-centering on
+  // the topmost known ancestor first sidesteps this entirely: from there,
+  // every sibling (and cousin, and their spouses) is a genuine descendant
+  // rather than a bolted-on sibling node, which is the one case the library
+  // renders correctly at any depth.
+  function handleFitAll() {
+    const chart = chartRef.current;
+    if (!chart) return;
+    const topAncestorId = findTopAncestorId(chart.getMainDatum().id, treeDataRef.current);
+    depthModeRef.current = "fitAll";
+    chart.setAncestryDepth(FIT_ALL_DEPTH);
+    chart.setProgenyDepth(FIT_ALL_DEPTH);
+    chart.updateMainId(topAncestorId);
+    chart.updateTree({ tree_position: "fit" });
   }
 
   function handleTimelineNavigate(personId: string) {
@@ -514,6 +630,9 @@ function App() {
   function handlePersonSaved(personId: string) {
     setEditingPersonId(null);
     loadTree(personId).catch((err: Error) => setError(err.message));
+    // Editing can create a new lineage inline — refresh the filter chips so
+    // it shows up without leaving/reentering the tree.
+    if (treeId) fetchLineages(treeId).then(setLineages).catch(() => {});
   }
 
   function handlePersonDeleted() {
@@ -533,19 +652,30 @@ function App() {
   return (
     <div className="app">
       <header className="app-header">
-        <Link to="/" className="icon-button" aria-label={t("app.backHome")} title={t("app.backHome")}>
-          <HomeIcon />
-        </Link>
-        <button
-          type="button"
-          className="icon-button"
-          onClick={handleBack}
-          disabled={!canGoBack}
-          aria-label={t("app.back")}
-          title={t("app.back")}
-        >
-          <ArrowLeftIcon />
-        </button>
+        <div className="header-actions">
+          <Link to="/" className="icon-button" aria-label={t("app.backHome")} title={t("app.backHome")}>
+            <HomeIcon />
+          </Link>
+          <button
+            type="button"
+            className="icon-button"
+            onClick={handleBack}
+            disabled={!canGoBack}
+            aria-label={t("app.back")}
+            title={t("app.back")}
+          >
+            <ArrowLeftIcon />
+          </button>
+          <button
+            type="button"
+            className="icon-button"
+            onClick={handleFitAll}
+            aria-label={t("app.fitAll")}
+            title={t("app.fitAll")}
+          >
+            <MaximizeIcon />
+          </button>
+        </div>
 
         {editingTitle ? (
           <input
@@ -611,6 +741,17 @@ function App() {
           >
             <UserPlusIcon />
           </button>
+          {treeRole === "OWNER" && (
+            <button
+              type="button"
+              className="icon-button"
+              onClick={() => setShowShareModal(true)}
+              aria-label={t("app.share")}
+              title={t("app.share")}
+            >
+              <ShareIcon />
+            </button>
+          )}
         </div>
       </header>
       {loading && <p className="status">{t("app.loadingTree")}</p>}
@@ -662,11 +803,16 @@ function App() {
           onSaved={handlePersonSaved}
           onDeleted={handlePersonDeleted}
           onClose={() => setEditingPersonId(null)}
+          onRelationsChanged={() => {
+            loadTree().catch((err: Error) => setError(err.message));
+            fetchLineages(treeId).then(setLineages).catch(() => {});
+          }}
         />
       )}
       {showTrash && (
         <TrashView treeId={treeId} onRestored={handleTrashRestored} onClose={() => setShowTrash(false)} />
       )}
+      {showShareModal && <ShareTreeModal treeId={treeId} onClose={() => setShowShareModal(false)} />}
       {showSearch && (
         <IndividualsSearchView treeId={treeId} onNavigateToPerson={handleNavigateToPerson} onClose={() => setShowSearch(false)} />
       )}
@@ -676,6 +822,7 @@ function App() {
           data={infoPanel}
           onClose={() => setInfoPanel(null)}
           onNavigateToPerson={handleNavigateToPerson}
+          onDataChanged={() => loadTree().catch((err: Error) => setError(err.message))}
         />
       )}
     </div>

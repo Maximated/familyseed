@@ -17,6 +17,7 @@
     "noIndividuals": "No hay individuos en la base de datos todavía.",
     "back": "Volver",
     "backHome": "Mis árboles",
+    "fitAll": "Ver todo el árbol",
     "lineages": "Linajes",
     "edit": "Editar",
     "trash": "Papelera",
@@ -27,6 +28,7 @@
     "report": "Informe PDF",
     "gedcom": "Importar/exportar GEDCOM",
     "search": "Buscar personas",
+    "share": "Compartir árbol",
     "role": "Rol: {{role}}",
     "selfHostedHint": "Modo autohospedado: un único usuario."
   },
@@ -47,6 +49,12 @@
     "DIVORCED": "Divorcio",
     "SEPARATED": "Separación",
     "ANNULLED": "Anulación"
+  },
+  "datePrecision": {
+    "EXACT": "Exacta",
+    "ABOUT": "Hacia",
+    "BEFORE": "Antes de",
+    "AFTER": "Después de"
   },
   "legend": {
     "marriage": "Matrimonio",
@@ -112,11 +120,12 @@
     "sexMale": "Hombre",
     "sexFemale": "Mujer",
     "birthDate": "Fecha de nacimiento",
-    "birthDatePlaceholder": "ej. 1950, hacia 1927, 12 marzo 1925",
+    "dateValueHint": "Fecha exacta o aproximada (usada por la línea del tiempo). Si solo conoces el año, elige un día cualquiera de ese año y marca la precisión como «Hacia».",
+    "birthDatePlaceholder": "Texto a mostrar, ej. hacia 1927, 12 marzo 1925",
     "birthPlace": "Lugar de nacimiento",
     "placePlaceholder": "ej. Kraków, Polonia",
     "deathDate": "Fecha de defunción",
-    "deathDatePlaceholder": "ej. 1998, hacia 1965, 2 noviembre 1998",
+    "deathDatePlaceholder": "Texto a mostrar, ej. hacia 1965, 2 noviembre 1998",
     "deathPlace": "Lugar de defunción",
     "notes": "Notas",
     "biography": "Biografía",
@@ -132,14 +141,25 @@
     "partnerOf": "Es cónyuge/pareja de",
     "partnerPlaceholder": "— Persona —",
     "unionDatePlaceholder": "Fecha de la unión (ej. 1997, hacia 1990)",
+    "parentOf": "Es padre/madre de",
+    "childPlaceholder": "— Elige a su hijo/a —",
     "noRelation": "Sin relación conocida (nuevo ancestro)",
     "personLegend": "Datos de la persona",
     "validationRequired": "El nombre y el primer apellido son obligatorios.",
     "validationParent": "Elige al menos un padre/madre.",
-    "validationPartner": "Elige la persona con la que forma pareja."
+    "validationPartner": "Elige la persona con la que forma pareja.",
+    "validationChild": "Elige de quién es padre/madre."
   },
   "editPerson": {
     "title": "Editar persona",
+    "parentsLegend": "Padres",
+    "noParents": "Sin padres registrados todavía.",
+    "addParent": "+ Vincular padre/madre existente",
+    "lineagesLegend": "Ramas",
+    "lineagesHint": "Se crean automáticamente a partir del apellido y el apellido de nacimiento al guardar. Puedes desmarcar las que no correspondan o añadir otras a mano.",
+    "noLineages": "Todavía no hay ninguna rama creada en este árbol.",
+    "addLineage": "+ Crear rama nueva",
+    "newLineagePlaceholder": "Nombre de la rama, ej. Zawadzki",
     "personLegend": "Datos de la persona",
     "validationRequired": "El nombre y el primer apellido son obligatorios.",
     "deletePerson": "Eliminar persona",
@@ -173,6 +193,16 @@
     "resultsCount_one": "{{count}} persona encontrada",
     "resultsCount_other": "{{count}} personas encontradas"
   },
+  "share": {
+    "title": "Compartir árbol",
+    "addLegend": "Dar acceso a alguien",
+    "emailPlaceholder": "Email de la persona",
+    "addAction": "Añadir",
+    "addHint": "Esa persona ya debe tener una cuenta creada en la aplicación — compartir no envía ninguna invitación por email.",
+    "membersLegend": "Quién tiene acceso",
+    "noMembers": "Todavía no has compartido este árbol con nadie.",
+    "removeAction": "Quitar"
+  },
   "copyPerson": {
     "action": "Copiar a otro árbol…",
     "title": "Copiar {{name}} a otro árbol",
@@ -193,7 +223,10 @@
   },
   "unionNotes": {
     "heading": "Notas de la unión",
-    "placeholder": "Añade una nota sobre esta unión…"
+    "placeholder": "Añade una nota sobre esta unión…",
+    "empty": "Sin notas todavía.",
+    "editAction": "Editar nota",
+    "addAction": "+ Añadir nota"
   },
   "relations": {
     "parents": "Padres",

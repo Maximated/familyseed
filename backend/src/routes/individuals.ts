@@ -1,4 +1,5 @@
 import type { FastifyInstance } from "fastify";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "../db.js";
 import { HttpError } from "../http-error.js";
 import {
@@ -14,26 +15,34 @@ import { buildTreeData } from "../tree-data.js";
 import { renderReportHtml, renderReportPdf, type ReportDirection } from "../report.js";
 import { downloadFilename } from "../filename.js";
 
+// Every optional field also accepts `null` (not just omission) — that's how
+// the frontend signals "the user cleared this field," as distinct from "the
+// user didn't touch this field." Prisma's update() treats an *omitted* key
+// as "leave the column alone" but an explicit `null` as "set it to NULL", so
+// without allowing null here a cleared field could never actually be
+// cleared: it would just always resend whatever was already in the database.
+const optionalNullableString = { type: ["string", "null"] } as const;
+
 const individualFieldsSchema = {
   type: "object",
   required: ["givenNames", "surname1"],
   properties: {
     givenNames: { type: "string", minLength: 1 },
     surname1: { type: "string", minLength: 1 },
-    surname2: { type: "string" },
-    surname1BirthName: { type: "string" },
-    alias: { type: "string" },
+    surname2: optionalNullableString,
+    surname1BirthName: optionalNullableString,
+    alias: optionalNullableString,
     sex: { type: "string", enum: SEX_VALUES },
-    birthDateText: { type: "string" },
-    birthDateValue: { type: "string", format: "date" },
-    birthDatePrecision: { type: "string", enum: DATE_PRECISION_VALUES },
-    birthPlace: { type: "string" },
-    deathDateText: { type: "string" },
-    deathDateValue: { type: "string", format: "date" },
-    deathDatePrecision: { type: "string", enum: DATE_PRECISION_VALUES },
-    deathPlace: { type: "string" },
-    notes: { type: "string" },
-    biography: { type: "string" },
+    birthDateText: optionalNullableString,
+    birthDateValue: { type: ["string", "null"], format: "date" },
+    birthDatePrecision: { type: ["string", "null"], enum: [...DATE_PRECISION_VALUES, null] },
+    birthPlace: optionalNullableString,
+    deathDateText: optionalNullableString,
+    deathDateValue: { type: ["string", "null"], format: "date" },
+    deathDatePrecision: { type: ["string", "null"], enum: [...DATE_PRECISION_VALUES, null] },
+    deathPlace: optionalNullableString,
+    notes: optionalNullableString,
+    biography: optionalNullableString,
     photoUrl: { type: "string" },
   },
   additionalProperties: false,
@@ -43,11 +52,12 @@ const relationshipSchema = {
   type: "object",
   required: ["kind"],
   properties: {
-    kind: { type: "string", enum: ["CHILD", "CHILD_OF_PARENTS", "PARTNER"] },
+    kind: { type: "string", enum: ["CHILD", "CHILD_OF_PARENTS", "PARTNER", "PARENT_OF"] },
     familyId: { type: "string" },
     parent1Id: { type: "string" },
     parent2Id: { type: "string" },
     partnerId: { type: "string" },
+    childId: { type: "string" },
     relationType: { type: "string", enum: CHILD_RELATION_TYPE_VALUES },
     unionType: { type: "string", enum: UNION_TYPE_VALUES },
     unionStatus: { type: "string", enum: UNION_STATUS_VALUES },
@@ -74,32 +84,61 @@ const updateIndividualBodySchema = {
   required: [],
 };
 
+const addParentBodySchema = {
+  type: "object",
+  required: ["parentId"],
+  properties: {
+    parentId: { type: "string" },
+    relationType: { type: "string", enum: CHILD_RELATION_TYPE_VALUES },
+  },
+  additionalProperties: false,
+};
+
+type AddParentBody = {
+  parentId: string;
+  relationType?: (typeof CHILD_RELATION_TYPE_VALUES)[number];
+};
+
+const addLineageBodySchema = {
+  type: "object",
+  required: ["lineageId"],
+  properties: {
+    lineageId: { type: "string" },
+  },
+  additionalProperties: false,
+};
+
+type AddLineageBody = {
+  lineageId: string;
+};
+
 type CreateIndividualBody = {
   individual: {
     givenNames: string;
     surname1: string;
-    surname2?: string;
-    surname1BirthName?: string;
-    alias?: string;
+    surname2?: string | null;
+    surname1BirthName?: string | null;
+    alias?: string | null;
     sex?: (typeof SEX_VALUES)[number];
-    birthDateText?: string;
-    birthDateValue?: string;
-    birthDatePrecision?: (typeof DATE_PRECISION_VALUES)[number];
-    birthPlace?: string;
-    deathDateText?: string;
-    deathDateValue?: string;
-    deathDatePrecision?: (typeof DATE_PRECISION_VALUES)[number];
-    deathPlace?: string;
-    notes?: string;
-    biography?: string;
+    birthDateText?: string | null;
+    birthDateValue?: string | null;
+    birthDatePrecision?: (typeof DATE_PRECISION_VALUES)[number] | null;
+    birthPlace?: string | null;
+    deathDateText?: string | null;
+    deathDateValue?: string | null;
+    deathDatePrecision?: (typeof DATE_PRECISION_VALUES)[number] | null;
+    deathPlace?: string | null;
+    notes?: string | null;
+    biography?: string | null;
     photoUrl?: string;
   };
   relationship?: {
-    kind: "CHILD" | "CHILD_OF_PARENTS" | "PARTNER";
+    kind: "CHILD" | "CHILD_OF_PARENTS" | "PARTNER" | "PARENT_OF";
     familyId?: string;
     parent1Id?: string;
     parent2Id?: string;
     partnerId?: string;
+    childId?: string;
     relationType?: (typeof CHILD_RELATION_TYPE_VALUES)[number];
     unionType?: (typeof UNION_TYPE_VALUES)[number];
     unionStatus?: (typeof UNION_STATUS_VALUES)[number];
@@ -112,6 +151,33 @@ type CreateIndividualBody = {
 
 type UpdateIndividualBody = Partial<CreateIndividualBody["individual"]>;
 
+// A person can belong to several branches at once (their father's surname,
+// their mother's maiden name, ...) — so lineage membership is derived from
+// every distinct surname passed in, not just one. Auto-creates a Lineage
+// per surname the first time it's seen, then links the individual to it.
+// Never removes an existing membership (including ones the user added or
+// removed by hand) — a name change just adds the new surname's branch
+// alongside whatever was there before, so a manual correction never gets
+// silently undone by editing an unrelated field.
+async function deriveLineagesFromSurnames(
+  db: Prisma.TransactionClient,
+  treeId: string,
+  individualId: string,
+  surnames: Array<string | null | undefined>,
+): Promise<void> {
+  const names = [...new Set(surnames.filter((s): s is string => !!s && s.trim().length > 0).map((s) => s.trim()))];
+
+  for (const name of names) {
+    const lineage =
+      (await db.lineage.findFirst({ where: { treeId, name } })) ?? (await db.lineage.create({ data: { treeId, name } }));
+    await db.individualLineage.upsert({
+      where: { individualId_lineageId: { individualId, lineageId: lineage.id } },
+      create: { individualId, lineageId: lineage.id },
+      update: {},
+    });
+  }
+}
+
 // Soft-deleted individuals (deletedAt set) never show up in the tree or its
 // relatives — they can still be referenced by families/family_children (we
 // never sever those on delete, see DELETE /:id below), so every place that
@@ -123,6 +189,95 @@ function isActive<T extends { deletedAt: Date | null }>(person: T | null | undef
 
 function personLabel(individual: { givenNames: string; surname1: string }): string {
   return `${individual.givenNames} ${individual.surname1}`;
+}
+
+// Shared by "create a new person as parent of X" (relationship.kind =
+// PARENT_OF below) and the standalone "link an existing person as parent of
+// X" endpoint — links `parentId` as a parent of `childId`, reusing an
+// existing single-parent family (filling its empty partner slot) instead of
+// creating a redundant second family when the child already has one known
+// parent. Runs against whatever Prisma client/transaction is passed in, so
+// it composes inside a larger transaction or stands alone.
+async function attachParent(
+  db: Prisma.TransactionClient,
+  treeId: string,
+  childId: string,
+  parentId: string,
+  relationType: (typeof CHILD_RELATION_TYPE_VALUES)[number],
+): Promise<{ familyId: string }> {
+  const existingLinks = await db.familyChild.findMany({
+    where: { individualId: childId, family: { treeId } },
+    include: { family: true },
+  });
+
+  for (const link of existingLinks) {
+    const { family } = link;
+    if (family.partner1Id === parentId || family.partner2Id === parentId) {
+      throw new HttpError(400, "Esa persona ya es su padre/madre");
+    }
+  }
+
+  for (const link of existingLinks) {
+    const { family } = link;
+    if (!family.partner1Id) {
+      await db.family.update({ where: { id: family.id }, data: { partner1Id: parentId } });
+      return { familyId: family.id };
+    }
+    if (!family.partner2Id) {
+      await db.family.update({ where: { id: family.id }, data: { partner2Id: parentId } });
+      return { familyId: family.id };
+    }
+  }
+
+  const family = await db.family.create({ data: { treeId, partner1Id: parentId, unionType: "UNKNOWN" } });
+  await db.familyChild.create({ data: { familyId: family.id, individualId: childId, relationType } });
+  return { familyId: family.id };
+}
+
+// Shared by "create a new person as partner of X" (relationship.kind =
+// PARTNER below) — links `newPersonId` as partner of `existingPersonId`,
+// reusing an existing family where `existingPersonId` is already a partner
+// with an empty second slot (e.g. one created by attachParent above when
+// only one parent was known yet) instead of always creating a brand-new
+// family. Without this, adding someone's spouse after their child was
+// already linked left two disconnected families: the old one (parent +
+// child) and a new one (parent + spouse, no children) — the spouse never
+// became the child's parent, and the pair rendered as an isolated island in
+// the tree view.
+async function attachPartner(
+  db: Prisma.TransactionClient,
+  treeId: string,
+  existingPersonId: string,
+  newPersonId: string,
+  unionFields: {
+    unionType?: (typeof UNION_TYPE_VALUES)[number];
+    unionStatus?: (typeof UNION_STATUS_VALUES)[number];
+    unionDateText?: string;
+    unionDateValue?: Date;
+    unionDatePrecision?: (typeof DATE_PRECISION_VALUES)[number];
+    unionPlace?: string;
+  },
+): Promise<{ familyId: string }> {
+  const openFamily = await db.family.findFirst({
+    where: {
+      treeId,
+      OR: [
+        { partner1Id: existingPersonId, partner2Id: null },
+        { partner2Id: existingPersonId, partner1Id: null },
+      ],
+    },
+  });
+
+  if (openFamily) {
+    const slot = openFamily.partner1Id === existingPersonId ? { partner2Id: newPersonId } : { partner1Id: newPersonId };
+    const updated = await db.family.update({ where: { id: openFamily.id }, data: { ...slot, ...unionFields } });
+    return { familyId: updated.id };
+  }
+
+  const created = await db.family.create({
+    data: { treeId, partner1Id: existingPersonId, partner2Id: newPersonId, ...unionFields },
+  });
+  return { familyId: created.id };
 }
 
 export default async function individualRoutes(fastify: FastifyInstance) {
@@ -198,6 +353,7 @@ export default async function individualRoutes(fastify: FastifyInstance) {
         familiesAsPartner2: {
           include: { partner1: true, children: { include: { individual: true } } },
         },
+        lineages: true,
       },
     });
 
@@ -260,10 +416,10 @@ export default async function individualRoutes(fastify: FastifyInstance) {
       }
     }
 
-    const { childOf, familiesAsPartner1, familiesAsPartner2, ...individualData } = individual;
+    const { childOf, familiesAsPartner1, familiesAsPartner2, lineages, ...individualData } = individual;
 
     return {
-      individual: individualData,
+      individual: { ...individualData, lineageIds: lineages.map((l) => l.lineageId) },
       parents,
       siblings: [...siblings.values()],
       partnerships,
@@ -286,6 +442,8 @@ export default async function individualRoutes(fastify: FastifyInstance) {
             deathDateValue: individual.deathDateValue ? new Date(individual.deathDateValue) : undefined,
           },
         });
+
+        await deriveLineagesFromSurnames(tx, treeId, created.id, [individual.surname1, individual.surname1BirthName]);
 
         let family = null;
 
@@ -381,19 +539,15 @@ export default async function individualRoutes(fastify: FastifyInstance) {
                 throw new HttpError(404, `No existe el individuo ${relationship.partnerId}`);
               }
 
-              family = await tx.family.create({
-                data: {
-                  treeId,
-                  partner1Id: partner.id,
-                  partner2Id: created.id,
-                  unionType: relationship.unionType ?? "UNKNOWN",
-                  unionStatus: relationship.unionStatus ?? "ONGOING",
-                  unionDateText: relationship.unionDateText,
-                  unionDateValue: relationship.unionDateValue ? new Date(relationship.unionDateValue) : undefined,
-                  unionDatePrecision: relationship.unionDatePrecision,
-                  unionPlace: relationship.unionPlace,
-                },
+              const attachedPartner = await attachPartner(tx, treeId, partner.id, created.id, {
+                unionType: relationship.unionType ?? "UNKNOWN",
+                unionStatus: relationship.unionStatus ?? "ONGOING",
+                unionDateText: relationship.unionDateText,
+                unionDateValue: relationship.unionDateValue ? new Date(relationship.unionDateValue) : undefined,
+                unionDatePrecision: relationship.unionDatePrecision,
+                unionPlace: relationship.unionPlace,
               });
+              family = await tx.family.findUniqueOrThrow({ where: { id: attachedPartner.familyId } });
               await logChange({
                 treeId,
                 userId: request.userId ?? null,
@@ -401,6 +555,32 @@ export default async function individualRoutes(fastify: FastifyInstance) {
                 entityType: "Family",
                 entityId: family.id,
               });
+              break;
+            }
+
+            // The newly created person becomes a parent of an *existing*
+            // person — the reverse of CHILD_OF_PARENTS. Covers "I know my
+            // father's name but he's not in the tree yet" without first
+            // creating him disconnected and linking him up afterward.
+            case "PARENT_OF": {
+              if (!relationship.childId) {
+                throw new HttpError(400, "childId es obligatorio para relationship.kind = PARENT_OF");
+              }
+              const child = await tx.individual.findFirst({
+                where: { id: relationship.childId, treeId, deletedAt: null },
+              });
+              if (!child) {
+                throw new HttpError(404, `No existe el individuo ${relationship.childId}`);
+              }
+
+              const attached = await attachParent(
+                tx,
+                treeId,
+                child.id,
+                created.id,
+                relationship.relationType ?? "BIOLOGICAL",
+              );
+              family = await tx.family.findUniqueOrThrow({ where: { id: attached.familyId } });
               break;
             }
 
@@ -441,14 +621,32 @@ export default async function individualRoutes(fastify: FastifyInstance) {
       return reply.code(404).send({ error: `No existe el individuo ${id}` });
     }
 
+    // `undefined` (key omitted) means "leave this column alone" to Prisma;
+    // `null` means "clear it" — so a cleared date has to stay `null` here,
+    // not collapse to `undefined` the way an empty/missing value normally
+    // would when there's nothing to parse into a Date.
     const updated = await prisma.individual.update({
       where: { id },
       data: {
         ...updates,
-        birthDateValue: updates.birthDateValue ? new Date(updates.birthDateValue) : undefined,
-        deathDateValue: updates.deathDateValue ? new Date(updates.deathDateValue) : undefined,
+        birthDateValue:
+          updates.birthDateValue === undefined ? undefined : updates.birthDateValue ? new Date(updates.birthDateValue) : null,
+        deathDateValue:
+          updates.deathDateValue === undefined ? undefined : updates.deathDateValue ? new Date(updates.deathDateValue) : null,
       },
     });
+
+    // Only derive from a surname that actually changed in this save — not
+    // every surname on the record. Re-deriving the unchanged ones on every
+    // save (e.g. just editing the notes field) would silently resurrect a
+    // lineage the user had manually unchecked as a correction.
+    const changedSurnames = [
+      updates.surname1 !== undefined && updates.surname1 !== existing.surname1 ? updates.surname1 : undefined,
+      updates.surname1BirthName !== undefined && updates.surname1BirthName !== existing.surname1BirthName
+        ? updates.surname1BirthName
+        : undefined,
+    ];
+    await deriveLineagesFromSurnames(prisma, treeId, updated.id, changedSurnames);
 
     await logChange({
       treeId,
@@ -460,6 +658,91 @@ export default async function individualRoutes(fastify: FastifyInstance) {
     });
 
     return updated;
+  });
+
+  // Links an *existing* individual as a parent of this one — the recovery
+  // path for a person already created without a relationship (e.g. via
+  // "sin relación conocida"), reusing the same attachParent logic that
+  // handles it at creation time via relationship.kind = PARENT_OF.
+  fastify.post("/:id/parents", { schema: { body: addParentBodySchema } }, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const { parentId, relationType } = request.body as AddParentBody;
+    const treeId = request.treeId!;
+
+    const child = await prisma.individual.findFirst({ where: { id, treeId, deletedAt: null } });
+    if (!child) {
+      return reply.code(404).send({ error: `No existe el individuo ${id}` });
+    }
+    if (parentId === id) {
+      return reply.code(400).send({ error: "Una persona no puede ser su propio padre/madre" });
+    }
+    const parent = await prisma.individual.findFirst({ where: { id: parentId, treeId, deletedAt: null } });
+    if (!parent) {
+      return reply.code(404).send({ error: `No existe el individuo ${parentId}` });
+    }
+
+    try {
+      const result = await prisma.$transaction((tx) =>
+        attachParent(tx, treeId, id, parentId, relationType ?? "BIOLOGICAL"),
+      );
+      await logChange({
+        treeId,
+        userId: request.userId ?? null,
+        action: "individual.addParent",
+        entityType: "Individual",
+        entityId: id,
+        summary: `${personLabel(parent)} → ${personLabel(child)}`,
+      });
+      return reply.code(201).send(result);
+    } catch (error) {
+      if (error instanceof HttpError) {
+        return reply.code(error.statusCode).send({ error: error.message });
+      }
+      throw error;
+    }
+  });
+
+  // Add/remove one lineage membership at a time (not a full-set replace) —
+  // deliberately, since surname-derived lineages get added automatically on
+  // every save (see deriveLineagesFromSurnames above). A "replace the whole
+  // set" call built from a stale checkbox snapshot would race with that:
+  // saving the main form could silently wipe out a membership the backend
+  // had just added a moment earlier as part of the same save.
+  fastify.post("/:id/lineages", { schema: { body: addLineageBodySchema } }, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const { lineageId } = request.body as AddLineageBody;
+    const treeId = request.treeId!;
+
+    const person = await prisma.individual.findFirst({ where: { id, treeId, deletedAt: null } });
+    if (!person) {
+      return reply.code(404).send({ error: `No existe el individuo ${id}` });
+    }
+    const lineage = await prisma.lineage.findFirst({ where: { id: lineageId, treeId } });
+    if (!lineage) {
+      return reply.code(404).send({ error: `No existe la rama ${lineageId}` });
+    }
+
+    await prisma.individualLineage.upsert({
+      where: { individualId_lineageId: { individualId: id, lineageId } },
+      create: { individualId: id, lineageId },
+      update: {},
+    });
+
+    return reply.code(201).send({ lineageId });
+  });
+
+  fastify.delete("/:id/lineages/:lineageId", async (request, reply) => {
+    const { id, lineageId } = request.params as { id: string; lineageId: string };
+    const treeId = request.treeId!;
+
+    const person = await prisma.individual.findFirst({ where: { id, treeId, deletedAt: null } });
+    if (!person) {
+      return reply.code(404).send({ error: `No existe el individuo ${id}` });
+    }
+
+    await prisma.individualLineage.deleteMany({ where: { individualId: id, lineageId } });
+
+    return reply.code(204).send();
   });
 
   // Soft delete: never touches families/family_children, so spouses and

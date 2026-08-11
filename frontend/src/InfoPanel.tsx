@@ -28,11 +28,12 @@ type Props = {
   data: InfoPanelData;
   onClose: () => void;
   onNavigateToPerson: (personId: string) => void;
+  onDataChanged: () => void;
 };
 
 type Tab = "ficha" | "relaciones" | "fotos" | "documentos";
 
-export default function InfoPanel({ treeId, data, onClose, onNavigateToPerson }: Props) {
+export default function InfoPanel({ treeId, data, onClose, onNavigateToPerson, onDataChanged }: Props) {
   const { t } = useTranslation();
   const [tab, setTab] = useState<Tab>("ficha");
   const [showCopyModal, setShowCopyModal] = useState(false);
@@ -75,7 +76,14 @@ export default function InfoPanel({ treeId, data, onClose, onNavigateToPerson }:
                 </ul>
               </div>
             ))}
-            {data.familyId && <UnionNotesEditor treeId={treeId} familyId={data.familyId} initialNotes={data.notes ?? ""} />}
+            {data.familyId && (
+              <UnionNotesEditor
+                treeId={treeId}
+                familyId={data.familyId}
+                initialNotes={data.notes ?? ""}
+                onSaved={onDataChanged}
+              />
+            )}
           </div>
         )}
         {tab === "relaciones" && data.personId && (

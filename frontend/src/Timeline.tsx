@@ -77,14 +77,16 @@ function pickRepresentative(people: TreePerson[], bucket: Bucket): string | null
 }
 
 // Visual layout constants for the branch drawing — an organic tapered
-// trunk (thick at the root/past, thin at the newest growth/today) with a
-// curved twig per bucket ending in a pair of small leaves and a date
-// label. Branches get bigger, longer and more spread out toward today
-// (top) and compress toward the past (bottom); the falloff is index-based
-// (display order), independent of the bucket density logic above.
+// trunk (thick at the root/oldest era, thin at the newest growth/today)
+// with a curved twig per bucket ending in a pair of small leaves and a
+// date label. Oldest is drawn at the top and today at the bottom — matching
+// the family tree canvas itself, where ancestors sit above descendants.
+// Branches get bigger and more spread out toward today regardless of which
+// end that lands on; the falloff is keyed to chronological recency, not to
+// display position.
 const TRUNK_X = 18;
-const TRUNK_TOP_HALF = 1.5;
-const TRUNK_BOTTOM_HALF = 5.5;
+const TRUNK_THIN_HALF = 1.5;
+const TRUNK_THICK_HALF = 5.5;
 const SVG_WIDTH = 128;
 const WEIGHT_DECAY = 0.78;
 const MIN_SLICE_HEIGHT = 20;
@@ -102,18 +104,18 @@ function lerp(min: number, max: number, t: number): number {
 }
 
 // The trunk is drawn as a filled tapered shape (not a stroked line) so its
-// width can grow from a thin tip at today down to a thick base at the
-// oldest recorded era — like a trunk widening toward its root.
+// width can grow from a thick base at the oldest recorded era (top) down to
+// a thin tip at today (bottom) — like a trunk widening toward its root.
 function trunkPath(totalHeight: number): string {
-  return `M ${TRUNK_X - TRUNK_TOP_HALF} 0
-    L ${TRUNK_X - TRUNK_BOTTOM_HALF} ${totalHeight}
-    L ${TRUNK_X + TRUNK_BOTTOM_HALF} ${totalHeight}
-    L ${TRUNK_X + TRUNK_TOP_HALF} 0 Z`;
+  return `M ${TRUNK_X - TRUNK_THICK_HALF} 0
+    L ${TRUNK_X - TRUNK_THIN_HALF} ${totalHeight}
+    L ${TRUNK_X + TRUNK_THIN_HALF} ${totalHeight}
+    L ${TRUNK_X + TRUNK_THICK_HALF} 0 Z`;
 }
 
 function trunkHalfWidthAt(y: number, totalHeight: number): number {
   const t = totalHeight > 0 ? y / totalHeight : 0;
-  return lerp(TRUNK_TOP_HALF, TRUNK_BOTTOM_HALF, t);
+  return lerp(TRUNK_THICK_HALF, TRUNK_THIN_HALF, t);
 }
 
 function branchPath(edgeX: number, mid: number, tipX: number, tipY: number): string {
@@ -153,14 +155,17 @@ export default function Timeline({ people, onNavigate }: Props) {
     return computeBuckets(years, new Date().getFullYear());
   }, [people]);
 
-  // buckets is oldest→newest; the branch drawing renders newest (today) at
-  // the top, so displayOrder walks it back to front while keeping each
-  // entry's original index (what activateBucket/pickRepresentative index by).
+  // buckets is oldest→newest, and displayOrder renders top-to-bottom in
+  // that same order — oldest era at the top, today at the bottom, matching
+  // the tree canvas where ancestors sit above descendants. Branch size
+  // still falls off by chronological recency (today's bucket biggest),
+  // computed separately from display position so flipping which end is
+  // "top" doesn't also flip which era gets the most visual weight.
   const slices = useMemo(() => {
     if (buckets.length === 0 || containerHeight === 0) return [];
 
-    const displayOrder = buckets.map((_, i) => i).reverse();
-    const weights = displayOrder.map((_, displayIdx) => Math.pow(WEIGHT_DECAY, displayIdx));
+    const displayOrder = buckets.map((_, i) => i);
+    const weights = displayOrder.map((bucketIndex) => Math.pow(WEIGHT_DECAY, buckets.length - 1 - bucketIndex));
     const totalWeight = weights.reduce((sum, w) => sum + w, 0);
     const heights = weights.map((w) => Math.max((w / totalWeight) * containerHeight, MIN_SLICE_HEIGHT));
 

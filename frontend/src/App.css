@@ -342,6 +342,20 @@ body {
   --text-color: var(--color-forest);
 }
 
+/* No gender-tinted card background anymore — that color moved to a ring
+   around the avatar instead (see .card-avatar below), cameo-brooch style.
+   Still opaque and page-colored (not transparent): the union/descent lines
+   are drawn on a layer behind the cards, and a transparent card lets them
+   show straight through instead of stopping at the card's edge — the same
+   edge the hover shadow traces. Same selector shape/specificity as
+   family-chart's own `.f3 div.card-{female,male,genderless} .card-inner`
+   background rule so this wins on source order without `!important`. */
+.f3 div.card-female .card-inner,
+.f3 div.card-male .card-inner,
+.f3 div.card-genderless .card-inner {
+  background-color: var(--color-bg);
+}
+
 /* The connecting lines and the marriage/divorce/etc. mark on them are set
    with inline SVG attributes/styles by the library — a plain CSS rule
    beats a presentation attribute, and `!important` is needed to beat an
@@ -512,6 +526,8 @@ body {
   width: 48px;
   height: 48px;
   border-radius: 50%;
+  border: 3px solid;
+  box-sizing: border-box;
   object-fit: cover;
   margin-bottom: 4px;
   flex-shrink: 0;
@@ -521,8 +537,25 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(255, 255, 255, 0.45);
+  background: rgba(27, 67, 50, 0.08);
   color: inherit;
+}
+
+/* The card's old background color moves here — a ring around the avatar
+   (cameo-brooch style) instead of filling the whole card. */
+.card-male .card-avatar,
+.card-male .card-avatar-placeholder {
+  border-color: var(--color-male);
+}
+
+.card-female .card-avatar,
+.card-female .card-avatar-placeholder {
+  border-color: var(--color-female);
+}
+
+.card-genderless .card-avatar,
+.card-genderless .card-avatar-placeholder {
+  border-color: var(--color-other);
 }
 
 .card-avatar-placeholder svg {
@@ -564,39 +597,13 @@ body {
   opacity: 0.9;
 }
 
-.card-expand-toggle {
-  position: absolute;
-  top: -6px;
-  right: -6px;
-  width: 20px;
-  height: 20px;
-  padding: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-  border: 1px solid var(--color-bg);
-  background: var(--color-forest);
-  color: var(--color-bg);
-  cursor: pointer;
-}
-
-.card-expand-toggle svg {
-  width: 12px;
-  height: 12px;
-}
-
-.card-expand-toggle:hover {
-  background: var(--color-amber);
-}
-
-/* Opposite corner from the expand toggle, hover-revealed (unlike the
-   always-visible expand icon) to keep the card uncluttered by default —
-   editing a specific person is one hover away instead of always on show. */
+/* Both corner toggles are hover-revealed together, at the same moment, to
+   keep the card uncluttered by default — expanding or editing a specific
+   person is one hover away instead of always on show. */
+.card-expand-toggle,
 .card-edit-toggle {
   position: absolute;
   top: -6px;
-  left: -6px;
   width: 20px;
   height: 20px;
   padding: 0;
@@ -612,8 +619,28 @@ body {
   transition: opacity 150ms ease, background 150ms ease;
 }
 
+.card-expand-toggle {
+  right: -6px;
+}
+
+.card-edit-toggle {
+  left: -6px;
+}
+
+.card:hover .card-expand-toggle,
 .card:hover .card-edit-toggle {
   opacity: 1;
+}
+
+.card-expand-toggle svg,
+.card-edit-toggle svg {
+  width: 12px;
+  height: 12px;
+}
+
+.card-expand-toggle:hover,
+.card-edit-toggle:hover {
+  background: var(--color-amber);
 }
 
 .card-edit-toggle svg {
@@ -883,7 +910,70 @@ body {
 .union-notes-actions {
   display: flex;
   justify-content: flex-end;
+  gap: 0.5rem;
   margin-top: 0.4rem;
+}
+
+.edit-parents-list {
+  margin: 0 0 0.4rem;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  font-size: 0.9rem;
+}
+
+.share-members-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.share-member-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+}
+
+.share-member-identity {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Higher specificity than `.modal-panel select { width: 100% }` (which
+   otherwise wins the cascade here regardless of source order) — that rule
+   fights this row's flexbox layout and squeezes .share-member-identity
+   down to nothing. */
+.modal-panel .share-member-row select {
+  flex: 0 0 auto;
+  width: auto;
+}
+
+.union-notes-display {
+  margin: 0;
+  font-size: 0.85rem;
+  line-height: 1.4;
+  white-space: pre-wrap;
+}
+
+.union-notes-edit-link {
+  display: block;
+  margin-top: 0.3rem;
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 0.8rem;
+  color: var(--color-amber);
+  text-decoration: underline;
+  cursor: pointer;
 }
 
 .search-year-range {
@@ -960,15 +1050,35 @@ body {
   gap: 0.2rem;
 }
 
-.modal-panel input,
+.modal-panel input:not([type="radio"]):not([type="checkbox"]):not([type="file"]),
 .modal-panel select,
 .modal-panel textarea {
-  font: inherit;
-  padding: 0.35rem 0.5rem;
-  border: 1px solid #ccc;
-  border-radius: 4px;
-  background: #fff;
+  /* Explicit 16px (not `inherit`, which would pick up the 0.9rem label
+     font-size around it) — anything smaller makes iOS/Android Safari
+     auto-zoom the page on focus. */
+  font-family: inherit;
+  font-size: 16px;
+  width: 100%;
+  max-width: 100%;
+  padding: 0.3rem 0.1rem;
+  border: none;
+  border-bottom: 1px solid rgba(27, 67, 50, 0.3);
+  border-radius: 0;
+  background: none;
   color: var(--color-forest);
+  transition: border-color 150ms ease;
+}
+
+.modal-panel input:not([type="radio"]):not([type="checkbox"]):not([type="file"]):focus,
+.modal-panel select:focus,
+.modal-panel textarea:focus {
+  outline: none;
+  border-bottom-color: var(--color-amber);
+}
+
+.modal-panel input[type="file"] {
+  font-size: 16px;
+  width: 100%;
 }
 
 .modal-panel .indent {
@@ -976,6 +1086,23 @@ body {
   flex-direction: column;
   gap: 0.4rem;
   margin: 0 0 0.4rem 1.6rem;
+}
+
+.field-row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.field-row > input {
+  flex: 1;
+  min-width: 0;
+}
+
+.field-row > select,
+.field-row > button {
+  flex: 0 0 auto;
+  width: auto;
 }
 
 .field-hint {
@@ -1273,21 +1400,8 @@ body {
 
 .home-tree-actions {
   display: flex;
-  gap: 0.75rem;
-}
-
-.home-tree-action {
-  background: none;
-  border: none;
-  font-size: 0.8rem;
-  color: var(--color-text-secondary);
-  cursor: pointer;
-  text-decoration: underline;
-  padding: 0;
-}
-
-.home-tree-action:hover {
-  color: var(--color-amber);
+  align-items: center;
+  gap: 0.4rem;
 }
 
 .home-create-button {

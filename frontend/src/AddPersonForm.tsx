@@ -4,6 +4,7 @@ import {
   createIndividual,
   fetchIndividuals,
   uploadPersonPhoto,
+  type DatePrecision,
   type Individual,
   type Relationship,
   type Sex,
@@ -11,7 +12,7 @@ import {
 } from "./api";
 import { resizeImage } from "./media";
 
-type RelationshipKind = "NONE" | "CHILD_OF_PARENTS" | "PARTNER";
+type RelationshipKind = "NONE" | "CHILD_OF_PARENTS" | "PARTNER" | "PARENT_OF";
 
 type Props = {
   treeId: string;
@@ -35,6 +36,7 @@ export default function AddPersonForm({ treeId, onCreated, onClose }: Props) {
   const [unionType, setUnionType] = useState<UnionType>("MARRIAGE");
   const [unionDateText, setUnionDateText] = useState("");
   const [unionPlace, setUnionPlace] = useState("");
+  const [childId, setChildId] = useState("");
 
   const [givenNames, setGivenNames] = useState("");
   const [surname1, setSurname1] = useState("");
@@ -43,8 +45,12 @@ export default function AddPersonForm({ treeId, onCreated, onClose }: Props) {
   const [alias, setAlias] = useState("");
   const [sex, setSex] = useState<Sex>("UNKNOWN");
   const [birthDateText, setBirthDateText] = useState("");
+  const [birthDateValue, setBirthDateValue] = useState("");
+  const [birthDatePrecision, setBirthDatePrecision] = useState<DatePrecision>("EXACT");
   const [birthPlace, setBirthPlace] = useState("");
   const [deathDateText, setDeathDateText] = useState("");
+  const [deathDateValue, setDeathDateValue] = useState("");
+  const [deathDatePrecision, setDeathDatePrecision] = useState<DatePrecision>("EXACT");
   const [deathPlace, setDeathPlace] = useState("");
   const [notes, setNotes] = useState("");
   const [biography, setBiography] = useState("");
@@ -84,6 +90,9 @@ export default function AddPersonForm({ treeId, onCreated, onClose }: Props) {
         unionPlace: unionPlace || undefined,
       };
     }
+    if (relationshipKind === "PARENT_OF") {
+      return { kind: "PARENT_OF", childId };
+    }
     return undefined;
   }
 
@@ -96,6 +105,9 @@ export default function AddPersonForm({ treeId, onCreated, onClose }: Props) {
     }
     if (relationshipKind === "PARTNER" && !partnerId) {
       return t("addPerson.validationPartner");
+    }
+    if (relationshipKind === "PARENT_OF" && !childId) {
+      return t("addPerson.validationChild");
     }
     return null;
   }
@@ -120,8 +132,12 @@ export default function AddPersonForm({ treeId, onCreated, onClose }: Props) {
           alias: alias.trim() || undefined,
           sex,
           birthDateText: birthDateText.trim() || undefined,
+          birthDateValue: birthDateValue || undefined,
+          birthDatePrecision: birthDateValue ? birthDatePrecision : undefined,
           birthPlace: birthPlace.trim() || undefined,
           deathDateText: deathDateText.trim() || undefined,
+          deathDateValue: deathDateValue || undefined,
+          deathDatePrecision: deathDateValue ? deathDatePrecision : undefined,
           deathPlace: deathPlace.trim() || undefined,
           notes: notes.trim() || undefined,
           biography: biography.trim() || undefined,
@@ -228,6 +244,27 @@ export default function AddPersonForm({ treeId, onCreated, onClose }: Props) {
           <label>
             <input
               type="radio"
+              checked={relationshipKind === "PARENT_OF"}
+              onChange={() => setRelationshipKind("PARENT_OF")}
+            />
+            {t("addPerson.parentOf")}
+          </label>
+          {relationshipKind === "PARENT_OF" && (
+            <div className="indent">
+              <select value={childId} onChange={(e) => setChildId(e.target.value)}>
+                <option value="">{t("addPerson.childPlaceholder")}</option>
+                {individuals.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {personLabel(p)}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          <label>
+            <input
+              type="radio"
               checked={relationshipKind === "NONE"}
               onChange={() => setRelationshipKind("NONE")}
             />
@@ -280,6 +317,20 @@ export default function AddPersonForm({ treeId, onCreated, onClose }: Props) {
           </label>
           <label>
             {t("personFields.birthDate")}
+            <div className="field-row">
+              <input
+                type="date"
+                value={birthDateValue}
+                onChange={(e) => setBirthDateValue(e.target.value)}
+              />
+              <select value={birthDatePrecision} onChange={(e) => setBirthDatePrecision(e.target.value as DatePrecision)}>
+                <option value="EXACT">{t("datePrecision.EXACT")}</option>
+                <option value="ABOUT">{t("datePrecision.ABOUT")}</option>
+                <option value="BEFORE">{t("datePrecision.BEFORE")}</option>
+                <option value="AFTER">{t("datePrecision.AFTER")}</option>
+              </select>
+            </div>
+            <p className="field-hint">{t("personFields.dateValueHint")}</p>
             <input
               type="text"
               placeholder={t("personFields.birthDatePlaceholder")}
@@ -297,6 +348,20 @@ export default function AddPersonForm({ treeId, onCreated, onClose }: Props) {
           </label>
           <label>
             {t("personFields.deathDate")}
+            <div className="field-row">
+              <input
+                type="date"
+                value={deathDateValue}
+                onChange={(e) => setDeathDateValue(e.target.value)}
+              />
+              <select value={deathDatePrecision} onChange={(e) => setDeathDatePrecision(e.target.value as DatePrecision)}>
+                <option value="EXACT">{t("datePrecision.EXACT")}</option>
+                <option value="ABOUT">{t("datePrecision.ABOUT")}</option>
+                <option value="BEFORE">{t("datePrecision.BEFORE")}</option>
+                <option value="AFTER">{t("datePrecision.AFTER")}</option>
+              </select>
+            </div>
+            <p className="field-hint">{t("personFields.dateValueHint")}</p>
             <input
               type="text"
               placeholder={t("personFields.deathDatePlaceholder")}

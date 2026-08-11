@@ -8,6 +8,7 @@ import individualRoutes from "./routes/individuals.js";
 import familyRoutes from "./routes/families.js";
 import treeRoutes from "./routes/tree.js";
 import lineageRoutes from "./routes/lineages.js";
+import memberRoutes from "./routes/members.js";
 import gedcomRoutes from "./routes/gedcom.js";
 import treesRoutes from "./routes/trees.js";
 import copyRoutes from "./routes/copy.js";
@@ -47,6 +48,7 @@ async function treeScopedRoutes(fastify: FastifyInstance) {
   await fastify.register(individualRoutes, { prefix: "/individuals" });
   await fastify.register(familyRoutes, { prefix: "/families" });
   await fastify.register(lineageRoutes, { prefix: "/lineages" });
+  await fastify.register(memberRoutes, { prefix: "/members" });
   await fastify.register(gedcomRoutes, { prefix: "/gedcom" });
 }
 

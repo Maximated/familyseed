@@ -135,3 +135,26 @@ export function HomeIcon({ size }: IconProps) {
     </Svg>
   );
 }
+
+export function ShareIcon({ size }: IconProps) {
+  return (
+    <Svg size={size}>
+      <circle cx="18" cy="5" r="3" />
+      <circle cx="6" cy="12" r="3" />
+      <circle cx="18" cy="19" r="3" />
+      <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
+      <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
+    </Svg>
+  );
+}
+
+export function MaximizeIcon({ size }: IconProps) {
+  return (
+    <Svg size={size}>
+      <path d="M8 3H5a2 2 0 0 0-2 2v3" />
+      <path d="M21 8V5a2 2 0 0 0-2-2h-3" />
+      <path d="M3 16v3a2 2 0 0 0 2 2h3" />
+      <path d="M16 21h3a2 2 0 0 0 2-2v-3" />
+    </Svg>
+  );
+}
