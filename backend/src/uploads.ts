@@ -1,4 +1,4 @@
-import { mkdir, unlink, writeFile } from "node:fs/promises";
+import { mkdir, rm, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 
@@ -35,4 +35,11 @@ export async function deleteUploadByUrl(url: string): Promise<void> {
   await unlink(filePath).catch(() => {
     // Already gone / never existed — deleting the DB row still succeeds.
   });
+}
+
+// Deleting a tree cascades every row referencing it away in the database,
+// but the uploaded files on disk under uploads/<treeId>/ are only ever
+// tracked by those rows — without this they'd be orphaned forever.
+export async function deleteTreeUploads(treeId: string): Promise<void> {
+  await rm(path.join(UPLOADS_ROOT, treeId), { recursive: true, force: true });
 }

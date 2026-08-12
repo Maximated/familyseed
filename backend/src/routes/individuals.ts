@@ -23,7 +23,7 @@ import { downloadFilename } from "../filename.js";
 // cleared: it would just always resend whatever was already in the database.
 const optionalNullableString = { type: ["string", "null"] } as const;
 
-const individualFieldsSchema = {
+export const individualFieldsSchema = {
   type: "object",
   required: ["givenNames", "surname1"],
   properties: {
@@ -112,26 +112,28 @@ type AddLineageBody = {
   lineageId: string;
 };
 
+export type IndividualFieldsInput = {
+  givenNames: string;
+  surname1: string;
+  surname2?: string | null;
+  surname1BirthName?: string | null;
+  alias?: string | null;
+  sex?: (typeof SEX_VALUES)[number];
+  birthDateText?: string | null;
+  birthDateValue?: string | null;
+  birthDatePrecision?: (typeof DATE_PRECISION_VALUES)[number] | null;
+  birthPlace?: string | null;
+  deathDateText?: string | null;
+  deathDateValue?: string | null;
+  deathDatePrecision?: (typeof DATE_PRECISION_VALUES)[number] | null;
+  deathPlace?: string | null;
+  notes?: string | null;
+  biography?: string | null;
+  photoUrl?: string;
+};
+
 type CreateIndividualBody = {
-  individual: {
-    givenNames: string;
-    surname1: string;
-    surname2?: string | null;
-    surname1BirthName?: string | null;
-    alias?: string | null;
-    sex?: (typeof SEX_VALUES)[number];
-    birthDateText?: string | null;
-    birthDateValue?: string | null;
-    birthDatePrecision?: (typeof DATE_PRECISION_VALUES)[number] | null;
-    birthPlace?: string | null;
-    deathDateText?: string | null;
-    deathDateValue?: string | null;
-    deathDatePrecision?: (typeof DATE_PRECISION_VALUES)[number] | null;
-    deathPlace?: string | null;
-    notes?: string | null;
-    biography?: string | null;
-    photoUrl?: string;
-  };
+  individual: IndividualFieldsInput;
   relationship?: {
     kind: "CHILD" | "CHILD_OF_PARENTS" | "PARTNER" | "PARENT_OF";
     familyId?: string;
@@ -159,7 +161,7 @@ type UpdateIndividualBody = Partial<CreateIndividualBody["individual"]>;
 // removed by hand) — a name change just adds the new surname's branch
 // alongside whatever was there before, so a manual correction never gets
 // silently undone by editing an unrelated field.
-async function deriveLineagesFromSurnames(
+export async function deriveLineagesFromSurnames(
   db: Prisma.TransactionClient,
   treeId: string,
   individualId: string,
@@ -647,6 +649,18 @@ export default async function individualRoutes(fastify: FastifyInstance) {
         : undefined,
     ];
     await deriveLineagesFromSurnames(prisma, treeId, updated.id, changedSurnames);
+
+    // "Hasta que la muerte os separe" — recording a death date ends any
+    // union of theirs still marked ongoing. Only fires forward (a newly
+    // set death date closes the union); clearing a death date to fix a
+    // data-entry mistake doesn't reopen it, since the status could have
+    // been changed for an unrelated reason (divorce, say) in the meantime.
+    if (updates.deathDateValue) {
+      await prisma.family.updateMany({
+        where: { treeId, unionStatus: "ONGOING", OR: [{ partner1Id: updated.id }, { partner2Id: updated.id }] },
+        data: { unionStatus: "ENDED_BY_DEATH" },
+      });
+    }
 
     await logChange({
       treeId,

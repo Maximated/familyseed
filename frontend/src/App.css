@@ -12,6 +12,7 @@
   --color-amber: #e07a29;
   --color-text-secondary: #374151;
   --color-tree-black: #1c1c1c;
+  --timeline-width: 132px;
 }
 
 body {
@@ -55,12 +56,19 @@ body {
 /* The tree's own title — editable in place, so it gets a distinct
    typeface (Playfair Display) from every other name/label in the app to
    read as "this is the document's title," not just more UI chrome. */
+/* flex: 0 1 auto (not 1) — the title only takes as much width as its own
+   text needs. A short title no longer stretches into a huge, mostly-empty
+   clickable strip reaching all the way to the header menu; a genuinely
+   long one still shrinks and ellipsizes rather than overflowing, since
+   the header (and every flex item here) keeps min-width: 0. Pinning the
+   header menu to the right edge is handled by its own margin-left: auto
+   instead of this element pushing outward. */
 .tree-title {
   font-family: var(--font-title);
   font-size: 1.85rem;
   font-weight: 700;
   margin: 0;
-  flex: 1;
+  flex: 0 1 auto;
   color: rgba(27, 67, 50, 0.85);
   cursor: pointer;
   padding: 0.15rem 0.5rem;
@@ -95,6 +103,85 @@ body {
   gap: 0.4rem;
 }
 
+/* Every per-screen action collapses behind one hamburger icon, hover- (or
+   focus-, so a keyboard tab into it also works) revealed as a horizontal
+   row floating over the title instead of pushing it around — see the
+   jelly-pop keyframes below for the reveal itself. */
+.header-menu {
+  position: relative;
+  /* Pushes itself (and pins the hamburger) toward the right edge of the
+     header, regardless of how little space .tree-title ends up needing —
+     but stopping short of the timeline's own column (margin-right),
+     since the timeline marks the edge of the interactive canvas area:
+     nothing — this menu included — should sit to the right of it.
+     .app-header's own right padding (1.5rem) already eats into that gap,
+     so it's subtracted back out here to land a few px left of the
+     timeline's actual edge rather than that much further still. */
+  margin-left: auto;
+  margin-right: calc(var(--timeline-width) - 1.5rem + 4px);
+}
+
+/* No plate/pill behind the row — same rule as the person cards: only the
+   icons themselves get a treatment, nothing shaded floats behind them. */
+.header-menu-items {
+  position: absolute;
+  top: 50%;
+  right: calc(100% + 0.4rem);
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms ease;
+  z-index: 20;
+}
+
+.header-menu:hover .header-menu-items,
+.header-menu:focus-within .header-menu-items {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.header-menu-items .icon-button {
+  opacity: 0;
+  transform: scale(0.3);
+}
+
+.header-menu:hover .header-menu-items .icon-button,
+.header-menu:focus-within .header-menu-items .icon-button {
+  animation: jelly-pop 460ms cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+.header-menu-items .icon-button:nth-child(1) { animation-delay: 0ms; }
+.header-menu-items .icon-button:nth-child(2) { animation-delay: 30ms; }
+.header-menu-items .icon-button:nth-child(3) { animation-delay: 60ms; }
+.header-menu-items .icon-button:nth-child(4) { animation-delay: 90ms; }
+.header-menu-items .icon-button:nth-child(5) { animation-delay: 120ms; }
+.header-menu-items .icon-button:nth-child(6) { animation-delay: 150ms; }
+.header-menu-items .icon-button:nth-child(7) { animation-delay: 180ms; }
+
+@keyframes jelly-pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.3);
+  }
+  55% {
+    opacity: 1;
+    transform: scale(1.18);
+  }
+  75% {
+    transform: scale(0.9);
+  }
+  90% {
+    transform: scale(1.05);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
 /* Bare icon, no circular stroke/background — a soft shadow + slight lift on
    hover instead, the same idea as the person-card hover effect (see
    family-chart's own `.f3 div.card:hover .card-inner` rule) scaled down for
@@ -124,6 +211,10 @@ body {
   color: var(--color-amber);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
   transform: translateY(-1px);
+}
+
+.icon-button-danger:not(:disabled):hover {
+  color: #b00020;
 }
 
 .popover-anchor {
@@ -315,10 +406,34 @@ body {
 }
 
 .tree-container {
+  position: relative;
+  /* z-index: 0 (not auto) confines the watermark pseudo-element's
+     z-index: -1 to this box's own stacking context — otherwise it escapes
+     to the nearest ancestor context that has one and paints behind this
+     element's own background instead of in front of it, hiding it
+     entirely regardless of opacity. */
+  z-index: 0;
   flex: 1;
   min-width: 0;
   min-height: 0;
   background: var(--color-bg);
+}
+
+/* Faint tree silhouette centered behind the canvas — sits on top of the
+   container's own flat background but behind everything family-chart
+   renders into this element (cards paint their own opaque background, so
+   the watermark only ever shows through the empty space around them). */
+.tree-container::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background-image: url("/images/tree-watermark.svg");
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: min(75vmin, 820px);
+  opacity: 0.07;
+  pointer-events: none;
 }
 
 /* family-chart layers its HTML cards (#htmlSvg) on top of the SVG that
@@ -342,18 +457,28 @@ body {
   --text-color: var(--color-forest);
 }
 
-/* No gender-tinted card background anymore — that color moved to a ring
-   around the avatar instead (see .card-avatar below), cameo-brooch style.
-   Still opaque and page-colored (not transparent): the union/descent lines
-   are drawn on a layer behind the cards, and a transparent card lets them
-   show straight through instead of stopping at the card's edge — the same
-   edge the hover shadow traces. Same selector shape/specificity as
-   family-chart's own `.f3 div.card-{female,male,genderless} .card-inner`
-   background rule so this wins on source order without `!important`. */
+/* No card rectangle at all anymore — just the avatar ring and text floating
+   directly on the canvas (and its watermark). Overrides family-chart's own
+   gender-tinted `.card-inner` background (same selector shape/specificity,
+   so this wins on source order without `!important`).
+   Removing the fill doesn't change where union/descent lines end, though:
+   that gap is governed by `.card-inner`'s own box size (170×128, set
+   below), which family-chart's layout measures regardless of whether
+   anything is painted inside it — the rectangle was never what produced
+   the gap, so nothing about the line math needs to change here. */
 .f3 div.card-female .card-inner,
 .f3 div.card-male .card-inner,
 .f3 div.card-genderless .card-inner {
-  background-color: var(--color-bg);
+  background-color: transparent;
+}
+
+/* family-chart's own hover/main-card treatment (box-shadow + a light
+   outline) targeted this same rectangle — replaced below by a shadow on
+   the avatar ring itself instead, so it needs to be neutralized here. */
+.f3 div.card-main .card-inner,
+.f3 div.card:hover .card-inner {
+  box-shadow: none;
+  outline: none;
 }
 
 /* The connecting lines and the marriage/divorce/etc. mark on them are set
@@ -382,7 +507,7 @@ body {
 }
 
 .timeline {
-  width: 132px;
+  width: var(--timeline-width);
   flex-shrink: 0;
   overflow-y: auto;
   overflow-x: hidden;
@@ -462,11 +587,20 @@ body {
 /* Floating over the tree canvas instead of pinned in the layout, so it
    reads as a reference card rather than permanent chrome — bigger symbols
    (the whole point of the legend), smaller labels. */
+/* Clickable to magnify — mainly for readers on a phone who'd otherwise
+   need to pinch-zoom the whole page just to read this. transform: scale()
+   grows the icons and text together as one image rather than needing a
+   separate, larger font-size rule for the magnified state. transform-
+   origin is pinned to the bottom so it grows upward from its anchored
+   position instead of pushing past the bottom edge. The hover lift/shadow
+   mirrors a person card's own :hover treatment (see .f3 div.card:hover),
+   so it reads as "this is interactive" the same way everything else does. */
 .legend-panel {
   position: absolute;
   left: 50%;
   bottom: 20px;
   transform: translateX(-50%);
+  transform-origin: center bottom;
   z-index: 5;
   display: flex;
   flex-wrap: wrap;
@@ -476,9 +610,53 @@ body {
   max-width: min(720px, calc(100% - 40px));
   padding: 0.6rem 1rem;
   border-radius: 10px;
-  background: rgba(116, 168, 146, 0.16);
+  background: rgba(116, 168, 146, 0.6);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
   box-shadow: 0 4px 16px rgba(27, 67, 50, 0.1);
   border: 1px solid rgba(27, 67, 50, 0.12);
+  cursor: pointer;
+  transition: transform 220ms cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 180ms ease;
+}
+
+.legend-panel:hover {
+  transform: translateX(-50%) translateY(-2px) scale(1.03);
+  box-shadow: 0 8px 24px rgba(27, 67, 50, 0.22);
+}
+
+.legend-panel.legend-magnified {
+  transform: translateX(-50%) scale(1.45);
+}
+
+.legend-panel.legend-magnified:hover {
+  transform: translateX(-50%) translateY(-2px) scale(1.5);
+}
+
+/* Drag-to-link overlay: sits above every family-chart layer so the branch
+   is always drawn on top of cards, but stays empty (and so invisible and
+   non-interactive) outside of an active drag — see startRelateDrag in
+   TreeView. */
+.relate-drag-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  pointer-events: none;
+  overflow: visible;
+}
+
+.branch-drag-path {
+  fill: none;
+  stroke: var(--color-forest);
+  stroke-width: 3;
+  stroke-linecap: round;
+  opacity: 0.75;
+}
+
+/* Highlights whichever card is currently under the dragged branch as a
+   valid drop target. */
+.card.relate-target .card-avatar,
+.card.relate-target .card-avatar-placeholder {
+  box-shadow: 0 0 0 4px var(--color-amber);
 }
 
 .legend-item {
@@ -500,6 +678,7 @@ body {
 
 .legend-hint {
   flex-basis: 100%;
+  text-align: center;
   font-size: 0.65rem;
   font-style: italic;
   color: var(--color-text-secondary);
@@ -508,29 +687,42 @@ body {
 /* Compact tree card: name + optional birth surname/alias + a lifespan
    line, plus a small toggle that opens the full record instead of
    growing the card in place (which would overlap its neighbors in the
-   tree layout). Every card is the exact same size regardless of content —
-   long names truncate with an ellipsis rather than resizing the card. */
+   tree layout). This box's own size (170×128) is what family-chart's
+   layout measures for spacing and where union/descent lines stop — that
+   stays fixed even though the avatar is now allowed to visually overflow
+   it on hover (see .card-avatar below): `overflow: visible` only changes
+   what paints outside the box, not the box's own dimensions, so the
+   layout math never sees a difference. Long names still truncate with an
+   ellipsis — each text line clips itself individually (see .card-name
+   etc.), it never depended on this box's own overflow. */
 .f3 .card-inner {
   width: 170px;
   height: 128px;
-  padding: 8px 10px;
-  border-radius: 6px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  overflow: hidden;
+  position: relative;
+  overflow: visible;
 }
 
 .card-avatar {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
   width: 48px;
   height: 48px;
   border-radius: 50%;
   border: 3px solid;
   box-sizing: border-box;
   object-fit: cover;
-  margin-bottom: 4px;
-  flex-shrink: 0;
+  /* Real width/height (not a further transform: scale) so growing on
+     hover pushes the text's own top offset down to match (see .card-text)
+     instead of just visually overlapping it — the translate(-50%, -50%)
+     above re-centers on the same fixed point at any size, so the ring
+     never drifts off the line's anchor as it grows. */
+  transition: width 180ms ease, height 180ms ease, box-shadow 180ms ease;
+}
+
+.card-avatar:not(.card-avatar-placeholder) {
+  cursor: zoom-in;
 }
 
 .card-avatar-placeholder {
@@ -539,13 +731,48 @@ body {
   justify-content: center;
   background: rgba(27, 67, 50, 0.08);
   color: inherit;
+  transition: width 180ms ease, height 180ms ease, box-shadow 180ms ease;
+}
+
+/* Dock-style magnification, replacing the rectangle's old hover/main
+   treatment: the selected ("main") card keeps this same enlarged size
+   permanently (family-chart already groups `.card-main` with `:hover` in
+   its own stylesheet for the equivalent rule, so this mirrors that
+   pairing) — kept moderate on purpose, since the main card wears it at
+   all times, not just for the instant of a hover. */
+.f3 div.card-main .card-avatar,
+.f3 div.card-main .card-avatar-placeholder,
+.f3 div.card:hover .card-avatar,
+.f3 div.card:hover .card-avatar-placeholder {
+  width: 66px;
+  height: 66px;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.38);
+}
+
+.card-avatar-placeholder svg {
+  transition: width 180ms ease, height 180ms ease;
+}
+
+.f3 div.card-main .card-avatar-placeholder svg,
+.f3 div.card:hover .card-avatar-placeholder svg {
+  width: 34px;
+  height: 34px;
 }
 
 /* The card's old background color moves here — a ring around the avatar
-   (cameo-brooch style) instead of filling the whole card. */
+   (cameo-brooch style) instead of filling the whole card. The area behind
+   the avatar (visible on the placeholder icon, and peeking through on the
+   ring's inner edge) gets an even lighter tint of that same color, so the
+   ring reads distinctly against its own backing rather than sitting flush
+   against it — the pairing the gender-tinted card background used to give
+   for free before it was removed. */
 .card-male .card-avatar,
 .card-male .card-avatar-placeholder {
   border-color: var(--color-male);
+}
+
+.card-male .card-avatar-placeholder {
+  background: color-mix(in srgb, var(--color-male) 35%, white);
 }
 
 .card-female .card-avatar,
@@ -553,14 +780,74 @@ body {
   border-color: var(--color-female);
 }
 
+.card-female .card-avatar-placeholder {
+  background: color-mix(in srgb, var(--color-female) 35%, white);
+}
+
 .card-genderless .card-avatar,
 .card-genderless .card-avatar-placeholder {
   border-color: var(--color-other);
 }
 
+.card-genderless .card-avatar-placeholder {
+  background: color-mix(in srgb, var(--color-other) 35%, white);
+}
+
 .card-avatar-placeholder svg {
   width: 26px;
   height: 26px;
+}
+
+
+/* Positioned right below the avatar (see .card-avatar's own center-pin)
+   so the two read as one balanced unit and hover-growth pushes this down
+   to match. The top offset here starts right after the avatar's own
+   bottom edge (radius + a small gap) and has to be kept in sync with
+   .card-avatar's two sizes (rest/hover/main) by hand, since a plain
+   custom property can't be transitioned smoothly without registering it. */
+.card-text {
+  position: absolute;
+  z-index: 0;
+  top: calc(50% + 27px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: 150px;
+  transition: top 180ms ease;
+}
+
+.f3 div.card-main .card-text,
+.f3 div.card:hover .card-text {
+  top: calc(50% + 36px);
+}
+
+/* A union/descent line can cross behind the text (a sibling fan-out's
+   trunk in particular routes wherever the layout puts it, not just
+   through a card's exact center) — this fade sits only behind the text
+   block itself, snug rather than card-wide.
+   Two earlier attempts each broke something: a tall radial fade covering
+   the whole block left the top (name) and bottom (lifespan) lines
+   under-protected since its solid center never reached that far from the
+   middle: exactly the outermost row — most likely to be a date a line
+   crosses — faded out first. Fixing that with a hard-edged top/bottom
+   (fading only left/right) solved the coverage but the vertical inset
+   needed to clear the avatar above it ended up overlapping the ring
+   instead, showing as a flat cut across its curve on hover.
+   This version keeps the vertical inset tiny (2px — barely more than the
+   text's own height, nowhere near the ring above it, especially now that
+   .card-text sits 1px further from it too — see the +27/+36 offsets
+   above) while staying generous horizontally (15px), and fades on both
+   axes via one radial mask: with so little vertical room to fade across,
+   the text stays almost fully covered edge to edge, while the wide
+   horizontal margin gives the sides a real, visible soften. */
+.card-text::before {
+  content: "";
+  position: absolute;
+  inset: -2px -15px -3px -15px;
+  background: var(--color-bg);
+  -webkit-mask-image: radial-gradient(ellipse closest-side, black 50%, transparent 100%);
+  mask-image: radial-gradient(ellipse closest-side, black 50%, transparent 100%);
+  z-index: -1;
+  pointer-events: none;
 }
 
 .card-name,
@@ -570,6 +857,7 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  text-align: center;
 }
 
 .card-name {
@@ -595,15 +883,18 @@ body {
   font-size: 0.7rem;
   margin-top: 2px;
   opacity: 0.9;
+  text-align: center;
 }
 
-/* Both corner toggles are hover-revealed together, at the same moment, to
-   keep the card uncluttered by default — expanding or editing a specific
-   person is one hover away instead of always on show. */
+/* All three corner toggles are hover-revealed together, at the same
+   moment, to keep the card uncluttered by default — expanding, editing,
+   or relating a specific person is one hover away instead of always on
+   show. Expand/edit sit at the top corners; relate sits at the bottom
+   right, its own free corner. */
 .card-expand-toggle,
-.card-edit-toggle {
+.card-edit-toggle,
+.card-relate-toggle {
   position: absolute;
-  top: -6px;
   width: 20px;
   height: 20px;
   padding: 0;
@@ -620,26 +911,41 @@ body {
 }
 
 .card-expand-toggle {
+  top: -6px;
   right: -6px;
 }
 
 .card-edit-toggle {
+  top: -6px;
   left: -6px;
 }
 
+.card-relate-toggle {
+  bottom: -6px;
+  right: -6px;
+  /* Dragging starts on pointerdown — this button has no click/tap
+     behavior of its own, so the browser's touch scroll/zoom gestures
+     would otherwise fight the drag on touch devices. */
+  touch-action: none;
+  cursor: grab;
+}
+
 .card:hover .card-expand-toggle,
-.card:hover .card-edit-toggle {
+.card:hover .card-edit-toggle,
+.card:hover .card-relate-toggle {
   opacity: 1;
 }
 
 .card-expand-toggle svg,
-.card-edit-toggle svg {
+.card-edit-toggle svg,
+.card-relate-toggle svg {
   width: 12px;
   height: 12px;
 }
 
 .card-expand-toggle:hover,
-.card-edit-toggle:hover {
+.card-edit-toggle:hover,
+.card-relate-toggle:hover {
   background: var(--color-amber);
 }
 
@@ -684,6 +990,15 @@ body {
 .info-panel-icon-union {
   background: var(--color-bg);
   border: 1px solid rgba(27, 67, 50, 0.2);
+}
+
+.info-panel-photo {
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  object-fit: cover;
+  cursor: zoom-in;
 }
 
 .info-panel-union-symbol {
@@ -957,6 +1272,109 @@ body {
   width: auto;
 }
 
+.duplicates-suggestion-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.duplicates-suggestion-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: 0.9rem;
+}
+
+.duplicates-suggestion-row > span:first-child {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.merge-review-panel {
+  width: 640px;
+}
+
+.merge-review-columns {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.merge-review-column {
+  flex: 1;
+  min-width: 0;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid rgba(27, 67, 50, 0.15);
+  border-radius: 6px;
+  text-align: center;
+}
+
+.merge-review-column-keep {
+  border-color: var(--color-amber);
+  background: rgba(224, 122, 41, 0.06);
+}
+
+.merge-review-name {
+  font-family: var(--font-name);
+  margin: 0 0 0.4rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.merge-review-fields {
+  margin: 0 0 0.75rem;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.merge-review-field {
+  border-top: 1px solid rgba(27, 67, 50, 0.1);
+  padding-top: 0.5rem;
+}
+
+.merge-review-field-label {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--color-text-secondary);
+  margin-bottom: 0.3rem;
+}
+
+.merge-review-field-options {
+  display: flex;
+  gap: 1rem;
+}
+
+.merge-review-option {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.4rem;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.merge-review-option span {
+  overflow-wrap: break-word;
+}
+
+.merge-review-photo {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
 .union-notes-display {
   margin: 0;
   font-size: 0.85rem;
@@ -1004,6 +1422,79 @@ body {
   align-items: center;
   justify-content: center;
   z-index: 10;
+}
+
+/* Above any modal it might be opened from (media gallery inside the info
+   panel, the merge-review photo comparison, ...). */
+.photo-lightbox-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+  cursor: zoom-out;
+  animation: photo-lightbox-fade-in 180ms ease both;
+}
+
+.photo-lightbox-image {
+  max-width: min(90vw, 900px);
+  max-height: 90vh;
+  border-radius: 4px;
+  cursor: default;
+  animation: photo-lightbox-zoom-in 220ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+/* The avatar's own round crop, just bigger — reads as that same element
+   growing rather than a jump to a generic image-viewer screen. */
+.photo-lightbox-image-circle {
+  width: min(60vmin, 420px);
+  height: min(60vmin, 420px);
+  border-radius: 50%;
+  object-fit: cover;
+  box-shadow:
+    0 0 0 6px rgba(255, 255, 255, 0.12),
+    0 25px 70px rgba(0, 0, 0, 0.6);
+}
+
+@keyframes photo-lightbox-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes photo-lightbox-zoom-in {
+  from {
+    transform: scale(0.5);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.photo-lightbox-close {
+  position: fixed;
+  top: 1rem;
+  right: 1.25rem;
+  width: 40px;
+  height: 40px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+  font-size: 1.5rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.photo-lightbox-close:hover {
+  background: rgba(255, 255, 255, 0.3);
 }
 
 .modal-panel {
@@ -1109,6 +1600,17 @@ body {
   font-size: 0.8rem;
   color: var(--color-text-secondary);
   margin: 0;
+}
+
+.link-people-fixed-pair {
+  padding: 0.6rem 0.8rem;
+  border-radius: 8px;
+  background: rgba(116, 168, 146, 0.16);
+  border: 1px solid rgba(27, 67, 50, 0.12);
+}
+
+.link-people-fixed-pair p {
+  margin: 0.2rem 0;
 }
 
 .photo-preview {
@@ -1301,6 +1803,9 @@ body {
 }
 
 .home-screen {
+  position: relative;
+  /* See .tree-container's z-index comment — same fix, same reason. */
+  z-index: 0;
   min-height: 100vh;
   background: var(--color-bg);
   padding: 2rem 3rem;
@@ -1309,10 +1814,52 @@ body {
   gap: 1.5rem;
 }
 
+/* Same faint tree silhouette as the tree canvas (see .tree-container), so
+   the home screen and the tree view read as the same place rather than
+   two differently-branded screens. */
+.home-screen::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background-image: url("/images/tree-watermark.svg");
+  background-repeat: no-repeat;
+  /* Anchored to the bottom of the page (growing up, roots at the floor)
+     instead of centered, so it sits in the empty space below the tree
+     list instead of fighting the list rows for the same area. */
+  background-position: bottom -16px center;
+  background-size: min(40vmin, 440px);
+  opacity: 0.07;
+  pointer-events: none;
+}
+
 .home-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
+}
+
+.home-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.home-brand-logo {
+  width: 44px;
+  height: 44px;
+  object-fit: cover;
+  border-radius: 12px;
+}
+
+.home-brand-name {
+  font-family: var(--font-title);
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-amber);
+  margin: 0 0 0.1rem;
 }
 
 .home-header h1 {
@@ -1417,6 +1964,18 @@ body {
 .home-create-button:hover {
   border-color: var(--color-amber);
   color: var(--color-amber);
+}
+
+.home-footer-credit {
+  margin-top: auto;
+  padding-top: 1rem;
+  font-size: 0.7rem;
+  color: var(--color-text-secondary);
+  opacity: 0.7;
+}
+
+.home-footer-credit a {
+  color: inherit;
 }
 
 .home-create-form {

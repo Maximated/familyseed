@@ -3,7 +3,10 @@ import { useTranslation } from "react-i18next";
 import PersonMediaTab from "./PersonMedia";
 import RelationsTab from "./RelationsTab";
 import UnionNotesEditor from "./UnionNotesEditor";
+import UnionDetailsEditor from "./UnionDetailsEditor";
 import CopyPersonModal from "./CopyPersonModal";
+import PhotoLightbox from "./PhotoLightbox";
+import { deleteFamily, type UnionStatus, type UnionType } from "./api";
 
 export type InfoPanelSection = {
   heading: string;
@@ -13,14 +16,24 @@ export type InfoPanelSection = {
 export type InfoPanelData = {
   icon: ReactNode;
   iconClassName?: string;
+  // Only set for a person with an uploaded avatar — shown instead of
+  // `icon` when present, and click-to-enlarges.
+  photoUrl?: string;
   title: string;
   subtitle?: string;
   sections: InfoPanelSection[];
   // Only set for a person (not a union) — enables the Relaciones/Fotos/Documentos tabs.
   personId?: string;
-  // Only set for a union (not a person) — enables the inline notes editor.
+  // Only set for a union (not a person) — enables the inline notes editor
+  // and the type/status/date/place editor below.
   familyId?: string;
   notes?: string | null;
+  union?: {
+    unionType: UnionType;
+    unionStatus: UnionStatus;
+    unionDateText: string | null;
+    unionPlace: string | null;
+  };
 };
 
 type Props = {
@@ -37,12 +50,39 @@ export default function InfoPanel({ treeId, data, onClose, onNavigateToPerson, o
   const { t } = useTranslation();
   const [tab, setTab] = useState<Tab>("ficha");
   const [showCopyModal, setShowCopyModal] = useState(false);
+  const [showPhotoLightbox, setShowPhotoLightbox] = useState(false);
+  const [confirmingDeleteUnion, setConfirmingDeleteUnion] = useState(false);
+  const [deletingUnion, setDeletingUnion] = useState(false);
+  const [deleteUnionError, setDeleteUnionError] = useState<string | null>(null);
+
+  async function handleDeleteUnion() {
+    if (!data.familyId) return;
+    setDeletingUnion(true);
+    setDeleteUnionError(null);
+    try {
+      await deleteFamily(treeId, data.familyId);
+      onDataChanged();
+      onClose();
+    } catch (err) {
+      setDeleteUnionError((err as Error).message);
+      setDeletingUnion(false);
+    }
+  }
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal-panel info-panel" onClick={(e) => e.stopPropagation()}>
         <div className="info-panel-header">
-          <div className={`info-panel-icon${data.iconClassName ? ` ${data.iconClassName}` : ""}`}>{data.icon}</div>
+          {data.photoUrl ? (
+            <img
+              className="info-panel-photo"
+              src={data.photoUrl}
+              alt=""
+              onClick={() => setShowPhotoLightbox(true)}
+            />
+          ) : (
+            <div className={`info-panel-icon${data.iconClassName ? ` ${data.iconClassName}` : ""}`}>{data.icon}</div>
+          )}
           <div className="info-panel-heading">
             <h2 className="info-panel-title name-text">{data.title}</h2>
             {data.subtitle && <p className="info-panel-subtitle name-text">{data.subtitle}</p>}
@@ -76,6 +116,9 @@ export default function InfoPanel({ treeId, data, onClose, onNavigateToPerson, o
                 </ul>
               </div>
             ))}
+            {data.familyId && data.union && (
+              <UnionDetailsEditor treeId={treeId} familyId={data.familyId} initial={data.union} onSaved={onDataChanged} />
+            )}
             {data.familyId && (
               <UnionNotesEditor
                 treeId={treeId}
@@ -83,6 +126,28 @@ export default function InfoPanel({ treeId, data, onClose, onNavigateToPerson, o
                 initialNotes={data.notes ?? ""}
                 onSaved={onDataChanged}
               />
+            )}
+            {data.familyId && (
+              <div className="danger-zone">
+                {!confirmingDeleteUnion ? (
+                  <button type="button" className="delete-button" onClick={() => setConfirmingDeleteUnion(true)}>
+                    {t("infoPanel.deleteUnion")}
+                  </button>
+                ) : (
+                  <div className="delete-confirm">
+                    <p>{t("infoPanel.deleteUnionWarning")}</p>
+                    {deleteUnionError && <p className="status status-error">{deleteUnionError}</p>}
+                    <div className="modal-actions">
+                      <button type="button" onClick={() => setConfirmingDeleteUnion(false)} disabled={deletingUnion}>
+                        {t("common.cancel")}
+                      </button>
+                      <button type="button" className="delete-button" onClick={handleDeleteUnion} disabled={deletingUnion}>
+                        {deletingUnion ? t("infoPanel.deletingUnion") : t("infoPanel.confirmDeleteUnion")}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
             )}
           </div>
         )}
@@ -112,6 +177,9 @@ export default function InfoPanel({ treeId, data, onClose, onNavigateToPerson, o
           personName={data.title}
           onClose={() => setShowCopyModal(false)}
         />
+      )}
+      {showPhotoLightbox && data.photoUrl && (
+        <PhotoLightbox src={data.photoUrl} shape="circle" onClose={() => setShowPhotoLightbox(false)} />
       )}
     </div>
   );

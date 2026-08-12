@@ -9,6 +9,7 @@ import {
   type PersonMediaType,
 } from "./api";
 import { resizeImage } from "./media";
+import PhotoLightbox from "./PhotoLightbox";
 
 type Props = {
   treeId: string;
@@ -22,6 +23,7 @@ export default function PersonMediaTab({ treeId, personId, type }: Props) {
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -79,7 +81,12 @@ export default function PersonMediaTab({ treeId, personId, type }: Props) {
         <div className="media-photo-grid">
           {items.map((item) => (
             <div className="media-photo-item" key={item.id}>
-              <img src={mediaUrl(item.url)} alt={item.filename} />
+              <img
+                src={mediaUrl(item.url)}
+                alt={item.filename}
+                onClick={() => setLightboxUrl(mediaUrl(item.url))}
+                style={{ cursor: "zoom-in" }}
+              />
               <button
                 type="button"
                 className="media-delete-button"
@@ -132,6 +139,7 @@ export default function PersonMediaTab({ treeId, personId, type }: Props) {
         onChange={handleFileChange}
         style={{ display: "none" }}
       />
+      {lightboxUrl && <PhotoLightbox src={lightboxUrl} onClose={() => setLightboxUrl(null)} />}
     </div>
   );
 }

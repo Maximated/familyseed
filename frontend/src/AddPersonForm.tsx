@@ -8,6 +8,7 @@ import {
   type Individual,
   type Relationship,
   type Sex,
+  type UnionStatus,
   type UnionType,
 } from "./api";
 import { resizeImage } from "./media";
@@ -34,6 +35,7 @@ export default function AddPersonForm({ treeId, onCreated, onClose }: Props) {
   const [parent2Id, setParent2Id] = useState("");
   const [partnerId, setPartnerId] = useState("");
   const [unionType, setUnionType] = useState<UnionType>("MARRIAGE");
+  const [unionStatus, setUnionStatus] = useState<UnionStatus>("ONGOING");
   const [unionDateText, setUnionDateText] = useState("");
   const [unionPlace, setUnionPlace] = useState("");
   const [childId, setChildId] = useState("");
@@ -86,6 +88,7 @@ export default function AddPersonForm({ treeId, onCreated, onClose }: Props) {
         kind: "PARTNER",
         partnerId,
         unionType,
+        unionStatus,
         unionDateText: unionDateText || undefined,
         unionPlace: unionPlace || undefined,
       };
@@ -225,6 +228,13 @@ export default function AddPersonForm({ treeId, onCreated, onClose }: Props) {
                 <option value="PARTNERSHIP">{t("unionType.PARTNERSHIP")}</option>
                 <option value="EXTRAMARITAL">{t("unionType.EXTRAMARITAL")}</option>
                 <option value="UNKNOWN">{t("unionType.UNKNOWN")}</option>
+              </select>
+              <select value={unionStatus} onChange={(e) => setUnionStatus(e.target.value as UnionStatus)}>
+                <option value="ONGOING">{t("unionStatus.ONGOING")}</option>
+                <option value="ENDED_BY_DEATH">{t("unionStatus.ENDED_BY_DEATH")}</option>
+                <option value="DIVORCED">{t("unionStatus.DIVORCED")}</option>
+                <option value="SEPARATED">{t("unionStatus.SEPARATED")}</option>
+                <option value="ANNULLED">{t("unionStatus.ANNULLED")}</option>
               </select>
               <input
                 type="text"

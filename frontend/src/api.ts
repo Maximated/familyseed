@@ -130,6 +130,10 @@ export type IndividualFields = {
   deathPlace?: string | null;
   notes?: string | null;
   biography?: string | null;
+  // Not settable from the normal create/edit forms (photos go through the
+  // upload endpoint instead) — only used when a duplicate merge picks
+  // which of the two records' avatar to keep.
+  photoUrl?: string;
 };
 
 export type CreateIndividualPayload = {
@@ -222,6 +226,15 @@ export async function createTree(name: string): Promise<TreeSummary> {
     body: JSON.stringify({ name }),
   });
   return parseJsonOrThrow(res);
+}
+
+export async function deleteTree(treeId: string, confirmName: string): Promise<void> {
+  const res = await apiFetch(`/trees/${treeId}`, {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ confirmName }),
+  });
+  await throwIfNotOk(res);
 }
 
 export type ShareRole = "EDITOR" | "VIEWER";
@@ -401,6 +414,33 @@ export async function updateIndividual(
   return parseJsonOrThrow(res);
 }
 
+export type DuplicateConfidence = "high" | "possible";
+
+export type DuplicateSuggestion = {
+  aId: string;
+  bId: string;
+  confidence: DuplicateConfidence;
+};
+
+export async function fetchDuplicateSuggestions(treeId: string): Promise<DuplicateSuggestion[]> {
+  const res = await apiFetch(`/trees/${treeId}/duplicates/suggestions`);
+  return parseJsonOrThrow(res);
+}
+
+export async function mergeIndividuals(
+  treeId: string,
+  keepId: string,
+  mergeId: string,
+  individual: IndividualFields,
+): Promise<void> {
+  const res = await apiFetch(`/trees/${treeId}/duplicates/merge`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ keepId, mergeId, individual }),
+  });
+  await throwIfNotOk(res);
+}
+
 export async function deleteIndividual(treeId: string, id: string): Promise<void> {
   const res = await apiFetch(`/trees/${treeId}/individuals/${id}`, { method: "DELETE" });
   await throwIfNotOk(res);
@@ -484,6 +524,30 @@ export async function updateFamilyNotes(treeId: string, id: string, notes: strin
   await throwIfNotOk(res);
 }
 
+export type UpdateFamilyPayload = {
+  unionType?: UnionType;
+  unionStatus?: UnionStatus;
+  unionDateText?: string | null;
+  unionPlace?: string | null;
+};
+
+export async function updateFamily(treeId: string, id: string, payload: UpdateFamilyPayload): Promise<void> {
+  const res = await apiFetch(`/trees/${treeId}/families/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  await throwIfNotOk(res);
+}
+
+// Permanent — no trash for unions. Any children linked to this union stop
+// being linked to these two partners specifically, but the children
+// themselves aren't touched.
+export async function deleteFamily(treeId: string, id: string): Promise<void> {
+  const res = await apiFetch(`/trees/${treeId}/families/${id}`, { method: "DELETE" });
+  await throwIfNotOk(res);
+}
+
 export type CopyMode = "single" | "lineage";
 
 export type CopyIndividualPayload = {
@@ -508,12 +572,34 @@ export async function copyIndividual(
 }
 
 // Links an already-existing individual as a parent of another — the
-// recovery path when someone was created without a relationship first.
+// recovery path when someone was created without a relationship first, and
+// the parent-child half of the free "link two people" builder.
 export async function addParent(treeId: string, personId: string, parentId: string): Promise<void> {
   const res = await apiFetch(`/trees/${treeId}/individuals/${personId}/parents`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ parentId }),
+  });
+  await throwIfNotOk(res);
+}
+
+export type CreateFamilyPayload = {
+  partner1Id: string;
+  partner2Id?: string;
+  unionType?: UnionType;
+  unionStatus?: UnionStatus;
+  unionDateText?: string;
+  unionPlace?: string;
+};
+
+// Creates a union between two already-existing individuals — the partner
+// half of the free "link two people" builder (AddPersonForm only ever
+// creates a union alongside a brand-new person).
+export async function createFamily(treeId: string, payload: CreateFamilyPayload): Promise<void> {
+  const res = await apiFetch(`/trees/${treeId}/families`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
   });
   await throwIfNotOk(res);
 }

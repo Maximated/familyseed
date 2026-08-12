@@ -29,6 +29,10 @@
     "gedcom": "Importar/exportar GEDCOM",
     "search": "Buscar personas",
     "share": "Compartir árbol",
+    "deleteTree": "Eliminar árbol",
+    "duplicates": "Personas duplicadas",
+    "linkPeople": "Crear relación entre dos personas",
+    "moreActions": "Más acciones",
     "role": "Rol: {{role}}",
     "selfHostedHint": "Modo autohospedado: un único usuario."
   },
@@ -64,10 +68,12 @@
     "extramarital2": "2ª relación extramatrimonial (o más)",
     "endedByDivorce": "Divorcio/separación",
     "endedByDeath": "Unión finalizada por fallecimiento",
-    "hint": "Pulsa un icono de unión, o el de una tarjeta, para ver el detalle"
+    "hint": "Pulsa un icono de unión, o el de una tarjeta, para ver el detalle",
+    "toggleMagnify": "Agrandar/reducir la leyenda"
   },
   "card": {
-    "viewFull": "Ver ficha completa"
+    "viewFull": "Ver ficha completa",
+    "relate": "Arrastra a otra persona para crear una relación"
   },
   "sex": {
     "MALE": "Hombre",
@@ -94,7 +100,16 @@
     "unionDate": "Fecha: {{value}}",
     "unionPlace": "Lugar: {{value}}",
     "unknownDate": "Desconocida",
-    "unionOrder": "{{order}}ª unión"
+    "unionOrder": "{{order}}ª unión",
+    "editUnion": "Editar unión",
+    "unionTypeLabel": "Tipo de unión",
+    "unionStatusLabel": "Estado",
+    "unionDateLabel": "Fecha de la unión",
+    "unionPlaceLabel": "Lugar de la unión",
+    "deleteUnion": "Eliminar relación",
+    "deleteUnionWarning": "Esta acción no se puede deshacer. Si esta unión tiene hijos registrados, dejarán de estar vinculados a estos dos progenitores (pero no se eliminarán).",
+    "confirmDeleteUnion": "Sí, eliminar relación",
+    "deletingUnion": "Eliminando…"
   },
   "media": {
     "noPhotos": "Todavía no hay fotos.",
@@ -150,6 +165,20 @@
     "validationPartner": "Elige la persona con la que forma pareja.",
     "validationChild": "Elige de quién es padre/madre."
   },
+  "linkPeople": {
+    "title": "Crear relación entre dos personas",
+    "hint": "Elige dos personas que ya existen en el árbol y cómo se relacionan entre sí.",
+    "hintFixed": "Elige cómo se relacionan entre sí estas dos personas.",
+    "personA": "Persona 1",
+    "personB": "Persona 2",
+    "personPlaceholder": "— Elige una persona —",
+    "relationshipLegend": "Relación",
+    "aIsParentOfB": "La persona 1 es padre/madre de la persona 2",
+    "bIsParentOfA": "La persona 2 es padre/madre de la persona 1",
+    "partner": "Son cónyuges/pareja",
+    "validationBoth": "Elige las dos personas.",
+    "validationDistinct": "Elige dos personas distintas."
+  },
   "editPerson": {
     "title": "Editar persona",
     "parentsLegend": "Padres",
@@ -202,6 +231,40 @@
     "membersLegend": "Quién tiene acceso",
     "noMembers": "Todavía no has compartido este árbol con nadie.",
     "removeAction": "Quitar"
+  },
+  "deleteTree": {
+    "title": "Eliminar árbol",
+    "warning": "Vas a eliminar <1>{{name}}</1> junto con todas las personas, fotos y documentos que contiene. Esta acción no se puede deshacer.",
+    "confirmLabel": "Escribe <1>{{name}}</1> para confirmar",
+    "confirm": "Eliminar árbol",
+    "deleting": "Eliminando…"
+  },
+  "duplicates": {
+    "title": "Personas duplicadas",
+    "suggestionsLegend": "Sugerencias",
+    "noSuggestions": "No se han encontrado posibles duplicados.",
+    "confidenceHigh": "Coincidencia alta",
+    "confidencePossible": "Posible coincidencia",
+    "review": "Revisar",
+    "manualLegend": "Fusionar manualmente",
+    "manualHint": "Elige dos personas cualquiera para compararlas y fusionarlas.",
+    "personALabel": "Primera persona",
+    "personBLabel": "Segunda persona",
+    "compare": "Comparar",
+    "samePersonError": "Elige dos personas distintas."
+  },
+  "mergeReview": {
+    "title": "Fusionar personas",
+    "keepThis": "Se queda",
+    "useAsKeep": "Quedarse con esta",
+    "willDisappear": "Desaparece (pasa a la papelera)",
+    "noConflicts": "No hay diferencias entre estas dos fichas — solo se fusionarán sus relaciones (familia, ramas, fotos).",
+    "photoLabel": "Fotografía",
+    "noPhoto": "Sin foto",
+    "emptyValue": "(vacío)",
+    "warning": "Esta acción no se puede deshacer fácilmente: la ficha descartada pasa a la papelera pero pierde sus relaciones, que ya se han transferido a la que se queda.",
+    "confirm": "Fusionar",
+    "confirming": "Fusionando…"
   },
   "copyPerson": {
     "action": "Copiar a otro árbol…",
@@ -275,6 +338,7 @@
     "sharedHeading": "Árboles compartidos contigo",
     "ownedEmpty": "Todavía no has creado ningún árbol.",
     "sharedEmpty": "Nadie ha compartido un árbol contigo todavía.",
+    "artCredit": "Ilustración del árbol:",
     "createTree": "Crear árbol nuevo",
     "createTreePlaceholder": "Nombre del árbol nuevo…",
     "createTreeSubmit": "Crear",

@@ -33,16 +33,22 @@ type CreateFamilyBody = {
   childrenIds?: string[];
 };
 
+// Nullable (not just omittable) for the same reason as individuals.ts's
+// optionalNullableString: an omitted key means "leave this column alone"
+// to Prisma, so clearing a field for real means sending `null`, not
+// leaving it out of the request.
+const optionalNullableString = { type: ["string", "null"] } as const;
+
 const updateFamilyBodySchema = {
   type: "object",
   properties: {
     unionType: { type: "string", enum: UNION_TYPE_VALUES },
     unionStatus: { type: "string", enum: UNION_STATUS_VALUES },
-    unionDateText: { type: "string" },
-    unionDateValue: { type: "string", format: "date" },
-    unionDatePrecision: { type: "string", enum: DATE_PRECISION_VALUES },
-    unionPlace: { type: "string" },
-    notes: { type: "string" },
+    unionDateText: optionalNullableString,
+    unionDateValue: { type: ["string", "null"], format: "date" },
+    unionDatePrecision: { type: ["string", "null"], enum: [...DATE_PRECISION_VALUES, null] },
+    unionPlace: optionalNullableString,
+    notes: optionalNullableString,
   },
   additionalProperties: false,
 };
@@ -50,11 +56,11 @@ const updateFamilyBodySchema = {
 type UpdateFamilyBody = {
   unionType?: (typeof UNION_TYPE_VALUES)[number];
   unionStatus?: (typeof UNION_STATUS_VALUES)[number];
-  unionDateText?: string;
-  unionDateValue?: string;
-  unionDatePrecision?: (typeof DATE_PRECISION_VALUES)[number];
-  unionPlace?: string;
-  notes?: string;
+  unionDateText?: string | null;
+  unionDateValue?: string | null;
+  unionDatePrecision?: (typeof DATE_PRECISION_VALUES)[number] | null;
+  unionPlace?: string | null;
+  notes?: string | null;
 };
 
 export default async function familyRoutes(fastify: FastifyInstance) {
@@ -148,7 +154,8 @@ export default async function familyRoutes(fastify: FastifyInstance) {
       where: { id },
       data: {
         ...updates,
-        unionDateValue: updates.unionDateValue ? new Date(updates.unionDateValue) : undefined,
+        unionDateValue:
+          updates.unionDateValue === undefined ? undefined : updates.unionDateValue ? new Date(updates.unionDateValue) : null,
       },
     });
 
@@ -161,5 +168,33 @@ export default async function familyRoutes(fastify: FastifyInstance) {
     });
 
     return updated;
+  });
+
+  // Permanently removes a union — no trash/undo for this (unlike
+  // individuals), since a union is a relationship record rather than a
+  // person: FamilyChild rows cascade-delete with it (schema-level
+  // onDelete: Cascade), which unlinks any children from these two
+  // partners specifically without touching the children's own Individual
+  // rows or any other family they belong to.
+  fastify.delete("/:id", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const treeId = request.treeId!;
+
+    const existing = await prisma.family.findFirst({ where: { id, treeId } });
+    if (!existing) {
+      return reply.code(404).send({ error: `No existe la unión ${id}` });
+    }
+
+    await prisma.family.delete({ where: { id } });
+
+    await logChange({
+      treeId,
+      userId: request.userId ?? null,
+      action: "family.delete",
+      entityType: "Family",
+      entityId: id,
+    });
+
+    return reply.code(204).send();
   });
 }

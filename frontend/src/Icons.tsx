@@ -136,6 +136,18 @@ export function HomeIcon({ size }: IconProps) {
   );
 }
 
+// Two overlapping circles — reads as "duplicates" (a Venn-diagram-style
+// overlap) rather than any of Lucide's literal "merge" glyphs, which lean
+// too heavily on a git-branch metaphor to make sense here.
+export function DuplicatesIcon({ size }: IconProps) {
+  return (
+    <Svg size={size}>
+      <circle cx="9" cy="12" r="7" />
+      <circle cx="15" cy="12" r="7" />
+    </Svg>
+  );
+}
+
 export function ShareIcon({ size }: IconProps) {
   return (
     <Svg size={size}>
@@ -144,6 +156,28 @@ export function ShareIcon({ size }: IconProps) {
       <circle cx="18" cy="19" r="3" />
       <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
       <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
+    </Svg>
+  );
+}
+
+// Two interlocking rings — reused as the "link two existing people" glyph:
+// literally a pair of rings, and reads as "connect" without redrawing
+// DuplicatesIcon's flat Venn overlap.
+export function LinkIcon({ size }: IconProps) {
+  return (
+    <Svg size={size}>
+      <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+      <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+    </Svg>
+  );
+}
+
+export function MenuIcon({ size }: IconProps) {
+  return (
+    <Svg size={size}>
+      <line x1="4" y1="6" x2="20" y2="6" />
+      <line x1="4" y1="12" x2="20" y2="12" />
+      <line x1="4" y1="18" x2="20" y2="18" />
     </Svg>
   );
 }

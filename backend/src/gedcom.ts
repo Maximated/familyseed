@@ -100,7 +100,7 @@ export function serializeGedcom(individuals: ExportIndividual[], families: Expor
     }
   }
 
-  const lines: string[] = ["0 HEAD", "1 SOUR FamilyTreeApp", "1 GEDC", "2 VERS 5.5.1", "2 FORM LINEAGE-LINKED", "1 CHAR UTF-8"];
+  const lines: string[] = ["0 HEAD", "1 SOUR FamilySeed", "1 GEDC", "2 VERS 5.5.1", "2 FORM LINEAGE-LINKED", "1 CHAR UTF-8"];
 
   for (const individual of individuals) {
     const xref = individualXref.get(individual.id)!;

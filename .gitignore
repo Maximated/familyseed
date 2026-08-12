@@ -1,0 +1,14 @@
+# macOS
+.DS_Store
+
+# Design source files kept locally for reference — bulky/redundant formats
+# not used anywhere by the app itself (only the .svg and the app icon .jpg
+# actually get copied into frontend/public/images/).
+Images/**/*.ai
+Images/**/*.eps
+Images/**/*.pdf
+Images/**/*.af
+Images/**/*.af~lock~
+Images/vectorstock_32071593/vectorstock_32071593.jpg
+Images/vectorstock_32071593/vectorstock_32071593.png
+Images/vectorstock_32071593/vectorstock_32071593_transparent.png

@@ -7,7 +7,8 @@ import LanguageSwitcher from "./LanguageSwitcher";
 import GedcomView from "./GedcomView";
 import TreeReportModal from "./TreeReportModal";
 import ShareTreeModal from "./ShareTreeModal";
-import { ArrowUpDownIcon, FileTextIcon, ShareIcon } from "./Icons";
+import DeleteTreeModal from "./DeleteTreeModal";
+import { ArrowUpDownIcon, FileTextIcon, ShareIcon, Trash2Icon } from "./Icons";
 
 function TreeRow({
   tree,
@@ -15,12 +16,14 @@ function TreeRow({
   onGedcom,
   onReport,
   onShare,
+  onDelete,
 }: {
   tree: TreeSummary;
   onOpen: (id: string) => void;
   onGedcom: (id: string) => void;
   onReport: (id: string) => void;
   onShare: (id: string) => void;
+  onDelete: (id: string) => void;
 }) {
   const { t } = useTranslation();
   return (
@@ -68,6 +71,20 @@ function TreeRow({
             <ShareIcon />
           </button>
         )}
+        {tree.role === "OWNER" && (
+          <button
+            type="button"
+            className="icon-button icon-button-danger"
+            aria-label={t("app.deleteTree")}
+            title={t("app.deleteTree")}
+            onClick={(e) => {
+              e.stopPropagation();
+              onDelete(tree.id);
+            }}
+          >
+            <Trash2Icon />
+          </button>
+        )}
       </div>
     </li>
   );
@@ -88,6 +105,7 @@ export default function HomeScreen() {
   const [gedcomTreeId, setGedcomTreeId] = useState<string | null>(null);
   const [reportTreeId, setReportTreeId] = useState<string | null>(null);
   const [shareTreeId, setShareTreeId] = useState<string | null>(null);
+  const [deleteTreeId, setDeleteTreeId] = useState<string | null>(null);
 
   function load() {
     setLoading(true);
@@ -126,7 +144,13 @@ export default function HomeScreen() {
   return (
     <div className="home-screen">
       <header className="home-header">
-        <h1>{t("home.title")}</h1>
+        <div className="home-brand">
+          <img src="/images/familyseed-icon.png" alt="" className="home-brand-logo" />
+          <div>
+            <p className="home-brand-name">FamilySeed</p>
+            <h1>{t("home.title")}</h1>
+          </div>
+        </div>
         <div className="home-header-actions">
           {user && <span className="home-user-name">{user.name ?? user.email}</span>}
           <LanguageSwitcher />
@@ -155,6 +179,7 @@ export default function HomeScreen() {
                     onGedcom={setGedcomTreeId}
                     onReport={setReportTreeId}
                     onShare={setShareTreeId}
+                    onDelete={setDeleteTreeId}
                   />
                 ))}
               </ul>
@@ -175,6 +200,7 @@ export default function HomeScreen() {
                     onGedcom={setGedcomTreeId}
                     onReport={setReportTreeId}
                     onShare={setShareTreeId}
+                    onDelete={setDeleteTreeId}
                   />
                 ))}
               </ul>
@@ -205,11 +231,38 @@ export default function HomeScreen() {
         </button>
       )}
 
+      <p className="home-footer-credit">
+        {t("home.artCredit")}{" "}
+        <a
+          href="https://www.vectorstock.com/royalty-free-vector/green-tree-outline-vector-32071593"
+          target="_blank"
+          rel="noreferrer"
+        >
+          VectorStock / topor
+        </a>
+      </p>
+
       {gedcomTreeId && (
         <GedcomView treeId={gedcomTreeId} onImported={() => {}} onClose={() => setGedcomTreeId(null)} />
       )}
       {reportTreeId && <TreeReportModal treeId={reportTreeId} onClose={() => setReportTreeId(null)} />}
       {shareTreeId && <ShareTreeModal treeId={shareTreeId} onClose={() => setShareTreeId(null)} />}
+      {deleteTreeId &&
+        (() => {
+          const tree = owned.find((t) => t.id === deleteTreeId);
+          if (!tree) return null;
+          return (
+            <DeleteTreeModal
+              treeId={tree.id}
+              treeName={tree.name}
+              onDeleted={() => {
+                setDeleteTreeId(null);
+                load();
+              }}
+              onClose={() => setDeleteTreeId(null)}
+            />
+          );
+        })()}
     </div>
   );
 }
