@@ -1,7 +1,8 @@
 import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { csvExportUrl, csvTemplateUrl, gedcomExportUrl, importCsv, importGedcom, type Individual } from "./api";
+import { csvExportUrl, csvTemplateUrl, gedcomExportUrl, importCsv, importGedcom, type ImportResult, type Individual } from "./api";
 import PersonPicker from "./PersonPicker";
+import RelationshipWizard from "./RelationshipWizard";
 
 type FileFormat = "ged" | "csv";
 
@@ -22,11 +23,12 @@ export default function GedcomView({ treeId, initialPersonId, initialPersonName,
   const { t } = useTranslation();
   const [dragging, setDragging] = useState(false);
   const [importing, setImporting] = useState(false);
-  const [result, setResult] = useState<{ individuals: number; families: number } | null>(null);
+  const [result, setResult] = useState<ImportResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [personId, setPersonId] = useState<string | null>(initialPersonId ?? null);
   const [personName, setPersonName] = useState<string | null>(initialPersonName ?? null);
+  const [wizardIds, setWizardIds] = useState<string[] | null>(null);
 
   async function handleFile(file: File) {
     const name = file.name.toLowerCase();
@@ -42,11 +44,23 @@ export default function GedcomView({ treeId, initialPersonId, initialPersonName,
       const imported = format === "csv" ? await importCsv(treeId, file) : await importGedcom(treeId, file);
       setResult(imported);
       onImported();
+      if (imported.individualIds.length > 0) setWizardIds(imported.individualIds);
     } catch (err) {
       setError((err as Error).message);
     } finally {
       setImporting(false);
     }
+  }
+
+  if (wizardIds) {
+    return (
+      <RelationshipWizard
+        treeId={treeId}
+        personIds={wizardIds}
+        onFinished={onImported}
+        onClose={onClose}
+      />
+    );
   }
 
   function handleDrop(event: React.DragEvent<HTMLDivElement>) {

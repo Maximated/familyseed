@@ -351,7 +351,7 @@ export function parseGedcomFile(text: string): { individuals: ParsedIndividual[]
 export async function importGedcomIntoTree(
   treeId: string,
   text: string,
-): Promise<{ individuals: number; families: number }> {
+): Promise<{ individuals: number; families: number; individualIds: string[] }> {
   const parsed = parseGedcomFile(text);
   if (parsed.individuals.length === 0) {
     throw new Error("El archivo no contiene ningún individuo (registro INDI)");
@@ -445,7 +445,7 @@ export async function importGedcomIntoTree(
         }
       }
 
-      return { individuals: xrefToId.size, families: familiesWritten };
+      return { individuals: xrefToId.size, families: familiesWritten, individualIds: [...xrefToId.values()] };
     },
     { timeout: 30_000 },
   );

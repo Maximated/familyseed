@@ -6,6 +6,9 @@ type Props = {
   treeId: string;
   selectedName: string | null;
   onSelect: (person: Individual) => void;
+  // Hides these from the results — e.g. the person you're already editing,
+  // so they can't be picked as their own parent/partner/child.
+  excludeIds?: string[];
 };
 
 function personLine(p: Individual): string {
@@ -17,7 +20,7 @@ function personLine(p: Individual): string {
 // A minimal search-and-pick box — reused wherever a home-screen action
 // (PDF report, GEDCOM export) needs "which person" before it can proceed,
 // since outside a tree there's no "currently centered person" to default to.
-export default function PersonPicker({ treeId, selectedName, onSelect }: Props) {
+export default function PersonPicker({ treeId, selectedName, onSelect, excludeIds }: Props) {
   const { t } = useTranslation();
   const [search, setSearch] = useState("");
   const [results, setResults] = useState<Individual[]>([]);
@@ -32,7 +35,7 @@ export default function PersonPicker({ treeId, selectedName, onSelect }: Props) 
     const timeout = setTimeout(() => {
       fetchIndividuals(treeId, { search: search.trim() })
         .then((people) => {
-          if (!cancelled) setResults(people);
+          if (!cancelled) setResults(excludeIds ? people.filter((p) => !excludeIds.includes(p.id)) : people);
         })
         .catch(() => {
           // A failed search just shows no results — not fatal to the modal.

@@ -227,6 +227,19 @@
     "resultsCount_one": "{{count}} persona encontrada",
     "resultsCount_other": "{{count}} personas encontradas"
   },
+  "relationshipWizard": {
+    "introTitle": "Enlazar relaciones",
+    "introBody": "Se han importado {{count}} personas. Puedes repasarlas una a una para indicar quién es padre/madre, pareja o hijo/a de quién — o saltarlo y hacerlo más tarde desde la ficha de cada persona.",
+    "start": "Empezar",
+    "skipAll": "Ahora no",
+    "progress": "Persona {{current}} de {{total}}",
+    "partnerLegend": "Pareja / cónyuge",
+    "addPartner": "+ Vincular pareja existente",
+    "next": "Siguiente →",
+    "finishNow": "Terminar aquí",
+    "doneTitle": "Listo",
+    "doneBody": "Has repasado a todas las personas importadas."
+  },
   "lineagesManage": {
     "title": "Gestionar ramas",
     "hint": "Renombra o elimina las ramas de este árbol. Eliminar una rama no elimina a las personas, solo quita la agrupación.",

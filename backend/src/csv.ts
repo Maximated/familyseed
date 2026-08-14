@@ -156,6 +156,11 @@ export function parseCsvFile(text: string): ParsedCsvIndividual[] {
       skip_empty_lines: true,
       trim: true,
       bom: true,
+      // Numbers/Excel export CSV with ";" instead of "," under several
+      // European locales (comma is the decimal separator there) — auto-
+      // detecting among the common candidates avoids every field ending up
+      // concatenated into one when someone re-saves our own template.
+      delimiter: [",", ";", "\t"],
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "formato inválido";
@@ -226,12 +231,16 @@ export function parseCsvFile(text: string): ParsedCsvIndividual[] {
 // same file updates existing rows instead of duplicating them — the same
 // idempotency GEDCOM import already gets from its own xrefs. Rows with no
 // `id` are always created fresh, since there's nothing stable to key on.
-export async function importCsvIntoTree(treeId: string, text: string): Promise<{ individuals: number; families: number }> {
+export async function importCsvIntoTree(
+  treeId: string,
+  text: string,
+): Promise<{ individuals: number; families: number; individualIds: string[] }> {
   const parsed = parseCsvFile(text);
 
   return prisma.$transaction(
     async (tx) => {
       const csvIdToDbId = new Map<string, string>();
+      const individualIds: string[] = [];
 
       for (const ind of parsed) {
         const xref = ind.csvId ? `csv:${ind.csvId}` : null;
@@ -263,6 +272,7 @@ export async function importCsvIntoTree(treeId: string, text: string): Promise<{
           : await tx.individual.create({ data: { treeId, ...data } });
 
         if (ind.csvId) csvIdToDbId.set(ind.csvId, row.id);
+        individualIds.push(row.id);
 
         // Same auto-derivation a manual create/edit gets — otherwise a
         // bulk import silently skips the "ramas" (lineages) every other
@@ -302,7 +312,7 @@ export async function importCsvIntoTree(treeId: string, text: string): Promise<{
         }
       }
 
-      return { individuals: parsed.length, families: familiesWritten };
+      return { individuals: parsed.length, families: familiesWritten, individualIds };
     },
     { timeout: 30_000 },
   );

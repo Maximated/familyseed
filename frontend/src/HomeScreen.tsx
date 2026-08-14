@@ -5,6 +5,7 @@ import { createTree, fetchTrees, importCsv, importGedcom, type TreeSummary } fro
 import { useAuth } from "./AuthContext";
 import LanguageSwitcher from "./LanguageSwitcher";
 import GedcomView from "./GedcomView";
+import RelationshipWizard from "./RelationshipWizard";
 import TreeReportModal from "./TreeReportModal";
 import ShareTreeModal from "./ShareTreeModal";
 import DeleteTreeModal from "./DeleteTreeModal";
@@ -104,6 +105,7 @@ export default function HomeScreen() {
   const [submitting, setSubmitting] = useState(false);
   const [importing, setImporting] = useState(false);
   const importFileRef = useRef<HTMLInputElement>(null);
+  const [wizard, setWizard] = useState<{ treeId: string; personIds: string[] } | null>(null);
   const [gedcomTreeId, setGedcomTreeId] = useState<string | null>(null);
   const [reportTreeId, setReportTreeId] = useState<string | null>(null);
   const [shareTreeId, setShareTreeId] = useState<string | null>(null);
@@ -167,11 +169,14 @@ export default function HomeScreen() {
     setError(null);
     try {
       const tree = await createTree(newTreeName.trim());
-      if (isCsv) await importCsv(tree.id, file);
-      else await importGedcom(tree.id, file);
+      const imported = isCsv ? await importCsv(tree.id, file) : await importGedcom(tree.id, file);
       setCreating(false);
       setNewTreeName("");
-      navigate(`/tree/${tree.id}`);
+      if (imported.individualIds.length > 0) {
+        setWizard({ treeId: tree.id, personIds: imported.individualIds });
+      } else {
+        navigate(`/tree/${tree.id}`);
+      }
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -292,6 +297,14 @@ export default function HomeScreen() {
 
       {gedcomTreeId && (
         <GedcomView treeId={gedcomTreeId} onImported={() => {}} onClose={() => setGedcomTreeId(null)} />
+      )}
+      {wizard && (
+        <RelationshipWizard
+          treeId={wizard.treeId}
+          personIds={wizard.personIds}
+          onFinished={() => {}}
+          onClose={() => navigate(`/tree/${wizard.treeId}`)}
+        />
       )}
       {reportTreeId && <TreeReportModal treeId={reportTreeId} onClose={() => setReportTreeId(null)} />}
       {shareTreeId && <ShareTreeModal treeId={shareTreeId} onClose={() => setShareTreeId(null)} />}

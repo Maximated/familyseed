@@ -531,7 +531,9 @@ export function personReportUrl(treeId: string, id: string, direction: ReportDir
   return `${API_URL}/trees/${treeId}/individuals/${id}/report?direction=${direction}`;
 }
 
-export async function importGedcom(treeId: string, file: File): Promise<{ individuals: number; families: number }> {
+export type ImportResult = { individuals: number; families: number; individualIds: string[] };
+
+export async function importGedcom(treeId: string, file: File): Promise<ImportResult> {
   const formData = new FormData();
   formData.append("file", file, file.name);
   const res = await apiFetch(`/trees/${treeId}/gedcom/import`, { method: "POST", body: formData });
@@ -545,7 +547,7 @@ export function gedcomExportUrl(treeId: string, personId?: string, direction?: "
   return `${API_URL}/trees/${treeId}/gedcom/export`;
 }
 
-export async function importCsv(treeId: string, file: File): Promise<{ individuals: number; families: number }> {
+export async function importCsv(treeId: string, file: File): Promise<ImportResult> {
   const formData = new FormData();
   formData.append("file", file, file.name);
   const res = await apiFetch(`/trees/${treeId}/csv/import`, { method: "POST", body: formData });
