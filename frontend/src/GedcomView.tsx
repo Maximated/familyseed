@@ -1,7 +1,9 @@
 import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { gedcomExportUrl, importGedcom, type Individual } from "./api";
+import { csvExportUrl, csvTemplateUrl, gedcomExportUrl, importCsv, importGedcom, type Individual } from "./api";
 import PersonPicker from "./PersonPicker";
+
+type FileFormat = "ged" | "csv";
 
 type Props = {
   treeId: string;
@@ -27,7 +29,9 @@ export default function GedcomView({ treeId, initialPersonId, initialPersonName,
   const [personName, setPersonName] = useState<string | null>(initialPersonName ?? null);
 
   async function handleFile(file: File) {
-    if (!file.name.toLowerCase().endsWith(".ged")) {
+    const name = file.name.toLowerCase();
+    const format: FileFormat | null = name.endsWith(".ged") ? "ged" : name.endsWith(".csv") ? "csv" : null;
+    if (!format) {
       setError(t("gedcom.importErrorType"));
       return;
     }
@@ -35,7 +39,7 @@ export default function GedcomView({ treeId, initialPersonId, initialPersonName,
     setError(null);
     setResult(null);
     try {
-      const imported = await importGedcom(treeId, file);
+      const imported = format === "csv" ? await importCsv(treeId, file) : await importGedcom(treeId, file);
       setResult(imported);
       onImported();
     } catch (err) {
@@ -78,7 +82,7 @@ export default function GedcomView({ treeId, initialPersonId, initialPersonName,
             <p>{importing ? t("gedcom.importing") : t("gedcom.dropHint")}</p>
             {!importing && <p className="field-hint">{t("gedcom.dropHintOrBrowse")}</p>}
           </div>
-          <input ref={fileInputRef} type="file" accept=".ged" onChange={handleInputChange} style={{ display: "none" }} />
+          <input ref={fileInputRef} type="file" accept=".ged,.csv" onChange={handleInputChange} style={{ display: "none" }} />
 
           {result && (
             <p className="status">{t("gedcom.importSuccess", { individuals: result.individuals, families: result.families })}</p>
@@ -91,6 +95,9 @@ export default function GedcomView({ treeId, initialPersonId, initialPersonName,
           <div className="gedcom-export-list">
             <a className="gedcom-export-item" href={gedcomExportUrl(treeId)} target="_blank" rel="noreferrer">
               {t("gedcom.exportFullTree")}
+            </a>
+            <a className="gedcom-export-item" href={csvExportUrl(treeId)} target="_blank" rel="noreferrer">
+              {t("gedcom.exportFullTreeCsv")}
             </a>
           </div>
           <PersonPicker
@@ -119,9 +126,30 @@ export default function GedcomView({ treeId, initialPersonId, initialPersonName,
               >
                 {t("gedcom.exportDescendantsOf", { name: personName })}
               </a>
+              <a
+                className="gedcom-export-item"
+                href={csvExportUrl(treeId, personId, "ancestors")}
+                target="_blank"
+                rel="noreferrer"
+              >
+                {t("gedcom.exportAncestorsOfCsv", { name: personName })}
+              </a>
+              <a
+                className="gedcom-export-item"
+                href={csvExportUrl(treeId, personId, "descendants")}
+                target="_blank"
+                rel="noreferrer"
+              >
+                {t("gedcom.exportDescendantsOfCsv", { name: personName })}
+              </a>
             </div>
           )}
           <p className="field-hint">{t("gedcom.exportHint")}</p>
+          <p className="field-hint">
+            <a href={csvTemplateUrl(treeId)} target="_blank" rel="noreferrer">
+              {t("gedcom.csvTemplateLink")}
+            </a>
+          </p>
         </fieldset>
 
         <div className="modal-actions">

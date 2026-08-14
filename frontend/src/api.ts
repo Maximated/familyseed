@@ -1,6 +1,11 @@
 import i18n from "./i18n";
 
-const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3001";
+// In dev, the frontend (Vite on :5173) and backend (:3001) are separate
+// servers, so API calls need an absolute URL. In a production build (the
+// Docker image), the backend serves the built frontend itself — same
+// origin — so a relative path is both correct and portable: it doesn't
+// bake in any particular host/port/domain at build time.
+const API_URL = import.meta.env.VITE_API_URL ?? (import.meta.env.DEV ? "http://localhost:3001" : "");
 
 export type Sex = "MALE" | "FEMALE" | "UNKNOWN";
 export type UnionType = "MARRIAGE" | "PARTNERSHIP" | "EXTRAMARITAL" | "UNKNOWN";
@@ -199,6 +204,17 @@ export async function fetchCurrentUser(): Promise<AuthUser | null> {
   const res = await apiFetch("/auth/me");
   if (res.status === 401) return null;
   return parseJsonOrThrow(res);
+}
+
+export async function fetchAuthConfig(): Promise<{ googleEnabled: boolean }> {
+  const res = await apiFetch("/auth/config");
+  return parseJsonOrThrow(res);
+}
+
+// Full-page navigation, not a fetch — the backend redirects the browser
+// to Google's consent screen and back, so this just needs to be a real URL.
+export function googleLoginUrl(): string {
+  return `${API_URL}/auth/google`;
 }
 
 // ---------------------------------------------------------------------
@@ -513,6 +529,24 @@ export function gedcomExportUrl(treeId: string, personId?: string, direction?: "
     return `${API_URL}/trees/${treeId}/gedcom/export?personId=${personId}&direction=${direction}`;
   }
   return `${API_URL}/trees/${treeId}/gedcom/export`;
+}
+
+export async function importCsv(treeId: string, file: File): Promise<{ individuals: number; families: number }> {
+  const formData = new FormData();
+  formData.append("file", file, file.name);
+  const res = await apiFetch(`/trees/${treeId}/csv/import`, { method: "POST", body: formData });
+  return parseJsonOrThrow(res);
+}
+
+export function csvExportUrl(treeId: string, personId?: string, direction?: "ancestors" | "descendants"): string {
+  if (personId && direction) {
+    return `${API_URL}/trees/${treeId}/csv/export?personId=${personId}&direction=${direction}`;
+  }
+  return `${API_URL}/trees/${treeId}/csv/export`;
+}
+
+export function csvTemplateUrl(treeId: string): string {
+  return `${API_URL}/trees/${treeId}/csv/template`;
 }
 
 export async function updateFamilyNotes(treeId: string, id: string, notes: string): Promise<void> {

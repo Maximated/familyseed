@@ -1,5 +1,16 @@
 generator client {
   provider = "prisma-client-js"
+  // "native" alone isn't reliable across a Docker multi-stage build: the
+  // backend-build stage (where `prisma generate` runs) and the runtime
+  // stage are both node:22-slim, but the runtime stage's extra apt
+  // packages (Chromium and its dependencies) pull in a newer OpenSSL than
+  // what's on the plain build stage, so the engine binary "native"
+  // detects at generate time doesn't match what's actually there when the
+  // app starts. Listing both OpenSSL variants for each architecture the
+  // image gets built on covers that mismatch; linux-arm64 covers building
+  // locally on Apple Silicon (this repo's dev machine), debian covers the
+  // x86_64 GitHub Actions runner that publishes the real ghcr.io image.
+  binaryTargets = ["native", "debian-openssl-3.0.x", "debian-openssl-1.1.x", "linux-arm64-openssl-3.0.x", "linux-arm64-openssl-1.1.x"]
 }
 
 datasource db {

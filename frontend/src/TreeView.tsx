@@ -23,15 +23,18 @@ import TrashView from "./TrashView";
 import IndividualsSearchView from "./IndividualsSearchView";
 import LineageChips from "./LineageChips";
 import Timeline from "./Timeline";
+import Legend from "./Legend";
 import InfoPanel, { type InfoPanelData, type InfoPanelSection } from "./InfoPanel";
 import {
   ArrowLeftIcon,
+  ColumnsIcon,
   DuplicatesIcon,
   GitBranchIcon,
   HomeIcon,
   LinkIcon,
   MaximizeIcon,
   MenuIcon,
+  RowsIcon,
   SearchIcon,
   ShareIcon,
   Trash2Icon,
@@ -356,6 +359,7 @@ function App() {
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState("");
   const [showLineageMenu, setShowLineageMenu] = useState(false);
+  const [orientation, setOrientation] = useState<"vertical" | "horizontal">("vertical");
   const [legendMagnified, setLegendMagnified] = useState(false);
 
   const runHighlight = useCallback(() => {
@@ -709,6 +713,27 @@ function App() {
     chart.updateTree({ tree_position: "fit" });
   }
 
+  // family-chart supports both orientations natively (setOrientationHorizontal/
+  // Vertical just flip a flag it already reads on every layout pass), so this
+  // is the one piece that's actually simple — re-fit afterward since the
+  // tree's whole footprint (what used to be tall is now wide) changes shape.
+  // The timeline sidebar staying a tall, narrow strip makes no sense once
+  // the tree itself reads left-to-right instead of top-to-bottom, so it
+  // moves under the canvas instead of relayouting itself to match — see
+  // .main-area-horizontal in App.css.
+  function handleToggleOrientation() {
+    const chart = chartRef.current;
+    if (!chart) return;
+    const next = orientation === "vertical" ? "horizontal" : "vertical";
+    if (next === "horizontal") {
+      chart.setOrientationHorizontal();
+    } else {
+      chart.setOrientationVertical();
+    }
+    setOrientation(next);
+    chart.updateTree({ tree_position: "fit" });
+  }
+
   function handleTimelineNavigate(personId: string) {
     const chart = chartRef.current;
     if (!chart) return;
@@ -758,7 +783,7 @@ function App() {
   if (!treeId) return null;
 
   return (
-    <div className="app">
+    <div className={`app${orientation === "horizontal" ? " app-orientation-horizontal" : ""}`}>
       <header className="app-header">
         <div className="header-actions">
           <Link to="/" className="icon-button" aria-label={t("app.backHome")} title={t("app.backHome")}>
@@ -878,6 +903,15 @@ function App() {
             >
               <LinkIcon />
             </button>
+            <button
+              type="button"
+              className="icon-button"
+              onClick={handleToggleOrientation}
+              aria-label={orientation === "vertical" ? t("app.orientationHorizontal") : t("app.orientationVertical")}
+              title={orientation === "vertical" ? t("app.orientationHorizontal") : t("app.orientationVertical")}
+            >
+              {orientation === "vertical" ? <RowsIcon /> : <ColumnsIcon />}
+            </button>
             {treeRole === "OWNER" && (
               <button
                 type="button"
@@ -898,52 +932,24 @@ function App() {
         <div className="tree-canvas-wrap">
           <div id="FamilyChart" ref={containerRef} className="f3 tree-container" />
           <svg ref={relateOverlayRef} className="relate-drag-overlay" aria-hidden="true" />
-          <div
-            className={`legend-panel${legendMagnified ? " legend-magnified" : ""}`}
-            role="button"
-            tabIndex={0}
-            aria-pressed={legendMagnified}
-            aria-label={t("legend.toggleMagnify")}
-            onClick={() => setLegendMagnified((v) => !v)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" || e.key === " ") {
-                e.preventDefault();
-                setLegendMagnified((v) => !v);
-              }
-            }}
-          >
-            <span className="legend-item">
-              <span className="legend-icon">⚭</span>
-              <span className="legend-label">{t("legend.marriage")}</span>
-            </span>
-            <span className="legend-item">
-              <span className="legend-icon">⚭²</span>
-              <span className="legend-label">{t("legend.marriage2")}</span>
-            </span>
-            <span className="legend-item">
-              <span className="legend-icon">⚯</span>
-              <span className="legend-label">{t("legend.partnership")}</span>
-            </span>
-            <span className="legend-item">
-              <span className="legend-icon">※</span>
-              <span className="legend-label">{t("legend.extramarital")}</span>
-            </span>
-            <span className="legend-item">
-              <span className="legend-icon">※²</span>
-              <span className="legend-label">{t("legend.extramarital2")}</span>
-            </span>
-            <span className="legend-item">
-              <span className="legend-icon">⚮</span>
-              <span className="legend-label">{t("legend.endedByDivorce")}</span>
-            </span>
-            <span className="legend-item">
-              <span className="legend-icon">✝</span>
-              <span className="legend-label">{t("legend.endedByDeath")}</span>
-            </span>
-            <span className="legend-hint">{t("legend.hint")}</span>
-          </div>
+          {/* Floats over the canvas here in vertical mode (where the canvas
+              is tall enough that its bottom edge is well clear of any
+              card). In horizontal mode it renders in the other spot below
+              instead — see that one's comment for why. */}
+          {orientation === "vertical" && (
+            <Legend magnified={legendMagnified} onToggle={() => setLegendMagnified((v) => !v)} />
+          )}
         </div>
-        <Timeline people={treeData} onNavigate={handleTimelineNavigate} />
+        {/* In horizontal mode the canvas is much shorter (the timeline strip
+            below eats into its height), so floating the legend over either
+            of its edges started covering cards instead. Rendering it here —
+            a sibling of the canvas, not an overlay on top of it — gives it
+            its own row between the canvas and the timeline strip, taking up
+            real space instead of covering something else's. */}
+        {orientation === "horizontal" && (
+          <Legend magnified={legendMagnified} onToggle={() => setLegendMagnified((v) => !v)} />
+        )}
+        <Timeline people={treeData} orientation={orientation} onNavigate={handleTimelineNavigate} />
       </div>
       {showAddForm && (
         <AddPersonForm treeId={treeId} onCreated={handlePersonCreated} onClose={() => setShowAddForm(false)} />

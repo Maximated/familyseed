@@ -1,6 +1,7 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { prisma } from "../db.js";
 import { hashPassword, verifyPassword } from "../auth.js";
+import { googleOAuthEnabled } from "./google-oauth.js";
 
 const SESSION_COOKIE = "session";
 const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 30; // 30 days
@@ -53,6 +54,11 @@ export async function requireAuth(request: FastifyRequest, reply: FastifyReply) 
 }
 
 export default async function authRoutes(fastify: FastifyInstance) {
+  // Lets the frontend decide whether to render "Sign in with Google" at
+  // all — self-hosted installs with no Google Cloud project configured
+  // simply get googleEnabled: false.
+  fastify.get("/config", async () => ({ googleEnabled: googleOAuthEnabled() }));
+
   fastify.post("/register", { schema: { body: registerBodySchema } }, async (request, reply) => {
     const { email, password, name } = request.body as { email: string; password: string; name?: string };
 

@@ -172,6 +172,31 @@ export function LinkIcon({ size }: IconProps) {
   );
 }
 
+// Three horizontal bars stacked — shown when the tree currently flows
+// top-to-bottom, to mean "switch to left-to-right" (the icon reads as the
+// layout you'd get after pressing it, like a grid/list view toggle).
+export function RowsIcon({ size }: IconProps) {
+  return (
+    <Svg size={size}>
+      <rect x="3" y="4" width="18" height="4" rx="1" />
+      <rect x="3" y="10" width="18" height="4" rx="1" />
+      <rect x="3" y="16" width="18" height="4" rx="1" />
+    </Svg>
+  );
+}
+
+// Three vertical bars side by side — shown when the tree currently flows
+// left-to-right, to mean "switch back to top-to-bottom".
+export function ColumnsIcon({ size }: IconProps) {
+  return (
+    <Svg size={size}>
+      <rect x="4" y="3" width="4" height="18" rx="1" />
+      <rect x="10" y="3" width="4" height="18" rx="1" />
+      <rect x="16" y="3" width="4" height="18" rx="1" />
+    </Svg>
+  );
+}
+
 export function MenuIcon({ size }: IconProps) {
   return (
     <Svg size={size}>

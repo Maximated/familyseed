@@ -1,0 +1,43 @@
+# Production self-hosted deploy — pulls the pre-built image from ghcr.io
+# (published by .github/workflows/docker-publish.yml) rather than building
+# locally. For local development, see backend/docker-compose.yml instead
+# (just a throwaway MariaDB container — the app itself runs via `npm run
+# dev` in frontend/ and backend/, not through Docker).
+#
+# Usage: copy .env.example to .env, fill in the two secrets, then
+# `docker compose up -d`.
+
+services:
+  app:
+    image: ghcr.io/maximated/familyseed:latest
+    restart: unless-stopped
+    depends_on:
+      - mariadb
+    environment:
+      DATABASE_URL: mysql://familyseed:${DB_PASSWORD}@mariadb:3306/familyseed
+      COOKIE_SECRET: ${COOKIE_SECRET}
+      PORT: 3001
+      # Google OAuth is optional — leave both unset in .env to keep
+      # email/password as the only login method.
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      APP_ORIGIN: ${APP_ORIGIN:-}
+    ports:
+      - "3001:3001"
+    volumes:
+      - familyseed-uploads:/app/uploads
+
+  mariadb:
+    image: mariadb:11
+    restart: unless-stopped
+    environment:
+      MARIADB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+      MARIADB_DATABASE: familyseed
+      MARIADB_USER: familyseed
+      MARIADB_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - familyseed-db:/var/lib/mysql
+
+volumes:
+  familyseed-uploads:
+  familyseed-db:

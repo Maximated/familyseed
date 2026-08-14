@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "./AuthContext";
+import GoogleAuthButton from "./GoogleAuthButton";
 
 export default function Register() {
   const { t } = useTranslation();
@@ -54,6 +55,7 @@ export default function Register() {
         <button type="submit" disabled={submitting}>
           {submitting ? t("auth.registerButtonBusy") : t("auth.registerButton")}
         </button>
+        <GoogleAuthButton />
         <Link to="/login" className="auth-switch-link">
           {t("auth.hasAccount")}
         </Link>

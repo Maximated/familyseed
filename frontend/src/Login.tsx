@@ -1,17 +1,19 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "./AuthContext";
+import GoogleAuthButton from "./GoogleAuthButton";
 
 export default function Login() {
   const { t } = useTranslation();
   const { login } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(searchParams.get("error") === "google" ? t("auth.googleError") : null);
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
@@ -43,6 +45,7 @@ export default function Login() {
         <button type="submit" disabled={submitting}>
           {submitting ? t("auth.loginButtonBusy") : t("auth.loginButton")}
         </button>
+        <GoogleAuthButton />
         <Link to="/register" className="auth-switch-link">
           {t("auth.noAccount")}
         </Link>

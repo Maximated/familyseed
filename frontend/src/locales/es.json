@@ -26,12 +26,14 @@
     "defaultUserName": "Usuario",
     "language": "Idioma",
     "report": "Informe PDF",
-    "gedcom": "Importar/exportar GEDCOM",
+    "gedcom": "Importar/exportar",
     "search": "Buscar personas",
     "share": "Compartir árbol",
     "deleteTree": "Eliminar árbol",
     "duplicates": "Personas duplicadas",
     "linkPeople": "Crear relación entre dos personas",
+    "orientationHorizontal": "Vista horizontal",
+    "orientationVertical": "Vista vertical",
     "moreActions": "Más acciones",
     "role": "Rol: {{role}}",
     "selfHostedHint": "Modo autohospedado: un único usuario."
@@ -299,18 +301,22 @@
     "none": "Ninguno"
   },
   "gedcom": {
-    "title": "Importar / exportar GEDCOM",
+    "title": "Importar / exportar",
     "importHeading": "Importar",
-    "dropHint": "Suelta aquí tu archivo GEDCOM (.ged)",
+    "dropHint": "Suelta aquí tu archivo GEDCOM (.ged) o CSV (.csv)",
     "dropHintOrBrowse": "o haz clic para elegir un archivo",
     "importing": "Importando…",
     "importSuccess": "Importado: {{individuals}} individuos y {{families}} familias.",
-    "importErrorType": "El archivo debe tener extensión .ged",
+    "importErrorType": "El archivo debe tener extensión .ged o .csv",
     "exportHeading": "Exportar",
     "exportFullTree": "Exportar árbol completo (.ged)",
+    "exportFullTreeCsv": "Exportar árbol completo (.csv)",
     "exportAncestorsOf": "Exportar ascendientes de {{name}} (.ged)",
     "exportDescendantsOf": "Exportar descendientes de {{name}} (.ged)",
-    "exportHint": "Compatible con Gramps, Webtrees y otras herramientas de genealogía."
+    "exportAncestorsOfCsv": "Exportar ascendientes de {{name}} (.csv)",
+    "exportDescendantsOfCsv": "Exportar descendientes de {{name}} (.csv)",
+    "exportHint": "GEDCOM es compatible con Gramps, Webtrees y otras herramientas de genealogía. El formato CSV es propio de FamilySeed, pensado para rellenarlo a mano en una hoja de cálculo.",
+    "csvTemplateLink": "Descargar plantilla CSV en blanco"
   },
   "timeline": {
     "century": "S. {{roman}}"
@@ -330,7 +336,10 @@
     "registerButtonBusy": "Creando…",
     "noAccount": "¿No tienes cuenta? Créala",
     "hasAccount": "¿Ya tienes cuenta? Inicia sesión",
-    "logout": "Cerrar sesión"
+    "logout": "Cerrar sesión",
+    "orDivider": "o",
+    "continueWithGoogle": "Continuar con Google",
+    "googleError": "No se pudo iniciar sesión con Google. Inténtalo de nuevo."
   },
   "home": {
     "title": "Tus árboles genealógicos",
