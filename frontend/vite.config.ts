@@ -29,11 +29,24 @@ export default defineConfig({
       // No custom runtime caching for the API here on purpose: this app's
       // whole point is showing the current state of someone's family
       // tree, and a rule that silently serves yesterday's data while
-      // offline would be worse than just failing. The backend also runs
-      // on a different origin, so workbox's default navigateFallback
-      // (serving the precached index.html for any same-origin route, so
-      // React Router can take over on a direct/offline load of e.g.
-      // /tree/:id) never even applies to it — nothing to exclude.
+      // offline would be worse than just failing.
+      //
+      // navigateFallbackDenylist: in dev the backend runs on a different
+      // origin, so workbox's default navigateFallback (serving the
+      // precached index.html for any same-origin *navigation*, so React
+      // Router can take over on a direct/offline load of e.g. /tree/:id)
+      // never applied to it. In production the single combined image
+      // serves both from the same origin, so without this denylist the
+      // service worker hijacks full-page navigations to backend routes —
+      // "Continuar con Google" (/auth/google), GEDCOM/CSV export and
+      // template links, PDF reports — and serves the cached app shell
+      // instead of ever letting the browser reach the real endpoint
+      // (React Router then renders nothing for that path: a blank page).
+      // The frontend's own SPA route is /tree/:id (singular), so it's
+      // unaffected by denylisting /trees/ (plural, backend-only).
+      workbox: {
+        navigateFallbackDenylist: [/^\/auth\//, /^\/trees\//, /^\/uploads\//],
+      },
     }),
   ],
 })
