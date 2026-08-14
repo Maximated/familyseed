@@ -610,6 +610,18 @@ export async function deleteFamily(treeId: string, id: string): Promise<void> {
   await throwIfNotOk(res);
 }
 
+// Attaches an existing individual as a child of this union directly —
+// links them to both partners at once, unlike addParent (which only
+// knows one parent at a time).
+export async function addFamilyChild(treeId: string, familyId: string, individualId: string): Promise<void> {
+  const res = await apiFetch(`/trees/${treeId}/families/${familyId}/children`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ individualId }),
+  });
+  await throwIfNotOk(res);
+}
+
 export type CopyMode = "single" | "lineage";
 
 export type CopyIndividualPayload = {

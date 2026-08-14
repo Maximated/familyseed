@@ -4,6 +4,7 @@ import PersonMediaTab from "./PersonMedia";
 import RelationsTab from "./RelationsTab";
 import UnionNotesEditor from "./UnionNotesEditor";
 import UnionDetailsEditor from "./UnionDetailsEditor";
+import UnionChildrenEditor, { type UnionChild } from "./UnionChildrenEditor";
 import CopyPersonModal from "./CopyPersonModal";
 import PhotoLightbox from "./PhotoLightbox";
 import { deleteFamily, type UnionStatus, type UnionType } from "./api";
@@ -33,6 +34,9 @@ export type InfoPanelData = {
     unionStatus: UnionStatus;
     unionDateText: string | null;
     unionPlace: string | null;
+    partner1Id: string;
+    partner2Id: string;
+    children: UnionChild[];
   };
 };
 
@@ -118,6 +122,16 @@ export default function InfoPanel({ treeId, data, onClose, onNavigateToPerson, o
             ))}
             {data.familyId && data.union && (
               <UnionDetailsEditor treeId={treeId} familyId={data.familyId} initial={data.union} onSaved={onDataChanged} />
+            )}
+            {data.familyId && data.union && (
+              <UnionChildrenEditor
+                treeId={treeId}
+                familyId={data.familyId}
+                partner1Id={data.union.partner1Id}
+                partner2Id={data.union.partner2Id}
+                initialChildren={data.union.children}
+                onSaved={onDataChanged}
+              />
             )}
             {data.familyId && (
               <UnionNotesEditor

@@ -137,11 +137,18 @@ type LinkTextDatum = { nodes: [{ data: { id: string } }, { data: { id: string } 
 // partnership) plus a couple of homemade ones where no standard symbol
 // exists — kept in the legend below the lineage chips since most people
 // won't recognize them on sight.
+// UNKNOWN gets its own mark rather than an empty string — it's a common,
+// permanent state (every family attachParent auto-creates when linking a
+// parent to a child defaults to it, since there's no union info to record
+// at that point), not a rare edge case. An empty string here previously
+// made those unions render with no mark at all, i.e. invisible on the
+// canvas even though the relationship is real — see the "ya existe esa
+// relación" bug report.
 const UNION_TYPE_SYMBOL: Record<UnionType, string> = {
   MARRIAGE: "⚭",
   PARTNERSHIP: "⚯",
   EXTRAMARITAL: "※",
-  UNKNOWN: "",
+  UNKNOWN: "○",
 };
 
 const UNION_STATUS_SYMBOL: Record<UnionStatus, string> = {
@@ -304,6 +311,13 @@ function buildUnionInfoPanel(union: UnionInfo, people: TreePerson[]): InfoPanelD
   const partner2 = people.find((p) => p.id === union.partner2Id);
   const name = (p?: TreePerson) => (p ? `${p.data["first name"]} ${p.data["last name"]}`.trim() : "?");
 
+  // Both partners are already fixed for a union, so a child of theirs is
+  // simply anyone whose parent list contains both ids — no separate
+  // per-family child lookup needed, `rels.parents` already has it.
+  const children = people
+    .filter((p) => p.rels.parents.includes(union.partner1Id) && p.rels.parents.includes(union.partner2Id))
+    .map((p) => ({ id: p.id, name: name(p) }));
+
   return {
     icon: <span className="info-panel-union-symbol">{unionIcon(union)}</span>,
     iconClassName: "info-panel-icon-union",
@@ -317,6 +331,9 @@ function buildUnionInfoPanel(union: UnionInfo, people: TreePerson[]): InfoPanelD
       unionStatus: union.unionStatus,
       unionDateText: union.unionDateText,
       unionPlace: union.unionPlace,
+      partner1Id: union.partner1Id,
+      partner2Id: union.partner2Id,
+      children,
     },
   };
 }

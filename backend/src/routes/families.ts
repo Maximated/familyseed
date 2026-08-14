@@ -1,8 +1,23 @@
 import type { FastifyInstance } from "fastify";
 import { prisma } from "../db.js";
 import { HttpError } from "../http-error.js";
-import { DATE_PRECISION_VALUES, UNION_STATUS_VALUES, UNION_TYPE_VALUES } from "../enums.js";
+import { CHILD_RELATION_TYPE_VALUES, DATE_PRECISION_VALUES, UNION_STATUS_VALUES, UNION_TYPE_VALUES } from "../enums.js";
 import { logChange } from "../tree-context.js";
+
+const addFamilyChildBodySchema = {
+  type: "object",
+  required: ["individualId"],
+  properties: {
+    individualId: { type: "string" },
+    relationType: { type: "string", enum: CHILD_RELATION_TYPE_VALUES },
+  },
+  additionalProperties: false,
+};
+
+type AddFamilyChildBody = {
+  individualId: string;
+  relationType?: (typeof CHILD_RELATION_TYPE_VALUES)[number];
+};
 
 const createFamilyBodySchema = {
   type: "object",
@@ -210,6 +225,48 @@ export default async function familyRoutes(fastify: FastifyInstance) {
       action: "family.delete",
       entityType: "Family",
       entityId: id,
+    });
+
+    return reply.code(204).send();
+  });
+
+  // Attaches an existing individual as a child of this specific union —
+  // unlike POST /individuals/:id/parents (which links one parent at a time
+  // and has to guess/merge which family a second parent belongs to), this
+  // is unambiguous by construction: both partner1Id and partner2Id are
+  // already fixed to this one Family row, so adding a child here links
+  // them to both parents at once, with no separate step needed on the
+  // other partner's own page.
+  fastify.post("/:id/children", { schema: { body: addFamilyChildBodySchema } }, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const treeId = request.treeId!;
+    const { individualId, relationType } = request.body as AddFamilyChildBody;
+
+    const family = await prisma.family.findFirst({ where: { id, treeId } });
+    if (!family) {
+      return reply.code(404).send({ error: `No existe la unión ${id}` });
+    }
+    if (individualId === family.partner1Id || individualId === family.partner2Id) {
+      return reply.code(400).send({ error: "Una persona no puede ser su propio hijo/a" });
+    }
+    const child = await prisma.individual.findFirst({ where: { id: individualId, treeId, deletedAt: null } });
+    if (!child) {
+      return reply.code(404).send({ error: `No existe el individuo ${individualId}` });
+    }
+
+    await prisma.familyChild.upsert({
+      where: { familyId_individualId: { familyId: id, individualId } },
+      create: { familyId: id, individualId, relationType: relationType ?? "BIOLOGICAL" },
+      update: {},
+    });
+
+    await logChange({
+      treeId,
+      userId: request.userId ?? null,
+      action: "family.addChild",
+      entityType: "Family",
+      entityId: id,
+      summary: `${child.givenNames} ${child.surname1}`,
     });
 
     return reply.code(204).send();

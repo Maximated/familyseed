@@ -54,6 +54,10 @@ export default function Legend({ magnified, onToggle }: Props) {
         <span className="legend-icon">✝</span>
         <span className="legend-label">{t("legend.endedByDeath")}</span>
       </span>
+      <span className="legend-item">
+        <span className="legend-icon">○</span>
+        <span className="legend-label">{t("legend.unknown")}</span>
+      </span>
       <span className="legend-hint">{t("legend.hint")}</span>
     </div>
   );

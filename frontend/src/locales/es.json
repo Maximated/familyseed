@@ -70,6 +70,7 @@
     "extramarital2": "2ª relación extramatrimonial (o más)",
     "endedByDivorce": "Divorcio/separación",
     "endedByDeath": "Unión finalizada por fallecimiento",
+    "unknown": "Tipo de unión sin especificar",
     "hint": "Pulsa un icono de unión, o el de una tarjeta, para ver el detalle",
     "toggleMagnify": "Agrandar/reducir la leyenda"
   },
