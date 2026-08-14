@@ -354,14 +354,26 @@ export default async function individualRoutes(fastify: FastifyInstance) {
       and.push({ birthDateValue: { lte: new Date(Date.UTC(Number(birthYearTo), 11, 31, 23, 59, 59)) } });
     }
 
-    return prisma.individual.findMany({
+    const rows = await prisma.individual.findMany({
       where: {
         treeId,
         deletedAt: trashed === "true" ? { not: null } : null,
         ...(and.length ? { AND: and } : {}),
       },
       orderBy: [{ surname1: "asc" }, { givenNames: "asc" }],
+      include: {
+        _count: { select: { childOf: true, familiesAsPartner1: true, familiesAsPartner2: true } },
+      },
     });
+
+    // A person with zero of any of these is invisible on the tree canvas
+    // (family-chart only renders what's reachable from the centered
+    // person) — surfaced here so the search view can flag "still needs
+    // linking" instead of the user having to guess why someone's missing.
+    return rows.map(({ _count, ...individual }) => ({
+      ...individual,
+      hasNoRelationships: _count.childOf === 0 && _count.familiesAsPartner1 === 0 && _count.familiesAsPartner2 === 0,
+    }));
   });
 
   fastify.get("/:id", async (request, reply) => {

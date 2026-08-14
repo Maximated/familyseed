@@ -6,6 +6,7 @@ import { useTranslation } from "react-i18next";
 import { Link, useParams } from "react-router-dom";
 import i18n from "./i18n";
 import {
+  deriveLineages,
   fetchLineages,
   fetchTree,
   mediaUrl,
@@ -344,6 +345,8 @@ function App() {
   const [showTrash, setShowTrash] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
   const [showLineagesManage, setShowLineagesManage] = useState(false);
+  const [derivingLineages, setDerivingLineages] = useState(false);
+  const [deriveLineagesMessage, setDeriveLineagesMessage] = useState<string | null>(null);
   const [showShareModal, setShowShareModal] = useState(false);
   const [showDuplicates, setShowDuplicates] = useState(false);
   const [showLinkPeople, setShowLinkPeople] = useState(false);
@@ -736,6 +739,23 @@ function App() {
     chart.updateTree({ tree_position: "fit" });
   }
 
+  // Manual fallback for the auto-derivation every create/edit/import
+  // already does on its own — for data that predates that feature, or an
+  // older import that ran before this codebase's own gap was fixed.
+  async function handleDeriveLineages() {
+    setDerivingLineages(true);
+    setDeriveLineagesMessage(null);
+    try {
+      const updated = await deriveLineages(treeId);
+      setLineages(updated);
+      setDeriveLineagesMessage(t("lineagesManage.deriveDone", { count: updated.length }));
+    } catch (err) {
+      setDeriveLineagesMessage((err as Error).message);
+    } finally {
+      setDerivingLineages(false);
+    }
+  }
+
   function handleTimelineNavigate(personId: string) {
     const chart = chartRef.current;
     if (!chart) return;
@@ -872,6 +892,15 @@ function App() {
                   >
                     {t("lineagesManage.manageLink")}
                   </button>
+                  <button
+                    type="button"
+                    className="union-notes-edit-link"
+                    onClick={handleDeriveLineages}
+                    disabled={derivingLineages}
+                  >
+                    {derivingLineages ? t("lineagesManage.deriving") : t("lineagesManage.deriveLink")}
+                  </button>
+                  {deriveLineagesMessage && <p className="field-hint">{deriveLineagesMessage}</p>}
                 </div>
               )}
             </div>

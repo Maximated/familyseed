@@ -8,6 +8,7 @@ import {
   type UnionStatus,
   type UnionType,
 } from "./api";
+import IOSToggle from "./IOSToggle";
 
 type Props = {
   treeId: string;
@@ -138,26 +139,17 @@ export default function LinkPeopleModal({ treeId, fixedPersonAId, fixedPersonBId
 
         <fieldset>
           <legend>{t("linkPeople.relationshipLegend")}</legend>
-          <label>
-            <input
-              type="radio"
-              checked={linkKind === "A_PARENT_OF_B"}
-              onChange={() => setLinkKind("A_PARENT_OF_B")}
-            />
-            {t("linkPeople.aIsParentOfB")}
-          </label>
-          <label>
-            <input
-              type="radio"
-              checked={linkKind === "B_PARENT_OF_A"}
-              onChange={() => setLinkKind("B_PARENT_OF_A")}
-            />
-            {t("linkPeople.bIsParentOfA")}
-          </label>
-          <label>
-            <input type="radio" checked={linkKind === "PARTNER"} onChange={() => setLinkKind("PARTNER")} />
-            {t("linkPeople.partner")}
-          </label>
+          <IOSToggle
+            checked={linkKind === "A_PARENT_OF_B"}
+            onChange={() => setLinkKind("A_PARENT_OF_B")}
+            label={t("linkPeople.aIsParentOfB")}
+          />
+          <IOSToggle
+            checked={linkKind === "B_PARENT_OF_A"}
+            onChange={() => setLinkKind("B_PARENT_OF_A")}
+            label={t("linkPeople.bIsParentOfA")}
+          />
+          <IOSToggle checked={linkKind === "PARTNER"} onChange={() => setLinkKind("PARTNER")} label={t("linkPeople.partner")} />
           {linkKind === "PARTNER" && (
             <div className="indent">
               <select value={unionType} onChange={(e) => setUnionType(e.target.value as UnionType)}>

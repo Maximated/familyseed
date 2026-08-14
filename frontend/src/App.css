@@ -1454,24 +1454,44 @@ body {
 }
 
 .trash-list li button.search-result-item {
+  flex: 1;
   width: 100%;
   text-align: left;
   font-family: var(--font-name);
-  transition: color 120ms ease, border-color 120ms ease;
+  border: none;
+  background: none;
+  padding: 0;
+  border-radius: 0;
+  font-size: inherit;
+  color: var(--color-forest);
+  transition: color 120ms ease;
 }
 
 .trash-list li button.search-result-item:hover {
   color: var(--color-amber);
-  border-color: var(--color-amber);
 }
 
-.search-result-row .search-result-item {
-  width: auto;
-  flex: 1;
+/* Someone with no parents/children/partner at all — invisible on the tree
+   canvas until linked to someone, flagged here so it's obvious who still
+   needs work instead of silently missing from the tree. */
+.search-result-item-unlinked {
+  color: #b7791f;
 }
 
-.search-result-edit {
-  flex-shrink: 0;
+.search-result-item-unlinked::after {
+  content: "●";
+  margin-left: 0.4rem;
+  font-size: 0.5rem;
+  vertical-align: middle;
+  color: #b7791f;
+}
+
+.search-result-item-unlinked:hover {
+  color: var(--color-amber);
+}
+
+.search-result-item-unlinked:hover::after {
+  color: var(--color-amber);
 }
 
 .modal-backdrop {
@@ -1673,6 +1693,55 @@ body {
   margin: 0.2rem 0;
 }
 
+/* iOS-style switch used as a mutually-exclusive radio option (see
+   IOSToggle.tsx) — the label sits on the left, the switch on the right,
+   instead of a browser-default radio dot stacked above the question. */
+.ios-toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  width: 100%;
+  padding: 0.45rem 0.1rem;
+  border: none;
+  background: none;
+  font: inherit;
+  font-size: 0.9rem;
+  color: var(--color-forest);
+  text-align: left;
+  cursor: pointer;
+}
+
+.ios-toggle {
+  position: relative;
+  flex-shrink: 0;
+  width: 46px;
+  height: 26px;
+  border-radius: 999px;
+  background: #d1d5db;
+  transition: background 150ms ease;
+}
+
+.ios-toggle-on {
+  background: var(--color-forest-light);
+}
+
+.ios-toggle-knob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  transition: transform 150ms ease;
+}
+
+.ios-toggle-on .ios-toggle-knob {
+  transform: translateX(20px);
+}
+
 .photo-preview {
   width: 80px;
   height: 80px;
@@ -1830,13 +1899,11 @@ button.btn-outline:disabled {
 }
 
 .trash-list li {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  padding: 0.5rem 0.75rem;
-  border: 1px solid #eee;
-  border-radius: 6px;
+  /* No border/box here on purpose — a plain <li> can hold either a
+     SwipeRow (search results, lineages, trash) or, for LineagesManageView's
+     transient editing/confirming states, a full-width inline form; both
+     lay themselves out, this just has to not add its own box around them. */
+  list-style: none;
 }
 
 .trash-list-name {
@@ -1860,6 +1927,45 @@ button.btn-outline:disabled {
 
 .trash-list li button:hover {
   background: #f0f0f0;
+}
+
+/* SwipeRow — content sits above the revealed actions (z-index) with an
+   opaque background so it fully covers them until dragged left. Actions
+   are pinned to the right edge underneath, revealed as content slides off. */
+.swipe-row {
+  position: relative;
+  overflow: hidden;
+  border-radius: 8px;
+}
+
+.swipe-row-content {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.6rem 0.75rem;
+  background: #fff;
+  touch-action: pan-y;
+  transition: transform 200ms ease;
+  cursor: pointer;
+}
+
+.swipe-row-actions {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.25rem;
+  padding-right: 0.4rem;
+}
+
+.swipe-row-actions .icon-button {
+  color: var(--color-forest);
 }
 
 .auth-page {

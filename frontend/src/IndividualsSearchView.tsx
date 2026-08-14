@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { fetchIndividuals, fetchLineages, type Individual, type Lineage } from "./api";
 import { PencilIcon } from "./Icons";
+import SwipeRow from "./SwipeRow";
 
 type Props = {
   treeId: string;
@@ -117,7 +118,10 @@ export default function IndividualsSearchView({ treeId, onNavigateToPerson, onEd
 
         {error && <p className="status status-error">{error}</p>}
         {!error && !loading && (
-          <p className="field-hint">{t("search.resultsCount", { count: results.length })}</p>
+          <p className="field-hint">
+            {t("search.resultsCount", { count: results.length })}
+            {results.some((p) => p.hasNoRelationships) && ` — ${t("search.unlinkedHint")}`}
+          </p>
         )}
 
         {loading ? (
@@ -127,28 +131,33 @@ export default function IndividualsSearchView({ treeId, onNavigateToPerson, onEd
         ) : (
           <ul className="trash-list">
             {results.map((person) => (
-              <li key={person.id} className="search-result-row">
-                <button
-                  type="button"
-                  className="search-result-item"
-                  onClick={() => {
-                    onNavigateToPerson(person.id);
-                    onClose();
-                  }}
+              <li key={person.id}>
+                <SwipeRow
+                  actions={
+                    onEditPerson && (
+                      <button
+                        type="button"
+                        className="icon-button"
+                        onClick={() => onEditPerson(person.id)}
+                        aria-label={t("editPerson.title")}
+                        title={t("editPerson.title")}
+                      >
+                        <PencilIcon size={16} />
+                      </button>
+                    )
+                  }
                 >
-                  {personLine(person)}
-                </button>
-                {onEditPerson && (
                   <button
                     type="button"
-                    className="icon-button search-result-edit"
-                    onClick={() => onEditPerson(person.id)}
-                    aria-label={t("editPerson.title")}
-                    title={t("editPerson.title")}
+                    className={`search-result-item${person.hasNoRelationships ? " search-result-item-unlinked" : ""}`}
+                    onClick={() => {
+                      onNavigateToPerson(person.id);
+                      onClose();
+                    }}
                   >
-                    <PencilIcon size={16} />
+                    {personLine(person)}
                   </button>
-                )}
+                </SwipeRow>
               </li>
             ))}
           </ul>

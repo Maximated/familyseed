@@ -2,6 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { prisma } from "../db.js";
 import { HttpError } from "../http-error.js";
 import { logChange } from "../tree-context.js";
+import { deriveLineagesFromSurnames } from "./individuals.js";
 
 const createLineageBodySchema = {
   type: "object",
@@ -117,5 +118,42 @@ export default async function lineageRoutes(fastify: FastifyInstance) {
       request.log.error(error);
       return reply.code(500).send({ error: "Error interno" });
     }
+  });
+
+  // Manual fallback for the auto-derivation every create/edit/import
+  // already does on its own — covers data that predates that feature, or
+  // slipped through some path that doesn't call it (an older import, a
+  // direct DB write, etc). Re-running it is always safe: it only ever
+  // creates a lineage the first time a given name is seen and upserts the
+  // membership, never removes anything a user unchecked on purpose.
+  fastify.post("/derive", async (request, reply) => {
+    const treeId = request.treeId!;
+
+    const individuals = await prisma.individual.findMany({
+      where: { treeId, deletedAt: null },
+      select: { id: true, surname1: true, surname1BirthName: true },
+    });
+
+    await prisma.$transaction(
+      async (tx) => {
+        for (const ind of individuals) {
+          await deriveLineagesFromSurnames(tx, treeId, ind.id, [ind.surname1, ind.surname1BirthName]);
+        }
+      },
+      { timeout: 30_000 },
+    );
+
+    const lineages = await prisma.lineage.findMany({ where: { treeId }, orderBy: { name: "asc" } });
+
+    await logChange({
+      treeId,
+      userId: request.userId ?? null,
+      action: "lineage.derive",
+      entityType: "Tree",
+      entityId: treeId,
+      summary: `${individuals.length} personas revisadas`,
+    });
+
+    return reply.send(lineages);
   });
 }

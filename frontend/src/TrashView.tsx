@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { fetchTrash, restoreIndividual, type Individual } from "./api";
+import SwipeRow from "./SwipeRow";
 
 type Props = {
   treeId: string;
@@ -66,21 +67,27 @@ export default function TrashView({ treeId, onRestored, onClose }: Props) {
           <ul className="trash-list">
             {people.map((person) => (
               <li key={person.id}>
-                <div>
-                  <div className="trash-list-name">
-                    {person.givenNames} {[person.surname1, person.surname2].filter(Boolean).join(" ")}
-                  </div>
-                  <div className="trash-list-meta">
-                    {t("trash.deletedOn", { date: formatDeletedAt(person.deletedAt, i18n.language) })}
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => handleRestore(person.id)}
-                  disabled={restoringId === person.id}
+                <SwipeRow
+                  actionsWidth={104}
+                  actions={
+                    <button
+                      type="button"
+                      onClick={() => handleRestore(person.id)}
+                      disabled={restoringId === person.id}
+                    >
+                      {restoringId === person.id ? t("trash.restoring") : t("trash.restore")}
+                    </button>
+                  }
                 >
-                  {restoringId === person.id ? t("trash.restoring") : t("trash.restore")}
-                </button>
+                  <div>
+                    <div className="trash-list-name">
+                      {person.givenNames} {[person.surname1, person.surname2].filter(Boolean).join(" ")}
+                    </div>
+                    <div className="trash-list-meta">
+                      {t("trash.deletedOn", { date: formatDeletedAt(person.deletedAt, i18n.language) })}
+                    </div>
+                  </div>
+                </SwipeRow>
               </li>
             ))}
           </ul>

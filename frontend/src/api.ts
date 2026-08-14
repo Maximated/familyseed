@@ -89,6 +89,10 @@ export type Individual = {
   // Only populated by fetchIndividualRelations (GET /:id) — list/create/
   // update responses don't include it.
   lineageIds?: string[];
+  // Only populated by fetchIndividuals (GET /, the list route) — true when
+  // this person has no parents/children/partner at all, meaning they're
+  // invisible on the tree canvas until linked to someone.
+  hasNoRelationships?: boolean;
 };
 
 export type PersonMediaType = "PHOTO" | "DOCUMENT";
@@ -356,6 +360,14 @@ export async function createLineage(treeId: string, name: string, color?: string
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ name, color }),
   });
+  return parseJsonOrThrow(res);
+}
+
+// Re-runs the same surname-based auto-derivation every create/edit/import
+// already does per person — a manual fallback for data that predates it or
+// slipped through some import path that skipped it.
+export async function deriveLineages(treeId: string): Promise<Lineage[]> {
+  const res = await apiFetch(`/trees/${treeId}/lineages/derive`, { method: "POST" });
   return parseJsonOrThrow(res);
 }
 

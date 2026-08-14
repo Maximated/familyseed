@@ -225,7 +225,8 @@
     "placePlaceholder": "Lugar de nacimiento o defunción…",
     "noResults": "No hay nadie que coincida con estos filtros.",
     "resultsCount_one": "{{count}} persona encontrada",
-    "resultsCount_other": "{{count}} personas encontradas"
+    "resultsCount_other": "{{count}} personas encontradas",
+    "unlinkedHint": "en naranja, sin relaciones registradas todavía"
   },
   "relationshipWizard": {
     "introTitle": "Enlazar relaciones",
@@ -245,7 +246,10 @@
     "hint": "Renombra o elimina las ramas de este árbol. Eliminar una rama no elimina a las personas, solo quita la agrupación.",
     "deleteAction": "Eliminar rama",
     "confirmDelete": "¿Eliminar la rama \"{{name}}\"?",
-    "manageLink": "Gestionar ramas…"
+    "manageLink": "Gestionar ramas…",
+    "deriveLink": "Extraer ramas de los apellidos",
+    "deriving": "Extrayendo…",
+    "deriveDone": "Hecho — {{count}} ramas en total."
   },
   "share": {
     "title": "Compartir árbol",

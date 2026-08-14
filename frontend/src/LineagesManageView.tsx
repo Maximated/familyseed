@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { deleteLineage, updateLineage, type Lineage } from "./api";
 import { PencilIcon, Trash2Icon } from "./Icons";
+import SwipeRow from "./SwipeRow";
 
 type Props = {
   treeId: string;
@@ -93,29 +94,32 @@ export default function LineagesManageView({ treeId, lineages, onChanged, onClos
                     </div>
                   </>
                 ) : (
-                  <>
+                  <SwipeRow
+                    actions={
+                      <>
+                        <button
+                          type="button"
+                          className="icon-button"
+                          onClick={() => startEditing(lineage)}
+                          aria-label={t("app.edit")}
+                          title={t("app.edit")}
+                        >
+                          <PencilIcon size={16} />
+                        </button>
+                        <button
+                          type="button"
+                          className="icon-button"
+                          onClick={() => setConfirmingDeleteId(lineage.id)}
+                          aria-label={t("lineagesManage.deleteAction")}
+                          title={t("lineagesManage.deleteAction")}
+                        >
+                          <Trash2Icon size={16} />
+                        </button>
+                      </>
+                    }
+                  >
                     <span className="trash-list-name">{lineage.name}</span>
-                    <div className="field-row">
-                      <button
-                        type="button"
-                        className="icon-button"
-                        onClick={() => startEditing(lineage)}
-                        aria-label={t("app.edit")}
-                        title={t("app.edit")}
-                      >
-                        <PencilIcon size={16} />
-                      </button>
-                      <button
-                        type="button"
-                        className="icon-button"
-                        onClick={() => setConfirmingDeleteId(lineage.id)}
-                        aria-label={t("lineagesManage.deleteAction")}
-                        title={t("lineagesManage.deleteAction")}
-                      >
-                        <Trash2Icon size={16} />
-                      </button>
-                    </div>
-                  </>
+                  </SwipeRow>
                 )}
               </li>
             ))}
