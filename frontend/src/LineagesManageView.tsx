@@ -73,7 +73,7 @@ export default function LineagesManageView({ treeId, lineages, onChanged, onClos
                       onChange={(e) => setEditingName(e.target.value)}
                       autoFocus
                     />
-                    <button type="button" onClick={() => handleRename(lineage.id)} disabled={busy}>
+                    <button type="button" className="btn-primary" onClick={() => handleRename(lineage.id)} disabled={busy}>
                       {t("common.save")}
                     </button>
                     <button type="button" onClick={() => setEditingId(null)} disabled={busy}>

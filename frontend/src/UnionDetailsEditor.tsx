@@ -134,7 +134,7 @@ export default function UnionDetailsEditor({ treeId, familyId, initial, onSaved 
         <button type="button" onClick={handleCancel} disabled={saving}>
           {t("common.cancel")}
         </button>
-        <button type="button" onClick={handleSave} disabled={saving}>
+        <button type="button" className="btn-primary" onClick={handleSave} disabled={saving}>
           {saving ? t("common.saving") : t("common.save")}
         </button>
       </div>

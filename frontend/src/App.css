@@ -1700,25 +1700,88 @@ body {
   color: var(--color-amber);
 }
 
-.modal-actions button {
+/* Pill buttons, three variants: plain (neutral gray outline, the default),
+   [type="submit"]/.btn-primary (filled, the main action of a form/modal),
+   and .btn-outline (branded outline — a secondary action worth calling out
+   more than a plain Cancelar, e.g. "Importar" next to "Crear"/"Cancelar").
+   Scoped to the containers action buttons actually sit in (modals, the
+   home create-tree form, inline edit rows) rather than a bare `button`
+   selector, so icon-only buttons, chips, and inline text links
+   (.icon-button, .lineage-list-item, .union-notes-edit-link, etc.) keep
+   their own distinct look untouched. .btn-primary/.btn-outline also work
+   standalone (outside those containers) since they repeat the full shape,
+   not just the color. */
+.modal-actions button,
+.home-create-form button,
+.union-notes-actions button,
+.field-row button,
+.btn-primary,
+.btn-outline {
   font-size: 0.9rem;
-  padding: 0.4rem 0.9rem;
-  border-radius: 6px;
-  border: 1px solid #ccc;
+  font-weight: 700;
+  padding: 0.5rem 1.25rem;
+  border-radius: 999px;
+  border: 1.5px solid #ccc;
   cursor: pointer;
   background: #fff;
   color: var(--color-forest);
+  transition: background 150ms ease, border-color 150ms ease, color 150ms ease, box-shadow 150ms ease;
 }
 
-.modal-actions button[type="submit"] {
-  background: var(--color-forest);
-  border-color: var(--color-forest);
+.modal-actions button:hover:not(:disabled),
+.home-create-form button:hover:not(:disabled),
+.union-notes-actions button:hover:not(:disabled),
+.field-row button:hover:not(:disabled) {
+  border-color: var(--color-forest-light);
+  box-shadow: 0 2px 8px rgba(27, 67, 50, 0.12);
+}
+
+.modal-actions button[type="submit"],
+.home-create-form button[type="submit"],
+.union-notes-actions button[type="submit"],
+.field-row button[type="submit"],
+button.btn-primary {
+  background: var(--color-forest-light);
+  border-color: var(--color-forest-light);
   color: #fff;
 }
 
-.modal-actions button:disabled {
-  opacity: 0.6;
+.modal-actions button[type="submit"]:hover:not(:disabled),
+.home-create-form button[type="submit"]:hover:not(:disabled),
+.union-notes-actions button[type="submit"]:hover:not(:disabled),
+.field-row button[type="submit"]:hover:not(:disabled),
+.modal-actions button[type="submit"]:active:not(:disabled),
+.home-create-form button[type="submit"]:active:not(:disabled),
+button.btn-primary:hover:not(:disabled),
+button.btn-primary:active:not(:disabled) {
+  background: var(--color-forest);
+  border-color: var(--color-forest);
+  box-shadow: 0 3px 10px rgba(27, 67, 50, 0.25);
+}
+
+button.btn-outline {
+  background: #fff;
+  border-color: var(--color-forest-light);
+  color: var(--color-forest);
+}
+
+button.btn-outline:hover:not(:disabled) {
+  background: rgba(116, 168, 146, 0.12);
+  border-color: var(--color-forest);
+}
+
+.modal-actions button:disabled,
+.home-create-form button:disabled,
+.union-notes-actions button:disabled,
+.field-row button:disabled,
+button.btn-primary:disabled,
+button.btn-outline:disabled {
+  background: #ececec;
+  border-color: transparent;
+  color: #9ca3af;
+  font-weight: 600;
   cursor: default;
+  box-shadow: none;
 }
 
 .danger-zone {
@@ -1729,20 +1792,26 @@ body {
 
 .delete-button {
   font-size: 0.9rem;
-  padding: 0.4rem 0.9rem;
-  border-radius: 6px;
-  border: 1px solid #b00020;
+  font-weight: 700;
+  padding: 0.5rem 1.25rem;
+  border-radius: 999px;
+  border: 1.5px solid #b00020;
   background: #fff;
   color: #b00020;
   cursor: pointer;
+  transition: background 150ms ease, box-shadow 150ms ease;
 }
 
-.delete-button:hover {
+.delete-button:hover:not(:disabled) {
   background: #fdecee;
+  box-shadow: 0 2px 8px rgba(176, 0, 32, 0.15);
 }
 
 .delete-button:disabled {
-  opacity: 0.6;
+  background: #ececec;
+  border-color: transparent;
+  color: #9ca3af;
+  font-weight: 600;
   cursor: default;
 }
 
@@ -1837,17 +1906,29 @@ body {
 
 .auth-form button[type="submit"] {
   margin-top: 0.25rem;
-  padding: 0.6rem;
-  border: none;
-  border-radius: 6px;
-  background: var(--color-forest);
+  padding: 0.65rem;
+  border: 1.5px solid var(--color-forest-light);
+  border-radius: 999px;
+  background: var(--color-forest-light);
   color: #fff;
   font-size: 0.95rem;
+  font-weight: 700;
   cursor: pointer;
+  transition: background 150ms ease, border-color 150ms ease, box-shadow 150ms ease;
+}
+
+.auth-form button[type="submit"]:hover:not(:disabled),
+.auth-form button[type="submit"]:active:not(:disabled) {
+  background: var(--color-forest);
+  border-color: var(--color-forest);
+  box-shadow: 0 3px 10px rgba(27, 67, 50, 0.25);
 }
 
 .auth-form button[type="submit"]:disabled {
-  opacity: 0.6;
+  background: #ececec;
+  border-color: transparent;
+  color: #9ca3af;
+  font-weight: 600;
   cursor: default;
 }
 
@@ -2050,17 +2131,20 @@ body {
 
 .home-create-button {
   align-self: flex-start;
-  padding: 0.5rem 1rem;
-  border: 1px dashed rgba(27, 67, 50, 0.4);
-  border-radius: 6px;
-  background: none;
+  padding: 0.55rem 1.3rem;
+  border: 1.5px solid var(--color-forest-light);
+  border-radius: 999px;
+  background: #fff;
   color: var(--color-forest);
+  font-weight: 700;
   cursor: pointer;
+  transition: background 150ms ease, border-color 150ms ease, box-shadow 150ms ease;
 }
 
 .home-create-button:hover {
-  border-color: var(--color-amber);
-  color: var(--color-amber);
+  background: rgba(116, 168, 146, 0.12);
+  border-color: var(--color-forest);
+  box-shadow: 0 2px 8px rgba(27, 67, 50, 0.12);
 }
 
 .home-footer-credit {

@@ -260,7 +260,7 @@ export default function MergeReviewModal({ treeId, aId, bId, onMerged, onClose }
               <button type="button" onClick={onClose} disabled={submitting}>
                 {t("common.cancel")}
               </button>
-              <button type="button" onClick={handleSubmit} disabled={submitting}>
+              <button type="button" className="btn-primary" onClick={handleSubmit} disabled={submitting}>
                 {submitting ? t("mergeReview.confirming") : t("mergeReview.confirm")}
               </button>
             </div>

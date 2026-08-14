@@ -125,7 +125,7 @@ export default function RelationshipWizard({ treeId, personIds, onFinished, onCl
             <button type="button" onClick={onClose}>
               {t("relationshipWizard.skipAll")}
             </button>
-            <button type="button" onClick={() => setStarted(true)}>
+            <button type="button" className="btn-primary" onClick={() => setStarted(true)}>
               {t("relationshipWizard.start")}
             </button>
           </div>
@@ -141,7 +141,7 @@ export default function RelationshipWizard({ treeId, personIds, onFinished, onCl
           <h2>{t("relationshipWizard.doneTitle")}</h2>
           <p>{t("relationshipWizard.doneBody")}</p>
           <div className="modal-actions">
-            <button type="button" onClick={handleFinishNow}>
+            <button type="button" className="btn-primary" onClick={handleFinishNow}>
               {t("common.close")}
             </button>
           </div>
@@ -218,7 +218,7 @@ export default function RelationshipWizard({ treeId, personIds, onFinished, onCl
           <button type="button" onClick={handleFinishNow}>
             {t("relationshipWizard.finishNow")}
           </button>
-          <button type="button" onClick={() => setIndex((i) => i + 1)}>
+          <button type="button" className="btn-primary" onClick={() => setIndex((i) => i + 1)}>
             {t("relationshipWizard.next")}
           </button>
         </div>

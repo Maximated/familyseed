@@ -221,6 +221,39 @@ async function attachParent(
 
   for (const link of existingLinks) {
     const { family } = link;
+    if (family.partner1Id && family.partner2Id) continue;
+    const knownOtherParentId = family.partner1Id ?? family.partner2Id;
+
+    // Filling this empty slot completes the couple — if a Family already
+    // exists for this exact pair elsewhere in the tree (e.g. an earlier
+    // sibling got linked to this same couple first, so their own
+    // still-empty-slot family was a different row), merge into that one
+    // instead of completing this child's own row into a second, duplicate
+    // Family for the same two people.
+    if (knownOtherParentId) {
+      const existingCouple = await db.family.findFirst({
+        where: {
+          treeId,
+          id: { not: family.id },
+          OR: [
+            { partner1Id: knownOtherParentId, partner2Id: parentId },
+            { partner1Id: parentId, partner2Id: knownOtherParentId },
+          ],
+        },
+      });
+      if (existingCouple) {
+        await db.familyChild.update({
+          where: { familyId_individualId: { familyId: family.id, individualId: childId } },
+          data: { familyId: existingCouple.id },
+        });
+        const remainingChildren = await db.familyChild.count({ where: { familyId: family.id } });
+        if (remainingChildren === 0) {
+          await db.family.delete({ where: { id: family.id } });
+        }
+        return { familyId: existingCouple.id };
+      }
+    }
+
     if (!family.partner1Id) {
       await db.family.update({ where: { id: family.id }, data: { partner1Id: parentId } });
       return { familyId: family.id };
@@ -363,16 +396,20 @@ export default async function individualRoutes(fastify: FastifyInstance) {
       return reply.code(404).send({ error: `No existe el individuo ${id}` });
     }
 
-    const parents = [];
+    // Keyed by parent id (not a plain array) so leftover duplicate Family
+    // rows for the exact same couple — a data bug that's since been fixed
+    // at the write side, but may still exist for trees created before that
+    // fix — don't show the same parent twice.
+    const parents = new Map<string, unknown>();
     const siblings = new Map<string, unknown>();
 
     for (const familyChild of individual.childOf) {
       const { family } = familyChild;
       if (isActive(family.partner1)) {
-        parents.push({ ...family.partner1, relationType: familyChild.relationType, familyId: family.id });
+        parents.set(family.partner1.id, { ...family.partner1, relationType: familyChild.relationType, familyId: family.id });
       }
       if (isActive(family.partner2)) {
-        parents.push({ ...family.partner2, relationType: familyChild.relationType, familyId: family.id });
+        parents.set(family.partner2.id, { ...family.partner2, relationType: familyChild.relationType, familyId: family.id });
       }
       for (const sibling of family.children) {
         if (sibling.individualId !== id && isActive(sibling.individual)) {
@@ -385,12 +422,15 @@ export default async function individualRoutes(fastify: FastifyInstance) {
       }
     }
 
-    const partnerships = [];
+    // Same reasoning as `parents` above — keyed by partner id (falling back
+    // to familyId for a still-single/no-partner-yet family, which has no
+    // partner id to key on but also can't collide with a real duplicate).
+    const partnerships = new Map<string, unknown>();
     const children = new Map<string, unknown>();
 
     for (const family of individual.familiesAsPartner1) {
       if (family.partner2 && !isActive(family.partner2)) continue;
-      partnerships.push({
+      partnerships.set(family.partner2?.id ?? family.id, {
         familyId: family.id,
         partner: family.partner2,
         unionType: family.unionType,
@@ -405,7 +445,7 @@ export default async function individualRoutes(fastify: FastifyInstance) {
 
     for (const family of individual.familiesAsPartner2) {
       if (family.partner1 && !isActive(family.partner1)) continue;
-      partnerships.push({
+      partnerships.set(family.partner1?.id ?? family.id, {
         familyId: family.id,
         partner: family.partner1,
         unionType: family.unionType,
@@ -422,9 +462,9 @@ export default async function individualRoutes(fastify: FastifyInstance) {
 
     return {
       individual: { ...individualData, lineageIds: lineages.map((l) => l.lineageId) },
-      parents,
+      parents: [...parents.values()],
       siblings: [...siblings.values()],
-      partnerships,
+      partnerships: [...partnerships.values()],
       children: [...children.values()],
     };
   });

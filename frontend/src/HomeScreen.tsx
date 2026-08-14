@@ -102,6 +102,7 @@ export default function HomeScreen() {
   const [error, setError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [newTreeName, setNewTreeName] = useState("");
+  const [createError, setCreateError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [importing, setImporting] = useState(false);
   const importFileRef = useRef<HTMLInputElement>(null);
@@ -130,23 +131,30 @@ export default function HomeScreen() {
 
   async function handleCreate(event: React.FormEvent) {
     event.preventDefault();
-    if (!newTreeName.trim()) return;
+    if (!newTreeName.trim()) {
+      setCreateError(t("home.createTreeNameRequired"));
+      return;
+    }
     setSubmitting(true);
-    setError(null);
+    setCreateError(null);
     try {
       const tree = await createTree(newTreeName.trim());
       setCreating(false);
       setNewTreeName("");
       navigate(`/tree/${tree.id}`);
     } catch (err) {
-      setError((err as Error).message);
+      setCreateError((err as Error).message);
     } finally {
       setSubmitting(false);
     }
   }
 
   function handleImportClick() {
-    if (!newTreeName.trim()) return;
+    if (!newTreeName.trim()) {
+      setCreateError(t("home.createTreeNameRequired"));
+      return;
+    }
+    setCreateError(null);
     importFileRef.current?.click();
   }
 
@@ -161,12 +169,12 @@ export default function HomeScreen() {
     const isCsv = name.endsWith(".csv");
     const isGed = name.endsWith(".ged");
     if (!isCsv && !isGed) {
-      setError(t("gedcom.importErrorType"));
+      setCreateError(t("gedcom.importErrorType"));
       return;
     }
 
     setImporting(true);
-    setError(null);
+    setCreateError(null);
     try {
       const tree = await createTree(newTreeName.trim());
       const imported = isCsv ? await importCsv(tree.id, file) : await importGedcom(tree.id, file);
@@ -178,7 +186,7 @@ export default function HomeScreen() {
         navigate(`/tree/${tree.id}`);
       }
     } catch (err) {
-      setError((err as Error).message);
+      setCreateError((err as Error).message);
     } finally {
       setImporting(false);
     }
@@ -253,31 +261,44 @@ export default function HomeScreen() {
       )}
 
       {creating ? (
-        <form className="home-create-form" onSubmit={handleCreate}>
-          <input
-            type="text"
-            placeholder={t("home.createTreePlaceholder")}
-            value={newTreeName}
-            onChange={(e) => setNewTreeName(e.target.value)}
-            autoFocus
-          />
-          <button type="submit" disabled={submitting || importing}>
-            {t("home.createTreeSubmit")}
-          </button>
-          <button type="button" onClick={handleImportClick} disabled={submitting || importing}>
-            {importing ? t("home.importingTree") : t("home.createTreeImport")}
-          </button>
-          <button type="button" onClick={() => setCreating(false)} disabled={submitting || importing}>
-            {t("home.createTreeCancel")}
-          </button>
-          <input
-            ref={importFileRef}
-            type="file"
-            accept=".ged,.csv"
-            onChange={handleImportFile}
-            style={{ display: "none" }}
-          />
-        </form>
+        <div className="home-create-block">
+          <form className="home-create-form" onSubmit={handleCreate}>
+            <input
+              type="text"
+              placeholder={t("home.createTreePlaceholder")}
+              value={newTreeName}
+              onChange={(e) => {
+                setNewTreeName(e.target.value);
+                if (createError) setCreateError(null);
+              }}
+              autoFocus
+            />
+            <button type="submit" disabled={submitting || importing}>
+              {t("home.createTreeSubmit")}
+            </button>
+            <button type="button" className="btn-outline" onClick={handleImportClick} disabled={submitting || importing}>
+              {importing ? t("home.importingTree") : t("home.createTreeImport")}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setCreating(false);
+                setCreateError(null);
+              }}
+              disabled={submitting || importing}
+            >
+              {t("home.createTreeCancel")}
+            </button>
+            <input
+              ref={importFileRef}
+              type="file"
+              accept=".ged,.csv"
+              onChange={handleImportFile}
+              style={{ display: "none" }}
+            />
+          </form>
+          {createError && <p className="status status-error">{createError}</p>}
+        </div>
       ) : (
         <button type="button" className="home-create-button" onClick={() => setCreating(true)}>
           {t("home.createTree")}

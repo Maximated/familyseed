@@ -91,6 +91,23 @@ export default async function familyRoutes(fastify: FastifyInstance) {
           if (!partner2) {
             throw new HttpError(404, `No existe el individuo ${partner2Id}`);
           }
+
+          // Nothing at the DB level stops two Family rows existing for the
+          // exact same couple — guard here instead of silently creating a
+          // duplicate union (order-independent, since partner1/partner2 are
+          // just "which side" not a meaningful ranking).
+          const existingCouple = await tx.family.findFirst({
+            where: {
+              treeId,
+              OR: [
+                { partner1Id, partner2Id },
+                { partner1Id: partner2Id, partner2Id: partner1Id },
+              ],
+            },
+          });
+          if (existingCouple) {
+            throw new HttpError(400, "Ya existe una unión entre estas dos personas");
+          }
         }
 
         const created = await tx.family.create({

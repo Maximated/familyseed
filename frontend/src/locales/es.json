@@ -373,6 +373,7 @@
     "artCredit": "Ilustración del árbol:",
     "createTree": "Crear árbol nuevo",
     "createTreePlaceholder": "Nombre del árbol nuevo…",
+    "createTreeNameRequired": "Ponle un nombre al árbol antes de continuar.",
     "createTreeSubmit": "Crear",
     "createTreeImport": "Importar CSV/GEDCOM…",
     "importingTree": "Importando…",
