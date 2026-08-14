@@ -760,6 +760,7 @@ function App() {
   // already does on its own — for data that predates that feature, or an
   // older import that ran before this codebase's own gap was fixed.
   async function handleDeriveLineages() {
+    if (!treeId) return;
     setDerivingLineages(true);
     setDeriveLineagesMessage(null);
     try {

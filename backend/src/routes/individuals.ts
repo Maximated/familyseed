@@ -269,6 +269,42 @@ async function attachParent(
   return { familyId: family.id };
 }
 
+// The undo for a mistaken attachParent call — recovers from picking the
+// wrong person as someone's parent without having to delete and recreate
+// the child. `childId`'s FamilyChild rows are searched (across all their
+// families, not just one) for a family where `parentId` is either partner:
+//   - if the family still has its other partner slot filled, only that one
+//     slot is cleared (data.partner1Id/partner2Id -> null) — this is a real
+//     two-parent family, so every child of it shares the same correction,
+//     and the other parent/the union itself stays intact.
+//   - if `parentId` was the only known parent on that family, there's
+//     nothing left tying this child to it, so the FamilyChild link itself
+//     is removed instead (leaving the family — and any of its other
+//     children — untouched).
+async function detachParent(db: Prisma.TransactionClient, treeId: string, childId: string, parentId: string): Promise<void> {
+  const links = await db.familyChild.findMany({
+    where: { individualId: childId, family: { treeId } },
+    include: { family: true },
+  });
+
+  const link = links.find((l) => l.family.partner1Id === parentId || l.family.partner2Id === parentId);
+  if (!link) {
+    throw new HttpError(404, "Esa persona no es su padre/madre");
+  }
+
+  const { family } = link;
+  const otherPartnerId = family.partner1Id === parentId ? family.partner2Id : family.partner1Id;
+
+  if (otherPartnerId) {
+    await db.family.update({
+      where: { id: family.id },
+      data: family.partner1Id === parentId ? { partner1Id: null } : { partner2Id: null },
+    });
+  } else {
+    await db.familyChild.delete({ where: { id: link.id } });
+  }
+}
+
 // Shared by "create a new person as partner of X" (relationship.kind =
 // PARTNER below) — links `newPersonId` as partner of `existingPersonId`,
 // reusing an existing family where `existingPersonId` is already a partner
@@ -760,6 +796,37 @@ export default async function individualRoutes(fastify: FastifyInstance) {
         summary: `${personLabel(parent)} → ${personLabel(child)}`,
       });
       return reply.code(201).send(result);
+    } catch (error) {
+      if (error instanceof HttpError) {
+        return reply.code(error.statusCode).send({ error: error.message });
+      }
+      throw error;
+    }
+  });
+
+  // Undoes a mistaken addParent — see detachParent's own comment for what
+  // this does to the underlying Family row depending on whether the other
+  // parent is known. Never touches the child or parent Individual rows
+  // themselves, only the relationship between them.
+  fastify.delete("/:id/parents/:parentId", async (request, reply) => {
+    const { id, parentId } = request.params as { id: string; parentId: string };
+    const treeId = request.treeId!;
+
+    const child = await prisma.individual.findFirst({ where: { id, treeId, deletedAt: null } });
+    if (!child) {
+      return reply.code(404).send({ error: `No existe el individuo ${id}` });
+    }
+
+    try {
+      await prisma.$transaction((tx) => detachParent(tx, treeId, id, parentId));
+      await logChange({
+        treeId,
+        userId: request.userId ?? null,
+        action: "individual.removeParent",
+        entityType: "Individual",
+        entityId: id,
+      });
+      return reply.code(204).send();
     } catch (error) {
       if (error instanceof HttpError) {
         return reply.code(error.statusCode).send({ error: error.message });

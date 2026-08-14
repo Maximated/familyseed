@@ -657,6 +657,13 @@ export async function addParent(treeId: string, personId: string, parentId: stri
   await throwIfNotOk(res);
 }
 
+// Undoes a mistaken addParent — removes just that one relationship,
+// without deleting either person.
+export async function removeParent(treeId: string, personId: string, parentId: string): Promise<void> {
+  const res = await apiFetch(`/trees/${treeId}/individuals/${personId}/parents/${parentId}`, { method: "DELETE" });
+  await throwIfNotOk(res);
+}
+
 export type CreateFamilyPayload = {
   partner1Id: string;
   partner2Id?: string;

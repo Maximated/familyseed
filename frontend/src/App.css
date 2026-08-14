@@ -1290,6 +1290,24 @@ body {
   font-size: 0.9rem;
 }
 
+.edit-parents-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.edit-parents-list li .icon-button {
+  width: 26px;
+  height: 26px;
+  flex-shrink: 0;
+  color: var(--color-text-secondary);
+}
+
+.edit-parents-list li .icon-button:hover {
+  color: #b00020;
+}
+
 .share-members-list {
   margin: 0;
   padding: 0;

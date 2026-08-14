@@ -9,6 +9,7 @@ import {
   fetchLineages,
   mediaUrl,
   removeIndividualLineage,
+  removeParent,
   updateIndividual,
   uploadPersonPhoto,
   type DatePrecision,
@@ -20,6 +21,7 @@ import {
 } from "./api";
 import { resizeImage } from "./media";
 import PersonPicker from "./PersonPicker";
+import { Trash2Icon } from "./Icons";
 
 // The backend stores full ISO timestamps (UTC midnight) for date-value
 // fields; `<input type="date">` needs just the `YYYY-MM-DD` prefix.
@@ -178,6 +180,34 @@ export default function EditPersonForm({ treeId, personId, onSaved, onDeleted, o
     }
   }
 
+  // Undoes a wrongly-picked parent — a mistake here is easy to make (the
+  // picker only searches by name) and previously the only fix was deleting
+  // the person entirely and starting over.
+  async function handleRemoveParent(parentId: string) {
+    setParentError(null);
+    try {
+      await removeParent(treeId, personId, parentId);
+      const { parents: updatedParents } = await fetchIndividualRelations(treeId, personId);
+      setParents(updatedParents);
+      onRelationsChanged();
+    } catch (err) {
+      setParentError((err as Error).message);
+    }
+  }
+
+  // Same removeParent endpoint, roles reversed like handleAddChild above.
+  async function handleRemoveChild(childId: string) {
+    setChildError(null);
+    try {
+      await removeParent(treeId, childId, personId);
+      const { children: updatedChildren } = await fetchIndividualRelations(treeId, personId);
+      setChildren(updatedChildren);
+      onRelationsChanged();
+    } catch (err) {
+      setChildError((err as Error).message);
+    }
+  }
+
   function handlePhotoChange(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -270,7 +300,18 @@ export default function EditPersonForm({ treeId, personId, onSaved, onDeleted, o
               ) : (
                 <ul className="edit-parents-list">
                   {parents.map((parent) => (
-                    <li key={parent.id}>{`${parent.givenNames} ${parent.surname1}`}</li>
+                    <li key={parent.id}>
+                      <span>{`${parent.givenNames} ${parent.surname1}`}</span>
+                      <button
+                        type="button"
+                        className="icon-button"
+                        onClick={() => handleRemoveParent(parent.id)}
+                        aria-label={t("editPerson.removeParent")}
+                        title={t("editPerson.removeParent")}
+                      >
+                        <Trash2Icon size={14} />
+                      </button>
+                    </li>
                   ))}
                 </ul>
               )}
@@ -292,7 +333,18 @@ export default function EditPersonForm({ treeId, personId, onSaved, onDeleted, o
               ) : (
                 <ul className="edit-parents-list">
                   {children.map((child) => (
-                    <li key={child.id}>{`${child.givenNames} ${child.surname1}`}</li>
+                    <li key={child.id}>
+                      <span>{`${child.givenNames} ${child.surname1}`}</span>
+                      <button
+                        type="button"
+                        className="icon-button"
+                        onClick={() => handleRemoveChild(child.id)}
+                        aria-label={t("editPerson.removeChild")}
+                        title={t("editPerson.removeChild")}
+                      >
+                        <Trash2Icon size={14} />
+                      </button>
+                    </li>
                   ))}
                 </ul>
               )}
