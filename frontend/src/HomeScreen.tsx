@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
-import { createTree, fetchTrees, type TreeSummary } from "./api";
+import { createTree, fetchTrees, importCsv, importGedcom, type TreeSummary } from "./api";
 import { useAuth } from "./AuthContext";
 import LanguageSwitcher from "./LanguageSwitcher";
 import GedcomView from "./GedcomView";
@@ -102,6 +102,8 @@ export default function HomeScreen() {
   const [creating, setCreating] = useState(false);
   const [newTreeName, setNewTreeName] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const importFileRef = useRef<HTMLInputElement>(null);
   const [gedcomTreeId, setGedcomTreeId] = useState<string | null>(null);
   const [reportTreeId, setReportTreeId] = useState<string | null>(null);
   const [shareTreeId, setShareTreeId] = useState<string | null>(null);
@@ -138,6 +140,42 @@ export default function HomeScreen() {
       setError((err as Error).message);
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  function handleImportClick() {
+    if (!newTreeName.trim()) return;
+    importFileRef.current?.click();
+  }
+
+  // Creates the tree and imports the chosen file into it in one step,
+  // rather than creating an empty tree first and offering import as a
+  // separate follow-up screen.
+  async function handleImportFile(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    const name = file.name.toLowerCase();
+    const isCsv = name.endsWith(".csv");
+    const isGed = name.endsWith(".ged");
+    if (!isCsv && !isGed) {
+      setError(t("gedcom.importErrorType"));
+      return;
+    }
+
+    setImporting(true);
+    setError(null);
+    try {
+      const tree = await createTree(newTreeName.trim());
+      if (isCsv) await importCsv(tree.id, file);
+      else await importGedcom(tree.id, file);
+      setCreating(false);
+      setNewTreeName("");
+      navigate(`/tree/${tree.id}`);
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setImporting(false);
     }
   }
 
@@ -218,12 +256,22 @@ export default function HomeScreen() {
             onChange={(e) => setNewTreeName(e.target.value)}
             autoFocus
           />
-          <button type="submit" disabled={submitting}>
+          <button type="submit" disabled={submitting || importing}>
             {t("home.createTreeSubmit")}
           </button>
-          <button type="button" onClick={() => setCreating(false)} disabled={submitting}>
+          <button type="button" onClick={handleImportClick} disabled={submitting || importing}>
+            {importing ? t("home.importingTree") : t("home.createTreeImport")}
+          </button>
+          <button type="button" onClick={() => setCreating(false)} disabled={submitting || importing}>
             {t("home.createTreeCancel")}
           </button>
+          <input
+            ref={importFileRef}
+            type="file"
+            accept=".ged,.csv"
+            onChange={handleImportFile}
+            style={{ display: "none" }}
+          />
         </form>
       ) : (
         <button type="button" className="home-create-button" onClick={() => setCreating(true)}>

@@ -359,6 +359,20 @@ export async function createLineage(treeId: string, name: string, color?: string
   return parseJsonOrThrow(res);
 }
 
+export async function updateLineage(treeId: string, id: string, name: string): Promise<Lineage> {
+  const res = await apiFetch(`/trees/${treeId}/lineages/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name }),
+  });
+  return parseJsonOrThrow(res);
+}
+
+export async function deleteLineage(treeId: string, id: string): Promise<void> {
+  const res = await apiFetch(`/trees/${treeId}/lineages/${id}`, { method: "DELETE" });
+  await throwIfNotOk(res);
+}
+
 export async function addIndividualLineage(treeId: string, id: string, lineageId: string): Promise<void> {
   const res = await apiFetch(`/trees/${treeId}/individuals/${id}/lineages`, {
     method: "POST",

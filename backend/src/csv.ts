@@ -1,6 +1,7 @@
 import { parse as parseCsvSync } from "csv-parse/sync";
 import { stringify as stringifyCsvSync } from "csv-stringify/sync";
 import { prisma } from "./db.js";
+import { deriveLineagesFromSurnames } from "./routes/individuals.js";
 
 // ---------------------------------------------------------------------
 // Shared types
@@ -262,6 +263,11 @@ export async function importCsvIntoTree(treeId: string, text: string): Promise<{
           : await tx.individual.create({ data: { treeId, ...data } });
 
         if (ind.csvId) csvIdToDbId.set(ind.csvId, row.id);
+
+        // Same auto-derivation a manual create/edit gets — otherwise a
+        // bulk import silently skips the "ramas" (lineages) every other
+        // way of adding a person already builds up automatically.
+        await deriveLineagesFromSurnames(tx, treeId, row.id, [ind.surname1, ind.surname1BirthName]);
       }
 
       // Group children by (father, mother) pair so siblings share one

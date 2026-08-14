@@ -44,6 +44,7 @@ import {
 import ShareTreeModal from "./ShareTreeModal";
 import DuplicatesView from "./DuplicatesView";
 import LinkPeopleModal from "./LinkPeopleModal";
+import LineagesManageView from "./LineagesManageView";
 import PhotoLightbox from "./PhotoLightbox";
 
 // Generous enough that a realistic family tree's every reachable ancestor/
@@ -342,6 +343,7 @@ function App() {
   const [editingPersonId, setEditingPersonId] = useState<string | null>(null);
   const [showTrash, setShowTrash] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
+  const [showLineagesManage, setShowLineagesManage] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
   const [showDuplicates, setShowDuplicates] = useState(false);
   const [showLinkPeople, setShowLinkPeople] = useState(false);
@@ -860,6 +862,16 @@ function App() {
               {showLineageMenu && (
                 <div className="popover lineage-popover">
                   <LineageChips lineages={lineages} selectedIds={selectedLineageIds} onChange={setSelectedLineageIds} />
+                  <button
+                    type="button"
+                    className="union-notes-edit-link"
+                    onClick={() => {
+                      setShowLineageMenu(false);
+                      setShowLineagesManage(true);
+                    }}
+                  >
+                    {t("lineagesManage.manageLink")}
+                  </button>
                 </div>
               )}
             </div>
@@ -979,7 +991,23 @@ function App() {
         />
       )}
       {showSearch && (
-        <IndividualsSearchView treeId={treeId} onNavigateToPerson={handleNavigateToPerson} onClose={() => setShowSearch(false)} />
+        <IndividualsSearchView
+          treeId={treeId}
+          onNavigateToPerson={handleNavigateToPerson}
+          onEditPerson={(id) => {
+            setEditingPersonId(id);
+            setShowSearch(false);
+          }}
+          onClose={() => setShowSearch(false)}
+        />
+      )}
+      {showLineagesManage && (
+        <LineagesManageView
+          treeId={treeId}
+          lineages={lineages}
+          onChanged={() => fetchLineages(treeId).then(setLineages).catch(() => {})}
+          onClose={() => setShowLineagesManage(false)}
+        />
       )}
       {showLinkPeople && (
         <LinkPeopleModal

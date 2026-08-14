@@ -1,10 +1,17 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { fetchIndividuals, fetchLineages, type Individual, type Lineage } from "./api";
+import { PencilIcon } from "./Icons";
 
 type Props = {
   treeId: string;
   onNavigateToPerson: (personId: string) => void;
+  // Optional: renders an edit button per result that opens EditPersonForm
+  // directly instead of jumping into the tree canvas — used by the
+  // "Personas" menu entry, where the point is editing someone who might
+  // not even render on the canvas yet (e.g. right after a CSV import with
+  // no relationships), not navigating to them.
+  onEditPerson?: (personId: string) => void;
   onClose: () => void;
 };
 
@@ -14,7 +21,7 @@ function personLine(p: Individual): string {
   return `${[p.givenNames, surname].filter(Boolean).join(" ")}${year}`;
 }
 
-export default function IndividualsSearchView({ treeId, onNavigateToPerson, onClose }: Props) {
+export default function IndividualsSearchView({ treeId, onNavigateToPerson, onEditPerson, onClose }: Props) {
   const { t } = useTranslation();
   const [search, setSearch] = useState("");
   const [lineageId, setLineageId] = useState("");
@@ -120,7 +127,7 @@ export default function IndividualsSearchView({ treeId, onNavigateToPerson, onCl
         ) : (
           <ul className="trash-list">
             {results.map((person) => (
-              <li key={person.id}>
+              <li key={person.id} className="search-result-row">
                 <button
                   type="button"
                   className="search-result-item"
@@ -131,6 +138,17 @@ export default function IndividualsSearchView({ treeId, onNavigateToPerson, onCl
                 >
                   {personLine(person)}
                 </button>
+                {onEditPerson && (
+                  <button
+                    type="button"
+                    className="icon-button search-result-edit"
+                    onClick={() => onEditPerson(person.id)}
+                    aria-label={t("editPerson.title")}
+                    title={t("editPerson.title")}
+                  >
+                    <PencilIcon size={16} />
+                  </button>
+                )}
               </li>
             ))}
           </ul>

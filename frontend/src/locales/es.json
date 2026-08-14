@@ -186,6 +186,9 @@
     "parentsLegend": "Padres",
     "noParents": "Sin padres registrados todavía.",
     "addParent": "+ Vincular padre/madre existente",
+    "childrenLegend": "Hijos",
+    "noChildren": "Sin hijos registrados todavía.",
+    "addChild": "+ Vincular hijo/a existente",
     "lineagesLegend": "Ramas",
     "lineagesHint": "Se crean automáticamente a partir del apellido y el apellido de nacimiento al guardar. Puedes desmarcar las que no correspondan o añadir otras a mano.",
     "noLineages": "Todavía no hay ninguna rama creada en este árbol.",
@@ -223,6 +226,13 @@
     "noResults": "No hay nadie que coincida con estos filtros.",
     "resultsCount_one": "{{count}} persona encontrada",
     "resultsCount_other": "{{count}} personas encontradas"
+  },
+  "lineagesManage": {
+    "title": "Gestionar ramas",
+    "hint": "Renombra o elimina las ramas de este árbol. Eliminar una rama no elimina a las personas, solo quita la agrupación.",
+    "deleteAction": "Eliminar rama",
+    "confirmDelete": "¿Eliminar la rama \"{{name}}\"?",
+    "manageLink": "Gestionar ramas…"
   },
   "share": {
     "title": "Compartir árbol",
@@ -351,6 +361,8 @@
     "createTree": "Crear árbol nuevo",
     "createTreePlaceholder": "Nombre del árbol nuevo…",
     "createTreeSubmit": "Crear",
+    "createTreeImport": "Importar CSV/GEDCOM…",
+    "importingTree": "Importando…",
     "createTreeCancel": "Cancelar"
   }
 }

@@ -1465,6 +1465,15 @@ body {
   border-color: var(--color-amber);
 }
 
+.search-result-row .search-result-item {
+  width: auto;
+  flex: 1;
+}
+
+.search-result-edit {
+  flex-shrink: 0;
+}
+
 .modal-backdrop {
   position: fixed;
   inset: 0;

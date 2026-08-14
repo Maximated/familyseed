@@ -1,5 +1,6 @@
 import { parse } from "parse-gedcom";
 import { prisma } from "./db.js";
+import { deriveLineagesFromSurnames } from "./routes/individuals.js";
 
 // ---------------------------------------------------------------------
 // Shared types
@@ -395,6 +396,10 @@ export async function importGedcomIntoTree(
           },
         });
         xrefToId.set(ind.xref, row.id);
+
+        // Same auto-derivation a manual create/edit gets — GEDCOM has no
+        // birth-surname concept to pass through, just the current one.
+        await deriveLineagesFromSurnames(tx, treeId, row.id, [ind.surname1]);
       }
 
       let familiesWritten = 0;

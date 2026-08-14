@@ -68,6 +68,10 @@ export default function EditPersonForm({ treeId, personId, onSaved, onDeleted, o
   const [addingParent, setAddingParent] = useState(false);
   const [parentError, setParentError] = useState<string | null>(null);
 
+  const [children, setChildren] = useState<RelatedPerson[]>([]);
+  const [addingChild, setAddingChild] = useState(false);
+  const [childError, setChildError] = useState<string | null>(null);
+
   const [lineages, setLineages] = useState<Lineage[]>([]);
   const [lineageIds, setLineageIds] = useState<string[]>([]);
   const [addingLineage, setAddingLineage] = useState(false);
@@ -79,7 +83,7 @@ export default function EditPersonForm({ treeId, personId, onSaved, onDeleted, o
 
   useEffect(() => {
     fetchIndividualRelations(treeId, personId)
-      .then(({ individual: person, parents }) => {
+      .then(({ individual: person, parents, children }) => {
         setGivenNames(person.givenNames);
         setSurname1(person.surname1);
         setSurname2(person.surname2 ?? "");
@@ -98,6 +102,7 @@ export default function EditPersonForm({ treeId, personId, onSaved, onDeleted, o
         setBiography(person.biography ?? "");
         setPhotoPreview(person.photoUrl ? mediaUrl(person.photoUrl) : null);
         setParents(parents);
+        setChildren(children);
         setLineageIds(person.lineageIds ?? []);
       })
       .catch((err: Error) => setError(err.message))
@@ -154,6 +159,22 @@ export default function EditPersonForm({ treeId, personId, onSaved, onDeleted, o
       onRelationsChanged();
     } catch (err) {
       setParentError((err as Error).message);
+    }
+  }
+
+  // Same addParent endpoint as above, just with the roles reversed: this
+  // person becomes the picked individual's parent, instead of the picked
+  // individual becoming this person's parent.
+  async function handleAddChild(child: Individual) {
+    setChildError(null);
+    try {
+      await addParent(treeId, child.id, personId);
+      const { children: updatedChildren } = await fetchIndividualRelations(treeId, personId);
+      setChildren(updatedChildren);
+      setAddingChild(false);
+      onRelationsChanged();
+    } catch (err) {
+      setChildError((err as Error).message);
     }
   }
 
@@ -262,6 +283,27 @@ export default function EditPersonForm({ treeId, personId, onSaved, onDeleted, o
                   </button>
                 ))}
               {parentError && <p className="status status-error">{parentError}</p>}
+            </fieldset>
+
+            <fieldset>
+              <legend>{t("editPerson.childrenLegend")}</legend>
+              {children.length === 0 ? (
+                <p className="field-hint">{t("editPerson.noChildren")}</p>
+              ) : (
+                <ul className="edit-parents-list">
+                  {children.map((child) => (
+                    <li key={child.id}>{`${child.givenNames} ${child.surname1}`}</li>
+                  ))}
+                </ul>
+              )}
+              {addingChild ? (
+                <PersonPicker treeId={treeId} selectedName={null} onSelect={handleAddChild} />
+              ) : (
+                <button type="button" className="union-notes-edit-link" onClick={() => setAddingChild(true)}>
+                  {t("editPerson.addChild")}
+                </button>
+              )}
+              {childError && <p className="status status-error">{childError}</p>}
             </fieldset>
 
             <fieldset>
