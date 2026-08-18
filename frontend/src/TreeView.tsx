@@ -637,6 +637,29 @@ function App() {
     };
   }, [loadTree, treeId]);
 
+  // family-chart only fits the tree to its container at chart creation and
+  // on explicit navigation (handleFitAll, handleBack, etc.) — never in
+  // response to the container itself changing size. Moving the browser
+  // window to a bigger monitor (or just maximizing it) after the tree has
+  // already rendered leaves every card and connecting line positioned for
+  // the old, smaller container: visually, lines end up running to where a
+  // card used to be rather than where it now is. Debounced so a drag-resize
+  // doesn't re-fit on every intermediate frame.
+  useEffect(() => {
+    let resizeTimer: number | undefined;
+    function handleResize() {
+      window.clearTimeout(resizeTimer);
+      resizeTimer = window.setTimeout(() => {
+        chartRef.current?.updateTree({ tree_position: "fit" });
+      }, 200);
+    }
+    window.addEventListener("resize", handleResize);
+    return () => {
+      window.clearTimeout(resizeTimer);
+      window.removeEventListener("resize", handleResize);
+    };
+  }, []);
+
   useEffect(() => {
     if (!treeId) return;
     fetchLineages(treeId)
