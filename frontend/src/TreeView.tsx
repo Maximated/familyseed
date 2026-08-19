@@ -139,8 +139,10 @@ type LinkTextDatum = { nodes: [LinkTextNode, LinkTextNode] };
 // line, as opposed to g.link-text's marriage/divorce mark on top of it.
 // `source` is an array for a child's link to its two parents, or a single
 // node for a spouse link.
+// A single-parent family (the other parent unknown) leaves that slot in
+// `source` empty rather than omitted, so it must be tolerated here too.
 type PathLinkNode = { data: { id: string } };
-type PathLinkDatum = { source: PathLinkNode | PathLinkNode[]; target: PathLinkNode };
+type PathLinkDatum = { source: PathLinkNode | (PathLinkNode | null | undefined)[]; target: PathLinkNode };
 
 // A card's own footprint, in the same local units as node.x/y — used below
 // to detect a union mark landing on top of someone else's card rather than
@@ -574,7 +576,12 @@ function App() {
       const datum = (p as unknown as { __data__?: PathLinkDatum }).__data__;
       if (!datum) return;
       const sources = Array.isArray(datum.source) ? datum.source : [datum.source];
-      const orphaned = [...sources, datum.target].some((node) => !cardIds.has(node.data.id));
+      // A single-parent family's missing other-parent slot isn't always a
+      // bare null/undefined — family-chart can leave a placeholder node
+      // there with no `.data.id` at all, which needs the same tolerance.
+      const orphaned = [...sources, datum.target]
+        .filter((node): node is PathLinkNode => node?.data?.id != null)
+        .some((node) => !cardIds.has(node.data.id));
       p.style.display = orphaned ? "none" : "";
     });
 
