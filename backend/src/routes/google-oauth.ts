@@ -89,6 +89,7 @@ export default async function googleOAuthRoutes(fastify: FastifyInstance) {
 
     reply.setCookie(SESSION_COOKIE, user.id, {
       httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
       path: "/",
       maxAge: SESSION_MAX_AGE_SECONDS,

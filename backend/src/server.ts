@@ -6,6 +6,7 @@ import cors from "@fastify/cors";
 import cookie from "@fastify/cookie";
 import multipart from "@fastify/multipart";
 import fastifyStatic from "@fastify/static";
+import rateLimit from "@fastify/rate-limit";
 import individualRoutes from "./routes/individuals.js";
 import familyRoutes from "./routes/families.js";
 import treeRoutes from "./routes/tree.js";
@@ -16,28 +17,44 @@ import gedcomRoutes from "./routes/gedcom.js";
 import csvRoutes from "./routes/csv.js";
 import treesRoutes from "./routes/trees.js";
 import copyRoutes from "./routes/copy.js";
+import uploadsRoutes from "./routes/uploads.js";
 import authRoutes, { requireAuth } from "./routes/auth.js";
 import googleOAuthRoutes from "./routes/google-oauth.js";
 import { requireTreeMembership } from "./tree-membership.js";
 import { uploadsRoot } from "./uploads.js";
 
+const isProduction = process.env.NODE_ENV === "production";
+
+// The Docker image serves the built frontend and the API from the same
+// origin (see the frontend-static block below), so production never
+// actually needs cross-origin CORS at all — only local dev does, where
+// the frontend (:5173) and backend (:3001) are genuinely separate origins.
+// Reflecting any origin in production would just be needless attack
+// surface for a request pattern that doesn't happen there.
+if (isProduction && !process.env.COOKIE_SECRET) {
+  throw new Error(
+    "COOKIE_SECRET must be set in production — refusing to start with the insecure dev fallback, " +
+      "which would let anyone who's read this source forge a session for any user.",
+  );
+}
+
 const app = Fastify({ logger: true });
 
 await mkdir(uploadsRoot(), { recursive: true });
 
-// `credentials: true` (not `origin: "*"`-compatible) so the browser will
-// actually send/accept the signed session cookie cross-origin in dev
-// (frontend :5173 -> backend :3001).
-await app.register(cors, { origin: true, credentials: true });
+await app.register(cors, isProduction ? { origin: false } : { origin: true, credentials: true });
 await app.register(cookie, {
   secret: process.env.COOKIE_SECRET ?? "dev-only-insecure-secret-change-me",
   hook: "onRequest",
 });
 await app.register(multipart, { limits: { fileSize: 15 * 1024 * 1024 } });
-await app.register(fastifyStatic, { root: uploadsRoot(), prefix: "/uploads/", decorateReply: false });
+// global: false — only routes that opt in via config.rateLimit (login,
+// register) are throttled; everything else is unaffected.
+await app.register(rateLimit, { global: false });
 
 await app.register(authRoutes, { prefix: "/auth" });
 await app.register(googleOAuthRoutes, { prefix: "/auth" });
+await app.register(uploadsRoutes, { prefix: "/uploads" });
 await app.register(treesRoutes, { prefix: "/trees" });
 // Top-level (not nested under /trees/:treeId) — copying spans a source and
 // a destination tree at once, so it does its own dual-membership check.

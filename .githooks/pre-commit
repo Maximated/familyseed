@@ -1,0 +1,13 @@
+#!/bin/sh
+# Blocks a commit if it introduces anything that looks like a secret.
+# Enable once per clone with: git config core.hooksPath .githooks
+# Requires gitleaks (https://github.com/gitleaks/gitleaks) on PATH —
+# skips silently if it isn't installed, so this never blocks a commit for
+# someone who hasn't set it up locally (CI's gitleaks workflow is the real
+# backstop either way).
+
+if ! command -v gitleaks >/dev/null 2>&1; then
+  exit 0
+fi
+
+gitleaks protect --staged --redact -v

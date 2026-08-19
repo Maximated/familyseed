@@ -30,6 +30,10 @@ const loginBodySchema = {
 function setSessionCookie(reply: FastifyReply, userId: string) {
   reply.setCookie(SESSION_COOKIE, userId, {
     httpOnly: true,
+    // Dev serves the frontend over plain http://localhost, where a
+    // secure-only cookie would never come back — production (behind the
+    // real domain) is always https, per APP_ORIGIN.
+    secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
     path: "/",
     maxAge: SESSION_MAX_AGE_SECONDS,
@@ -59,32 +63,42 @@ export default async function authRoutes(fastify: FastifyInstance) {
   // simply get googleEnabled: false.
   fastify.get("/config", async () => ({ googleEnabled: googleOAuthEnabled() }));
 
-  fastify.post("/register", { schema: { body: registerBodySchema } }, async (request, reply) => {
-    const { email, password, name } = request.body as { email: string; password: string; name?: string };
+  fastify.post(
+    "/register",
+    { schema: { body: registerBodySchema }, config: { rateLimit: { max: 5, timeWindow: "1 hour" } } },
+    async (request, reply) => {
+      const { email, password, name } = request.body as { email: string; password: string; name?: string };
 
-    const existing = await prisma.user.findUnique({ where: { email } });
-    if (existing) {
-      return reply.code(409).send({ error: "Ya existe una cuenta con ese email" });
-    }
+      const existing = await prisma.user.findUnique({ where: { email } });
+      if (existing) {
+        return reply.code(409).send({ error: "Ya existe una cuenta con ese email" });
+      }
 
-    const passwordHash = await hashPassword(password);
-    const user = await prisma.user.create({ data: { email, name, passwordHash } });
+      const passwordHash = await hashPassword(password);
+      const user = await prisma.user.create({ data: { email, name, passwordHash } });
 
-    setSessionCookie(reply, user.id);
-    return reply.code(201).send(publicUser(user));
-  });
+      setSessionCookie(reply, user.id);
+      return reply.code(201).send(publicUser(user));
+    },
+  );
 
-  fastify.post("/login", { schema: { body: loginBodySchema } }, async (request, reply) => {
-    const { email, password } = request.body as { email: string; password: string };
+  fastify.post(
+    "/login",
+    // Generous enough for a mistyped password, tight enough to make
+    // credential-stuffing / brute-forcing impractical.
+    { schema: { body: loginBodySchema }, config: { rateLimit: { max: 10, timeWindow: "1 minute" } } },
+    async (request, reply) => {
+      const { email, password } = request.body as { email: string; password: string };
 
-    const user = await prisma.user.findUnique({ where: { email } });
-    if (!user?.passwordHash || !(await verifyPassword(password, user.passwordHash))) {
-      return reply.code(401).send({ error: "Email o contraseña incorrectos" });
-    }
+      const user = await prisma.user.findUnique({ where: { email } });
+      if (!user?.passwordHash || !(await verifyPassword(password, user.passwordHash))) {
+        return reply.code(401).send({ error: "Email o contraseña incorrectos" });
+      }
 
-    setSessionCookie(reply, user.id);
-    return publicUser(user);
-  });
+      setSessionCookie(reply, user.id);
+      return publicUser(user);
+    },
+  );
 
   fastify.post("/logout", async (_request, reply) => {
     reply.clearCookie(SESSION_COOKIE, { path: "/" });
