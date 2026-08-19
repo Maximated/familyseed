@@ -63,7 +63,18 @@ export function computeBuckets(birthYears: number[], currentYear: number): Bucke
   return buckets;
 }
 
+// Prefer someone actually *born* in this bucket's range — that's what a
+// user clicking "2000" expects to land on. Falling back to "alive at some
+// point during the bucket" (sorted oldest-first) without that preference
+// would always favor a much older ancestor who simply lived long enough to
+// still be alive then, over anyone actually born in the clicked era.
 function pickRepresentative(people: TreePerson[], bucket: Bucket): string | null {
+  const born = people
+    .filter((p) => p.data.birthYear !== undefined)
+    .filter((p) => (p.data.birthYear as number) >= bucket.start && (p.data.birthYear as number) <= bucket.end)
+    .sort((a, b) => (a.data.birthYear as number) - (b.data.birthYear as number));
+  if (born.length > 0) return born[0].id;
+
   const alive = people
     .filter((p) => p.data.birthYear !== undefined)
     .filter((p) => {
@@ -88,10 +99,14 @@ type Orientation = "vertical" | "horizontal";
 // branches reaching right) and horizontal (trunk running left-to-right,
 // branches reaching down) modes share every other calculation — matching
 // the same oldest→today direction the tree canvas itself now reads in.
+// Vertical mode mirrors the across-axis — the trunk sits near the outer
+// (right) edge of the sidebar and branches/labels reach left, toward the
+// tree canvas, instead of the other way around. Horizontal mode (the
+// mobile bottom strip) is untouched.
 function toScreen(along: number, across: number, orientation: Orientation): { x: number; y: number } {
   return orientation === "horizontal"
     ? { x: along, y: TRUNK_ACROSS + across }
-    : { x: TRUNK_ACROSS + across, y: along };
+    : { x: ACROSS_EXTENT - TRUNK_ACROSS - across, y: along };
 }
 
 // Visual layout constants for the branch drawing — an organic tapered
@@ -103,8 +118,8 @@ function toScreen(along: number, across: number, orientation: Orientation): { x:
 // more spread out toward today regardless of which end that lands on;
 // the falloff is keyed to chronological recency, not to display position.
 const TRUNK_ACROSS = 18;
-const TRUNK_THIN_HALF = 1.5;
-const TRUNK_THICK_HALF = 5.5;
+const TRUNK_THIN_HALF = 1;
+const TRUNK_THICK_HALF = 4;
 const ACROSS_EXTENT = 128;
 const WEIGHT_DECAY = 0.78;
 const MIN_SLICE_LENGTH = 20;
@@ -250,6 +265,10 @@ export default function Timeline({ people, orientation, onNavigate }: Props) {
   const svgWidth = orientation === "horizontal" ? contentLength : ACROSS_EXTENT;
   const svgHeight = orientation === "horizontal" ? ACROSS_EXTENT : contentLength;
   const leafRotationOffset = orientation === "horizontal" ? 90 : 0;
+  // Vertical mode's branches now reach left instead of right (see
+  // toScreen) — mirror the leaf spread angles to match, so they still
+  // read as growing out of the branch instead of pointing backward.
+  const leafMirror = orientation === "vertical" ? -1 : 1;
 
   return (
     <div
@@ -275,7 +294,7 @@ export default function Timeline({ people, orientation, onNavigate }: Props) {
             const tip = toScreen(tipAlong, tipAcross, orientation);
             const hitArea = orientation === "horizontal"
               ? { x: mid - Math.abs(mid - tipAlong) - 10, y: TRUNK_ACROSS + edgeAcross - 2, width: Math.abs(mid - tipAlong) * 2 + 20, height: ACROSS_EXTENT - edgeAcross + 2 }
-              : { x: TRUNK_ACROSS + edgeAcross - 2, y: Math.min(mid, tipAlong) - 10, width: ACROSS_EXTENT - edgeAcross + 2, height: Math.abs(mid - tipAlong) + 20 };
+              : { x: -TRUNK_ACROSS, y: Math.min(mid, tipAlong) - 10, width: ACROSS_EXTENT - edgeAcross + 2, height: Math.abs(mid - tipAlong) + 20 };
 
             return (
               <g
@@ -289,17 +308,17 @@ export default function Timeline({ people, orientation, onNavigate }: Props) {
                 <path
                   d={LEAF_PATH}
                   className="timeline-leaf"
-                  transform={`translate(${tip.x}, ${tip.y}) rotate(${-28 + leafRotationOffset}) scale(${leafScale})`}
+                  transform={`translate(${tip.x}, ${tip.y}) rotate(${-28 * leafMirror + leafRotationOffset}) scale(${leafScale})`}
                 />
                 <path
                   d={LEAF_PATH}
                   className="timeline-leaf"
-                  transform={`translate(${tip.x}, ${tip.y}) rotate(${22 + leafRotationOffset}) scale(${leafScale})`}
+                  transform={`translate(${tip.x}, ${tip.y}) rotate(${22 * leafMirror + leafRotationOffset}) scale(${leafScale})`}
                 />
                 <text
-                  x={tip.x + (orientation === "horizontal" ? 0 : 7)}
+                  x={tip.x + (orientation === "horizontal" ? 0 : -7)}
                   y={tip.y + (orientation === "horizontal" ? 14 : 3)}
-                  textAnchor={orientation === "horizontal" ? "middle" : "start"}
+                  textAnchor={orientation === "horizontal" ? "middle" : "end"}
                   className="timeline-label"
                 >
                   {bucket.label}

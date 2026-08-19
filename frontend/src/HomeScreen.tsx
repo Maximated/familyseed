@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
-import { createTree, fetchTrees, importCsv, importGedcom, type TreeSummary } from "./api";
+import { createTree, fetchTrees, importCsv, importGedcom, updateTreeName, type TreeSummary } from "./api";
 import { useAuth } from "./AuthContext";
 import LanguageSwitcher from "./LanguageSwitcher";
 import GedcomView from "./GedcomView";
@@ -9,7 +9,7 @@ import RelationshipWizard from "./RelationshipWizard";
 import TreeReportModal from "./TreeReportModal";
 import ShareTreeModal from "./ShareTreeModal";
 import DeleteTreeModal from "./DeleteTreeModal";
-import { ArrowUpDownIcon, FileTextIcon, ShareIcon, Trash2Icon } from "./Icons";
+import { ArrowUpDownIcon, FileTextIcon, PencilIcon, ShareIcon, Trash2Icon } from "./Icons";
 
 function TreeRow({
   tree,
@@ -18,6 +18,7 @@ function TreeRow({
   onReport,
   onShare,
   onDelete,
+  onRenamed,
 }: {
   tree: TreeSummary;
   onOpen: (id: string) => void;
@@ -25,15 +26,68 @@ function TreeRow({
   onReport: (id: string) => void;
   onShare: (id: string) => void;
   onDelete: (id: string) => void;
+  onRenamed: (id: string, name: string) => void;
 }) {
   const { t } = useTranslation();
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(tree.name);
+  const [renameError, setRenameError] = useState<string | null>(null);
+
+  function startEditing(e: React.MouseEvent) {
+    e.stopPropagation();
+    setDraft(tree.name);
+    setRenameError(null);
+    setEditing(true);
+  }
+
+  async function commitRename() {
+    setEditing(false);
+    const trimmed = draft.trim();
+    if (!trimmed || trimmed === tree.name) return;
+    try {
+      await updateTreeName(tree.id, trimmed);
+      onRenamed(tree.id, trimmed);
+    } catch (err) {
+      setRenameError((err as Error).message);
+    }
+  }
+
+  function handleTitleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === "Enter") e.currentTarget.blur();
+    else if (e.key === "Escape") setEditing(false);
+  }
+
   return (
     <li className="home-tree-row">
-      <div className="home-tree-main" onClick={() => onOpen(tree.id)}>
-        <span className="home-tree-name">{tree.name}</span>
+      <div className="home-tree-main" onClick={() => !editing && onOpen(tree.id)}>
+        {editing ? (
+          <input
+            className="home-tree-name-input"
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onBlur={commitRename}
+            onKeyDown={handleTitleKeyDown}
+            onClick={(e) => e.stopPropagation()}
+            autoFocus
+          />
+        ) : (
+          <span className="home-tree-name">{tree.name}</span>
+        )}
         <span className="home-tree-role">{t(`roles.${tree.role}`)}</span>
+        {renameError && <span className="status status-error home-tree-rename-error">{renameError}</span>}
       </div>
       <div className="home-tree-actions">
+        {tree.role !== "VIEWER" && (
+          <button
+            type="button"
+            className="icon-button"
+            aria-label={t("app.renameTree")}
+            title={t("app.renameTree")}
+            onClick={startEditing}
+          >
+            <PencilIcon />
+          </button>
+        )}
         <button
           type="button"
           className="icon-button"
@@ -127,6 +181,12 @@ export default function HomeScreen() {
 
   function handleOpen(treeId: string) {
     navigate(`/tree/${treeId}`);
+  }
+
+  function handleRenamed(treeId: string, name: string) {
+    const rename = (list: TreeSummary[]) => list.map((t) => (t.id === treeId ? { ...t, name } : t));
+    setOwned(rename);
+    setShared(rename);
   }
 
   async function handleCreate(event: React.FormEvent) {
@@ -231,6 +291,7 @@ export default function HomeScreen() {
                     onReport={setReportTreeId}
                     onShare={setShareTreeId}
                     onDelete={setDeleteTreeId}
+                    onRenamed={handleRenamed}
                   />
                 ))}
               </ul>
@@ -252,6 +313,7 @@ export default function HomeScreen() {
                     onReport={setReportTreeId}
                     onShare={setShareTreeId}
                     onDelete={setDeleteTreeId}
+                    onRenamed={handleRenamed}
                   />
                 ))}
               </ul>

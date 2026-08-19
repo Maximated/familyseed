@@ -29,6 +29,7 @@
     "gedcom": "Importar/exportar",
     "search": "Buscar personas",
     "share": "Compartir árbol",
+    "renameTree": "Cambiar nombre del árbol",
     "deleteTree": "Eliminar árbol",
     "duplicates": "Personas duplicadas",
     "linkPeople": "Crear relación entre dos personas",
@@ -148,6 +149,11 @@
     "notes": "Notas",
     "biography": "Biografía",
     "biographyPlaceholder": "Un relato breve sobre esta persona: su vida, oficio, anécdotas…"
+  },
+  "photoCrop": {
+    "title": "Recortar fotografía",
+    "zoom": "Zoom",
+    "confirm": "Usar recorte"
   },
   "addPerson": {
     "title": "Añadir persona",

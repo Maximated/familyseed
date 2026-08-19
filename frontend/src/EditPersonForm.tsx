@@ -23,6 +23,7 @@ import {
 } from "./api";
 import { resizeImage } from "./media";
 import PersonPicker from "./PersonPicker";
+import PhotoCropModal from "./PhotoCropModal";
 import { Trash2Icon } from "./Icons";
 
 // The backend stores full ISO timestamps (UTC midnight) for date-value
@@ -67,6 +68,7 @@ export default function EditPersonForm({ treeId, personId, onSaved, onDeleted, o
   const [biography, setBiography] = useState("");
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const [cropSource, setCropSource] = useState<File | null>(null);
 
   const [parents, setParents] = useState<RelatedPerson[]>([]);
   const [addingParent, setAddingParent] = useState(false);
@@ -233,9 +235,15 @@ export default function EditPersonForm({ treeId, personId, onSaved, onDeleted, o
 
   function handlePhotoChange(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
+    event.target.value = "";
     if (!file) return;
-    setPhotoFile(file);
-    setPhotoPreview(URL.createObjectURL(file));
+    setCropSource(file);
+  }
+
+  function handlePhotoCropped(cropped: File) {
+    setPhotoFile(cropped);
+    setPhotoPreview(URL.createObjectURL(cropped));
+    setCropSource(null);
   }
 
   async function handleSubmit(event: React.FormEvent) {
@@ -304,6 +312,7 @@ export default function EditPersonForm({ treeId, personId, onSaved, onDeleted, o
   }
 
   return (
+    <>
     <div className="modal-backdrop" onClick={onClose}>
       <form
         className="modal-panel"
@@ -631,5 +640,7 @@ export default function EditPersonForm({ treeId, personId, onSaved, onDeleted, o
         )}
       </form>
     </div>
+    {cropSource && <PhotoCropModal file={cropSource} onCropped={handlePhotoCropped} onCancel={() => setCropSource(null)} />}
+    </>
   );
 }

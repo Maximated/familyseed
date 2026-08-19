@@ -12,6 +12,7 @@ import {
   type UnionType,
 } from "./api";
 import { resizeImage } from "./media";
+import PhotoCropModal from "./PhotoCropModal";
 
 type RelationshipKind = "NONE" | "CHILD_OF_PARENTS" | "PARTNER" | "PARENT_OF";
 
@@ -58,15 +59,22 @@ export default function AddPersonForm({ treeId, onCreated, onClose }: Props) {
   const [biography, setBiography] = useState("");
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const [cropSource, setCropSource] = useState<File | null>(null);
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   function handlePhotoChange(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
+    event.target.value = "";
     if (!file) return;
-    setPhotoFile(file);
-    setPhotoPreview(URL.createObjectURL(file));
+    setCropSource(file);
+  }
+
+  function handlePhotoCropped(cropped: File) {
+    setPhotoFile(cropped);
+    setPhotoPreview(URL.createObjectURL(cropped));
+    setCropSource(null);
   }
 
   useEffect(() => {
@@ -165,6 +173,7 @@ export default function AddPersonForm({ treeId, onCreated, onClose }: Props) {
   }
 
   return (
+    <>
     <div className="modal-backdrop" onClick={onClose}>
       <form
         className="modal-panel"
@@ -414,5 +423,7 @@ export default function AddPersonForm({ treeId, onCreated, onClose }: Props) {
         </div>
       </form>
     </div>
+    {cropSource && <PhotoCropModal file={cropSource} onCropped={handlePhotoCropped} onCancel={() => setCropSource(null)} />}
+    </>
   );
 }

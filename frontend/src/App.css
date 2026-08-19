@@ -65,7 +65,7 @@ body {
    instead of this element pushing outward. */
 .tree-title {
   font-family: var(--font-title);
-  font-size: 1.85rem;
+  font-size: 1.725rem;
   font-weight: 700;
   margin: 0;
   flex: 0 1 auto;
@@ -85,7 +85,7 @@ body {
 
 .tree-title-input {
   font-family: var(--font-title);
-  font-size: 1.85rem;
+  font-size: 1.725rem;
   font-weight: 700;
   flex: 1;
   min-width: 0;
@@ -491,7 +491,7 @@ body {
 
 .f3 g.link-text text {
   fill: var(--color-forest) !important;
-  font-size: 30px !important;
+  font-size: 28px !important;
   font-weight: 700 !important;
 }
 
@@ -576,14 +576,14 @@ body {
    not a stroked line — see trunkPath() in Timeline.tsx. */
 .timeline-trunk {
   fill: var(--color-tree-black);
-  opacity: 0.85;
+  opacity: 0.55;
 }
 
 .timeline-branch {
   stroke: var(--color-tree-black);
-  stroke-width: 1.4;
+  stroke-width: 1;
   fill: none;
-  opacity: 0.65;
+  opacity: 0.45;
 }
 
 .timeline-leaf {
@@ -1053,7 +1053,7 @@ body {
 }
 
 .info-panel-union-symbol {
-  font-size: 1.3rem;
+  font-size: 1.175rem;
 }
 
 .info-panel-heading {
@@ -1062,7 +1062,7 @@ body {
 
 .info-panel-title {
   margin: 0;
-  font-size: 1.3rem;
+  font-size: 1.175rem;
 }
 
 .info-panel-subtitle {
@@ -1591,7 +1591,7 @@ body {
   border-radius: 50%;
   background: rgba(255, 255, 255, 0.15);
   color: #fff;
-  font-size: 1.5rem;
+  font-size: 1.375rem;
   line-height: 1;
   cursor: pointer;
 }
@@ -1673,6 +1673,19 @@ body {
 .modal-panel textarea:focus {
   outline: none;
   border-bottom-color: var(--color-amber);
+}
+
+/* The 16px above is specifically to dodge iOS/Android's auto-zoom on
+   focus — a touchscreen-only behavior, not a screen-size one. A mouse-
+   driven device (the actual `hover`+`pointer:fine` combination, not just
+   a wide viewport, since a touch tablet can be just as wide) doesn't have
+   that problem, so it can drop to match the size of the labels around it. */
+@media (hover: hover) and (pointer: fine) {
+  .modal-panel input:not([type="radio"]):not([type="checkbox"]):not([type="file"]),
+  .modal-panel select,
+  .modal-panel textarea {
+    font-size: 14px;
+  }
 }
 
 .modal-panel input[type="file"] {
@@ -1783,6 +1796,32 @@ body {
   display: flex;
   justify-content: flex-end;
   gap: 0.5rem;
+}
+
+.photo-crop-panel {
+  width: 420px;
+}
+
+.photo-crop-area {
+  position: relative;
+  width: 100%;
+  height: 320px;
+  background: #333;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.photo-crop-zoom {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-top: 0.75rem;
+  font-size: 0.85rem;
+  color: var(--color-text-secondary);
+}
+
+.photo-crop-zoom input[type="range"] {
+  flex: 1;
 }
 
 .modal-actions button.info-panel-copy-button {
@@ -2019,7 +2058,7 @@ button.btn-outline:disabled {
 .auth-form h1 {
   margin: 0 0 0.25rem;
   font-family: var(--font-name);
-  font-size: 1.4rem;
+  font-size: 1.275rem;
   color: var(--color-forest);
 }
 
@@ -2252,6 +2291,26 @@ button.btn-outline:disabled {
   color: var(--color-forest);
 }
 
+.home-tree-name-input {
+  font: inherit;
+  font-family: var(--font-name);
+  color: var(--color-forest);
+  padding: 0.1rem 0.1rem;
+  border: none;
+  border-bottom: 1px solid rgba(27, 67, 50, 0.3);
+  border-radius: 0;
+  background: none;
+}
+
+.home-tree-name-input:focus {
+  outline: none;
+  border-bottom-color: var(--color-amber);
+}
+
+.home-tree-rename-error {
+  font-size: 0.75rem;
+}
+
 .home-tree-role {
   font-size: 0.75rem;
   color: var(--color-text-secondary);
@@ -2301,10 +2360,18 @@ button.btn-outline:disabled {
 
 .home-create-form input {
   font: inherit;
-  padding: 0.5rem 0.6rem;
-  border: 1px solid #ccc;
-  border-radius: 4px;
+  padding: 0.3rem 0.1rem;
+  border: none;
+  border-bottom: 1px solid rgba(27, 67, 50, 0.3);
+  border-radius: 0;
+  background: none;
   min-width: 240px;
+  transition: border-color 150ms ease;
+}
+
+.home-create-form input:focus {
+  outline: none;
+  border-bottom-color: var(--color-amber);
 }
 
 .person-picker {
