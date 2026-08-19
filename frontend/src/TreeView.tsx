@@ -28,6 +28,7 @@ import Legend from "./Legend";
 import InfoPanel, { type InfoPanelData, type InfoPanelSection } from "./InfoPanel";
 import {
   ArrowLeftIcon,
+  ArrowUpDownIcon,
   ColumnsIcon,
   DuplicatesIcon,
   GitBranchIcon,
@@ -47,6 +48,7 @@ import DuplicatesView from "./DuplicatesView";
 import LinkPeopleModal from "./LinkPeopleModal";
 import LineagesManageView from "./LineagesManageView";
 import PhotoLightbox from "./PhotoLightbox";
+import GedcomView from "./GedcomView";
 
 // Generous enough that a realistic family tree's every reachable ancestor/
 // descendant renders — family-chart has no separate "show every person"
@@ -454,6 +456,7 @@ function App() {
   const [showShareModal, setShowShareModal] = useState(false);
   const [showDuplicates, setShowDuplicates] = useState(false);
   const [showLinkPeople, setShowLinkPeople] = useState(false);
+  const [showGedcom, setShowGedcom] = useState(false);
   // Set by dragging a relation branch from one card onto another (see
   // startRelateDrag) — both people are already chosen, unlike
   // showLinkPeople's blank "pick two people" entry point.
@@ -1208,6 +1211,15 @@ function App() {
             <button
               type="button"
               className="icon-button"
+              onClick={() => setShowGedcom(true)}
+              aria-label={t("app.gedcom")}
+              title={t("app.gedcom")}
+            >
+              <ArrowUpDownIcon />
+            </button>
+            <button
+              type="button"
+              className="icon-button"
               onClick={handleToggleOrientation}
               aria-label={orientation === "vertical" ? t("app.orientationHorizontal") : t("app.orientationVertical")}
               title={orientation === "vertical" ? t("app.orientationHorizontal") : t("app.orientationVertical")}
@@ -1278,6 +1290,16 @@ function App() {
           treeId={treeId}
           onClose={() => setShowDuplicates(false)}
           onMerged={() => loadTree().catch((err: Error) => setError(err.message))}
+        />
+      )}
+      {showGedcom && (
+        <GedcomView
+          treeId={treeId}
+          onImported={() => {
+            loadTree().catch((err: Error) => setError(err.message));
+            fetchLineages(treeId).then(setLineages).catch(() => {});
+          }}
+          onClose={() => setShowGedcom(false)}
         />
       )}
       {showSearch && (

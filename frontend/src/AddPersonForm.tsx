@@ -1,8 +1,7 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   createIndividual,
-  fetchIndividuals,
   uploadPersonPhoto,
   type DatePrecision,
   type Individual,
@@ -13,6 +12,7 @@ import {
 } from "./api";
 import { resizeImage } from "./media";
 import PhotoCropModal from "./PhotoCropModal";
+import PersonPicker from "./PersonPicker";
 
 type RelationshipKind = "NONE" | "CHILD_OF_PARENTS" | "PARTNER" | "PARENT_OF";
 
@@ -30,16 +30,15 @@ function personLabel(person: Individual) {
 
 export default function AddPersonForm({ treeId, onCreated, onClose }: Props) {
   const { t } = useTranslation();
-  const [individuals, setIndividuals] = useState<Individual[]>([]);
   const [relationshipKind, setRelationshipKind] = useState<RelationshipKind>("CHILD_OF_PARENTS");
-  const [parent1Id, setParent1Id] = useState("");
-  const [parent2Id, setParent2Id] = useState("");
-  const [partnerId, setPartnerId] = useState("");
+  const [parent1, setParent1] = useState<Individual | null>(null);
+  const [parent2, setParent2] = useState<Individual | null>(null);
+  const [partner, setPartner] = useState<Individual | null>(null);
   const [unionType, setUnionType] = useState<UnionType>("MARRIAGE");
   const [unionStatus, setUnionStatus] = useState<UnionStatus>("ONGOING");
   const [unionDateText, setUnionDateText] = useState("");
   const [unionPlace, setUnionPlace] = useState("");
-  const [childId, setChildId] = useState("");
+  const [child, setChild] = useState<Individual | null>(null);
 
   const [givenNames, setGivenNames] = useState("");
   const [surname1, setSurname1] = useState("");
@@ -77,24 +76,18 @@ export default function AddPersonForm({ treeId, onCreated, onClose }: Props) {
     setCropSource(null);
   }
 
-  useEffect(() => {
-    fetchIndividuals(treeId)
-      .then(setIndividuals)
-      .catch((err: Error) => setError(err.message));
-  }, [treeId]);
-
   function buildRelationship(): Relationship | undefined {
     if (relationshipKind === "CHILD_OF_PARENTS") {
       return {
         kind: "CHILD_OF_PARENTS",
-        parent1Id,
-        parent2Id: parent2Id || undefined,
+        parent1Id: parent1?.id ?? "",
+        parent2Id: parent2?.id || undefined,
       };
     }
     if (relationshipKind === "PARTNER") {
       return {
         kind: "PARTNER",
-        partnerId,
+        partnerId: partner?.id ?? "",
         unionType,
         unionStatus,
         unionDateText: unionDateText || undefined,
@@ -102,7 +95,7 @@ export default function AddPersonForm({ treeId, onCreated, onClose }: Props) {
       };
     }
     if (relationshipKind === "PARENT_OF") {
-      return { kind: "PARENT_OF", childId };
+      return { kind: "PARENT_OF", childId: child?.id ?? "" };
     }
     return undefined;
   }
@@ -111,13 +104,13 @@ export default function AddPersonForm({ treeId, onCreated, onClose }: Props) {
     if (!givenNames.trim() || !surname1.trim()) {
       return t("addPerson.validationRequired");
     }
-    if (relationshipKind === "CHILD_OF_PARENTS" && !parent1Id) {
+    if (relationshipKind === "CHILD_OF_PARENTS" && !parent1) {
       return t("addPerson.validationParent");
     }
-    if (relationshipKind === "PARTNER" && !partnerId) {
+    if (relationshipKind === "PARTNER" && !partner) {
       return t("addPerson.validationPartner");
     }
-    if (relationshipKind === "PARENT_OF" && !childId) {
+    if (relationshipKind === "PARENT_OF" && !child) {
       return t("addPerson.validationChild");
     }
     return null;
@@ -194,22 +187,27 @@ export default function AddPersonForm({ treeId, onCreated, onClose }: Props) {
           </label>
           {relationshipKind === "CHILD_OF_PARENTS" && (
             <div className="indent">
-              <select value={parent1Id} onChange={(e) => setParent1Id(e.target.value)}>
-                <option value="">{t("addPerson.parentPlaceholder")}</option>
-                {individuals.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {personLabel(p)}
-                  </option>
-                ))}
-              </select>
-              <select value={parent2Id} onChange={(e) => setParent2Id(e.target.value)}>
-                <option value="">{t("addPerson.otherParentPlaceholder")}</option>
-                {individuals.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {personLabel(p)}
-                  </option>
-                ))}
-              </select>
+              <PersonPicker
+                treeId={treeId}
+                selectedName={parent1 ? personLabel(parent1) : null}
+                onSelect={setParent1}
+                excludeIds={parent2 ? [parent2.id] : undefined}
+              />
+              {parent2 ? (
+                <p className="person-picker-selected">
+                  {personLabel(parent2)}{" "}
+                  <button type="button" className="person-picker-change" onClick={() => setParent2(null)}>
+                    {t("addPerson.removeOtherParent")}
+                  </button>
+                </p>
+              ) : (
+                <PersonPicker
+                  treeId={treeId}
+                  selectedName={null}
+                  onSelect={setParent2}
+                  excludeIds={parent1 ? [parent1.id] : undefined}
+                />
+              )}
               <p className="field-hint">{t("addPerson.unionHint")}</p>
             </div>
           )}
@@ -224,14 +222,7 @@ export default function AddPersonForm({ treeId, onCreated, onClose }: Props) {
           </label>
           {relationshipKind === "PARTNER" && (
             <div className="indent">
-              <select value={partnerId} onChange={(e) => setPartnerId(e.target.value)}>
-                <option value="">{t("addPerson.partnerPlaceholder")}</option>
-                {individuals.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {personLabel(p)}
-                  </option>
-                ))}
-              </select>
+              <PersonPicker treeId={treeId} selectedName={partner ? personLabel(partner) : null} onSelect={setPartner} />
               <select value={unionType} onChange={(e) => setUnionType(e.target.value as UnionType)}>
                 <option value="MARRIAGE">{t("unionType.MARRIAGE")}</option>
                 <option value="PARTNERSHIP">{t("unionType.PARTNERSHIP")}</option>
@@ -270,14 +261,7 @@ export default function AddPersonForm({ treeId, onCreated, onClose }: Props) {
           </label>
           {relationshipKind === "PARENT_OF" && (
             <div className="indent">
-              <select value={childId} onChange={(e) => setChildId(e.target.value)}>
-                <option value="">{t("addPerson.childPlaceholder")}</option>
-                {individuals.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {personLabel(p)}
-                  </option>
-                ))}
-              </select>
+              <PersonPicker treeId={treeId} selectedName={child ? personLabel(child) : null} onSelect={setChild} />
             </div>
           )}
 
