@@ -149,10 +149,16 @@ type PathLinkDatum = { source: PathLinkNode | (PathLinkNode | null | undefined)[
 // in the empty gap between the two people it actually marks.
 const CARD_COLLISION_RADIUS_X = 40;
 const CARD_COLLISION_RADIUS_Y = 20;
-// How far to lift a colliding mark clear of the row — comfortably inside
-// the gap above it (rows are ~150 units apart in this layout) without
-// reaching into the row above.
-const CARD_COLLISION_LIFT = 30;
+// family-chart lays rows out 150 local units apart (its own internal
+// vertical separation), but our custom HTML card (.f3 .card-inner in
+// App.css) is 128 local units tall — taller than family-chart's own
+// built-in card assumption, which is what its default spacing leaves room
+// for. A lift has to clear this real card height, landing centered in the
+// (150 - 128 = 22 unit) gap that's actually left above it, or it just ends
+// up partway up the card instead of past it.
+const CARD_HEIGHT = 128;
+const ROW_SEPARATION = 150;
+const CARD_COLLISION_LIFT = CARD_HEIGHT / 2 + (ROW_SEPARATION - CARD_HEIGHT) / 2;
 
 // family-chart positions a spouse-link mark (marriage/divorce/etc. symbol)
 // using a heuristic — one card's x plus half the fixed inter-card spacing —
