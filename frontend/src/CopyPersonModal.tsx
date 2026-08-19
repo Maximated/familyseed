@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { copyIndividual, fetchTrees, type CopyMode, type ReportDirection, type TreeSummary } from "./api";
+import IOSToggle from "./IOSToggle";
 
 type Props = {
   treeId: string;
@@ -87,22 +88,8 @@ export default function CopyPersonModal({ treeId, personId, personName, onClose 
                 </select>
               </label>
 
-              <label>
-                <input
-                  type="radio"
-                  checked={mode === "single"}
-                  onChange={() => setMode("single")}
-                />
-                {t("copyPerson.modeSingle")}
-              </label>
-              <label>
-                <input
-                  type="radio"
-                  checked={mode === "lineage"}
-                  onChange={() => setMode("lineage")}
-                />
-                {t("copyPerson.modeLineage")}
-              </label>
+              <IOSToggle checked={mode === "single"} onChange={() => setMode("single")} label={t("copyPerson.modeSingle")} />
+              <IOSToggle checked={mode === "lineage"} onChange={() => setMode("lineage")} label={t("copyPerson.modeLineage")} />
 
               {mode === "lineage" && (
                 <label>

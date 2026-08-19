@@ -13,6 +13,7 @@ import {
 import { resizeImage } from "./media";
 import PhotoCropModal from "./PhotoCropModal";
 import PersonPicker from "./PersonPicker";
+import IOSToggle from "./IOSToggle";
 
 type RelationshipKind = "NONE" | "CHILD_OF_PARENTS" | "PARTNER" | "PARENT_OF";
 
@@ -177,14 +178,11 @@ export default function AddPersonForm({ treeId, onCreated, onClose }: Props) {
 
         <fieldset>
           <legend>{t("addPerson.relationshipLegend")}</legend>
-          <label>
-            <input
-              type="radio"
-              checked={relationshipKind === "CHILD_OF_PARENTS"}
-              onChange={() => setRelationshipKind("CHILD_OF_PARENTS")}
-            />
-            {t("addPerson.childOf")}
-          </label>
+          <IOSToggle
+            checked={relationshipKind === "CHILD_OF_PARENTS"}
+            onChange={() => setRelationshipKind("CHILD_OF_PARENTS")}
+            label={t("addPerson.childOf")}
+          />
           {relationshipKind === "CHILD_OF_PARENTS" && (
             <div className="indent">
               <PersonPicker
@@ -212,14 +210,11 @@ export default function AddPersonForm({ treeId, onCreated, onClose }: Props) {
             </div>
           )}
 
-          <label>
-            <input
-              type="radio"
-              checked={relationshipKind === "PARTNER"}
-              onChange={() => setRelationshipKind("PARTNER")}
-            />
-            {t("addPerson.partnerOf")}
-          </label>
+          <IOSToggle
+            checked={relationshipKind === "PARTNER"}
+            onChange={() => setRelationshipKind("PARTNER")}
+            label={t("addPerson.partnerOf")}
+          />
           {relationshipKind === "PARTNER" && (
             <div className="indent">
               <PersonPicker treeId={treeId} selectedName={partner ? personLabel(partner) : null} onSelect={setPartner} />
@@ -251,28 +246,22 @@ export default function AddPersonForm({ treeId, onCreated, onClose }: Props) {
             </div>
           )}
 
-          <label>
-            <input
-              type="radio"
-              checked={relationshipKind === "PARENT_OF"}
-              onChange={() => setRelationshipKind("PARENT_OF")}
-            />
-            {t("addPerson.parentOf")}
-          </label>
+          <IOSToggle
+            checked={relationshipKind === "PARENT_OF"}
+            onChange={() => setRelationshipKind("PARENT_OF")}
+            label={t("addPerson.parentOf")}
+          />
           {relationshipKind === "PARENT_OF" && (
             <div className="indent">
               <PersonPicker treeId={treeId} selectedName={child ? personLabel(child) : null} onSelect={setChild} />
             </div>
           )}
 
-          <label>
-            <input
-              type="radio"
-              checked={relationshipKind === "NONE"}
-              onChange={() => setRelationshipKind("NONE")}
-            />
-            {t("addPerson.noRelation")}
-          </label>
+          <IOSToggle
+            checked={relationshipKind === "NONE"}
+            onChange={() => setRelationshipKind("NONE")}
+            label={t("addPerson.noRelation")}
+          />
         </fieldset>
 
         <fieldset>
