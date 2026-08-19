@@ -135,6 +135,16 @@ function pairKey(idA: string, idB: string): string {
 type LinkTextNode = { data: { id: string }; x: number; y: number };
 type LinkTextDatum = { nodes: [LinkTextNode, LinkTextNode] };
 
+// A card's own footprint, in the same local units as node.x/y — used below
+// to detect a union mark landing on top of someone else's card rather than
+// in the empty gap between the two people it actually marks.
+const CARD_COLLISION_RADIUS_X = 40;
+const CARD_COLLISION_RADIUS_Y = 20;
+// How far to lift a colliding mark clear of the row — comfortably inside
+// the gap above it (rows are ~150 units apart in this layout) without
+// reaching into the row above.
+const CARD_COLLISION_LIFT = 30;
+
 // family-chart positions a spouse-link mark (marriage/divorce/etc. symbol)
 // using a heuristic — one card's x plus half the fixed inter-card spacing —
 // that assumes the two spouses are the only couple in their row, sitting
@@ -146,12 +156,29 @@ type LinkTextDatum = { nodes: [LinkTextNode, LinkTextNode] };
 // space. The fix is just the true midpoint of the two spouses' own laid-out
 // x — those coordinates are right there on the bound datum, unlike the
 // heuristic family-chart derives them with.
-function correctLinkTextTransform(g: SVGGElement): string | null {
+//
+// That true midpoint is sometimes still a bad place to put it, though: when
+// the two spouses aren't adjacent (someone else's card sits between them,
+// e.g. an ex-partner whose own remarriage put a third card in this row),
+// the midpoint can land almost exactly on that third card — the mark is
+// technically correct but visually swallowed by an unrelated person's card.
+// `allNodes` is every other spouse in the current render, so that case can
+// be detected and the mark nudged up clear of the row instead.
+function correctLinkTextTransform(g: SVGGElement, allNodes: LinkTextNode[]): string | null {
   const datum = (g as unknown as { __data__?: LinkTextDatum }).__data__;
   if (!datum) return null;
   const [sp1, sp2] = datum.nodes;
   if (typeof sp1.x !== "number" || typeof sp2.x !== "number" || typeof sp1.y !== "number") return null;
-  return `translate(${(sp1.x + sp2.x) / 2}, ${sp1.y - 3})`;
+  const midX = (sp1.x + sp2.x) / 2;
+  const collides = allNodes.some(
+    (node) =>
+      node.data.id !== sp1.data.id &&
+      node.data.id !== sp2.data.id &&
+      Math.abs(node.x - midX) < CARD_COLLISION_RADIUS_X &&
+      Math.abs(node.y - sp1.y) < CARD_COLLISION_RADIUS_Y,
+  );
+  const y = collides ? sp1.y - CARD_COLLISION_LIFT : sp1.y - 3;
+  return `translate(${midX}, ${y})`;
 }
 
 // Standard genealogical marks (⚭ marriage, ⚮ divorce, ⚯ unmarried
@@ -522,7 +549,16 @@ function App() {
     linkTextCleanupRef.current.forEach((cleanup) => cleanup());
     linkTextCleanupRef.current = [];
 
-    container.querySelectorAll<SVGGElement>("g.link-text").forEach((g) => {
+    const linkTextEls = container.querySelectorAll<SVGGElement>("g.link-text");
+    // Every card that has a spouse shows up as a node on at least one
+    // link-text's datum, so this doubles as "every card position in the
+    // current render" for the collision check in correctLinkTextTransform.
+    const allNodes = [...linkTextEls].flatMap((g) => {
+      const datum = (g as unknown as { __data__?: LinkTextDatum }).__data__;
+      return datum ? datum.nodes : [];
+    });
+
+    linkTextEls.forEach((g) => {
       // family-chart binds its d3 data straight onto the DOM node — no
       // extra plumbing needed to recover which two people this link joins.
       const datum = (g as unknown as { __data__?: LinkTextDatum }).__data__;
@@ -544,7 +580,7 @@ function App() {
       const settle = () => {
         window.clearTimeout(settleTimer);
         settleTimer = window.setTimeout(() => {
-          const correct = correctLinkTextTransform(g);
+          const correct = correctLinkTextTransform(g, allNodes);
           if (correct && g.getAttribute("transform") !== correct) {
             g.setAttribute("transform", correct);
           }
