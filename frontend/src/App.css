@@ -937,14 +937,18 @@ body {
   text-align: center;
 }
 
-/* All three corner toggles are hover-revealed together, at the same
+/* All four corner toggles are hover-revealed together, at the same
    moment, to keep the card uncluttered by default — expanding, editing,
-   or relating a specific person is one hover away instead of always on
-   show. Expand/edit sit at the top corners; relate sits at the bottom
-   right, its own free corner. */
+   relating, or exploring a specific person's hidden ancestry is one
+   hover away instead of always on show. Expand/edit sit at the top
+   corners; relate and ancestry share the bottom row, one to each free
+   corner — ancestry's own `display` is additionally toggled per-card in
+   wireCardAndUnionClicks, since (unlike the other three) it only applies
+   to cards with real, undrawn parent data. */
 .card-expand-toggle,
 .card-edit-toggle,
-.card-relate-toggle {
+.card-relate-toggle,
+.card-ancestry-toggle {
   position: absolute;
   width: 20px;
   height: 20px;
@@ -981,22 +985,30 @@ body {
   cursor: grab;
 }
 
+.card-ancestry-toggle {
+  bottom: -6px;
+  left: -6px;
+}
+
 .card:hover .card-expand-toggle,
 .card:hover .card-edit-toggle,
-.card:hover .card-relate-toggle {
+.card:hover .card-relate-toggle,
+.card:hover .card-ancestry-toggle {
   opacity: 1;
 }
 
 .card-expand-toggle svg,
 .card-edit-toggle svg,
-.card-relate-toggle svg {
+.card-relate-toggle svg,
+.card-ancestry-toggle svg {
   width: 12px;
   height: 12px;
 }
 
 .card-expand-toggle:hover,
 .card-edit-toggle:hover,
-.card-relate-toggle:hover {
+.card-relate-toggle:hover,
+.card-ancestry-toggle:hover {
   background: var(--color-amber);
 }
 

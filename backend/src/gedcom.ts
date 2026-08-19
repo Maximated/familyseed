@@ -41,11 +41,10 @@ function noteLines(level: number, tag: string, text: string): string[] {
   return lines;
 }
 
-// The reverse of noteLines — reassembles a NOTE's own value plus any
+// The reverse of noteLines — reassembles one NOTE's own value plus any
 // CONT (new line) / CONC (same line, no separator) continuation children
-// back into the original multi-line text.
-function readNote(node: GedNode | undefined): string | null {
-  const note = findChild(node, "NOTE");
+// back into its original multi-line text.
+function assembleNoteText(note: GedNode | undefined): string | null {
   if (!note) return null;
   let text = note.value ?? "";
   for (const child of note.children) {
@@ -54,6 +53,25 @@ function readNote(node: GedNode | undefined): string | null {
   }
   const trimmed = text.trim();
   return trimmed || null;
+}
+
+// A Family only ever gets one NOTE on export (see serializeGedcom), so a
+// single lookup is enough there.
+function readNote(node: GedNode | undefined): string | null {
+  return assembleNoteText(findChild(node, "NOTE"));
+}
+
+// An Individual can carry two — biography, then notes, in that order (see
+// serializeGedcom) — so a file this app exported round-trips exactly.
+// GEDCOM has no tag distinguishing which NOTE means which, though: a
+// single NOTE (the common case for a file from elsewhere, e.g. Ancestry/
+// Gramps/FamilySearch) lands in `notes`, on the reasoning that it's the
+// more general-purpose of the two fields, not a presumption it's really a
+// biography-length narrative.
+function readIndividualNotes(node: GedNode | undefined): { biography: string | null; notes: string | null } {
+  const texts = findChildren(node, "NOTE").map(assembleNoteText).filter((t): t is string => t !== null);
+  if (texts.length >= 2) return { biography: texts[0], notes: texts[1] };
+  return { biography: null, notes: texts[0] ?? null };
 }
 
 // ---------------------------------------------------------------------
@@ -284,6 +302,8 @@ export type ParsedIndividual = {
   deathDateValue: Date | null;
   deathDatePrecision: DatePrecision | null;
   deathPlace: string | null;
+  biography: string | null;
+  notes: string | null;
 };
 
 export type ParsedFamily = {
@@ -331,6 +351,7 @@ export function parseGedcomFile(text: string): { individuals: ParsedIndividual[]
       deathDateValue: death.value ?? null,
       deathDatePrecision: death.precision ?? null,
       deathPlace: findChild(deat, "PLAC")?.value?.trim() || null,
+      ...readIndividualNotes(node),
     });
   }
 
@@ -398,6 +419,8 @@ export async function importGedcomIntoTree(
             deathDateValue: ind.deathDateValue,
             deathDatePrecision: ind.deathDatePrecision,
             deathPlace: ind.deathPlace,
+            biography: ind.biography,
+            notes: ind.notes,
           },
           update: {
             givenNames: ind.givenNames || "(sin nombre)",
@@ -412,6 +435,8 @@ export async function importGedcomIntoTree(
             deathDateValue: ind.deathDateValue,
             deathDatePrecision: ind.deathDatePrecision,
             deathPlace: ind.deathPlace,
+            biography: ind.biography,
+            notes: ind.notes,
           },
         });
         xrefToId.set(ind.xref, row.id);

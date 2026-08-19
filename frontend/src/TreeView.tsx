@@ -305,6 +305,14 @@ const EDIT_ICON_SVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor
 // wiring in wireCardAndUnionClicks) instead of only a global button.
 const RELATE_ICON_SVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>`;
 
+// Lucide's "chevrons-up" glyph — sits in the card's one remaining free
+// corner, and (unlike the three above) is only ever shown on cards whose
+// own recorded parents aren't part of the currently-rendered tree: a
+// spouse who married into the family, whose own ancestry is real data but
+// never gets drawn from the current root (see wireCardAndUnionClicks,
+// where visibility is decided per render from cardIds + rels.parents).
+const ANCESTRY_ICON_SVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m17 11-5-5-5 5"/><path d="m17 18-5-5-5 5"/></svg>`;
+
 // Lucide's "user" glyph — the neutral placeholder shown on a card when the
 // person has no uploaded photo.
 const PERSON_ICON_SVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21a8 8 0 0 0-16 0"/><circle cx="12" cy="7" r="4"/></svg>`;
@@ -336,6 +344,7 @@ function cardTemplate(d: CardDatum): string {
     <button type="button" class="card-expand-toggle" data-person-id="${d.data.id}" title="${escapeHtml(i18n.t("card.viewFull"))}" aria-label="${escapeHtml(i18n.t("card.viewFull"))}">${EXPAND_ICON_SVG}</button>
     <button type="button" class="card-edit-toggle" data-person-id="${d.data.id}" title="${escapeHtml(i18n.t("app.edit"))}" aria-label="${escapeHtml(i18n.t("app.edit"))}">${EDIT_ICON_SVG}</button>
     <button type="button" class="card-relate-toggle" data-person-id="${d.data.id}" title="${escapeHtml(i18n.t("card.relate"))}" aria-label="${escapeHtml(i18n.t("card.relate"))}">${RELATE_ICON_SVG}</button>
+    <button type="button" class="card-ancestry-toggle" data-person-id="${d.data.id}" title="${escapeHtml(i18n.t("card.moreAncestry"))}" aria-label="${escapeHtml(i18n.t("card.moreAncestry"))}">${ANCESTRY_ICON_SVG}</button>
   `;
 }
 
@@ -591,6 +600,26 @@ function App() {
     const cardIds = new Set(
       [...container.querySelectorAll<HTMLElement>(".card-inner[data-person-id]")].map((el) => el.dataset.personId),
     );
+
+    // Shows the "more ancestry" corner icon only on a card whose own
+    // recorded parents aren't part of this render — a spouse who married
+    // into the family, most commonly, since their ancestry is real data
+    // that just never gets drawn from whichever root the current view
+    // picked. Clicking it re-centers on them, the same as clicking the
+    // card itself, which is what actually reveals that ancestry.
+    container.querySelectorAll<HTMLButtonElement>(".card-ancestry-toggle").forEach((btn) => {
+      const personId = btn.dataset.personId;
+      const person = personId ? treeDataRef.current.find((p) => p.id === personId) : undefined;
+      const hasUnrenderedParent = person?.rels.parents.some((parentId) => !cardIds.has(parentId)) ?? false;
+      btn.style.display = hasUnrenderedParent ? "" : "none";
+      btn.onclick = (e) => {
+        e.stopPropagation();
+        const chart = chartRef.current;
+        if (!chart || !personId) return;
+        chart.updateMainId(personId);
+        chart.updateTree({});
+      };
+    });
 
     container.querySelectorAll<SVGPathElement>("path.link").forEach((p) => {
       const datum = (p as unknown as { __data__?: PathLinkDatum }).__data__;

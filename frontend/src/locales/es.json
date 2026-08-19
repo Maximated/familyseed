@@ -77,7 +77,8 @@
   },
   "card": {
     "viewFull": "Ver ficha completa",
-    "relate": "Arrastra a otra persona para crear una relación"
+    "relate": "Arrastra a otra persona para crear una relación",
+    "moreAncestry": "Tiene más antepasados registrados — pincha para verlos"
   },
   "sex": {
     "MALE": "Hombre",
