@@ -135,6 +135,13 @@ function pairKey(idA: string, idB: string): string {
 type LinkTextNode = { data: { id: string }; x: number; y: number };
 type LinkTextDatum = { nodes: [LinkTextNode, LinkTextNode] };
 
+// The datum d3 binds onto each `path.link` element — the actual connecting
+// line, as opposed to g.link-text's marriage/divorce mark on top of it.
+// `source` is an array for a child's link to its two parents, or a single
+// node for a spouse link.
+type PathLinkNode = { data: { id: string } };
+type PathLinkDatum = { source: PathLinkNode | PathLinkNode[]; target: PathLinkNode };
+
 // A card's own footprint, in the same local units as node.x/y — used below
 // to detect a union mark landing on top of someone else's card rather than
 // in the empty gap between the two people it actually marks.
@@ -549,6 +556,28 @@ function App() {
     linkTextCleanupRef.current.forEach((cleanup) => cleanup());
     linkTextCleanupRef.current = [];
 
+    // A real family tree can have genealogical loops (a marriage between
+    // relatives — someone reachable from the centered person by two
+    // different chains of parents/children) that a 2D tree diagram can't
+    // draw twice: family-chart still computes a connecting line/mark for
+    // the path whose card lost that name collision, but nothing is ever
+    // rendered there for it to point to. Rather than leave those dangling
+    // over blank space, anything referencing a person with no rendered
+    // card here gets hidden instead — the person's real relationships are
+    // never affected, they just aren't all drawn from every angle in the
+    // same view.
+    const cardIds = new Set(
+      [...container.querySelectorAll<HTMLElement>(".card-inner[data-person-id]")].map((el) => el.dataset.personId),
+    );
+
+    container.querySelectorAll<SVGPathElement>("path.link").forEach((p) => {
+      const datum = (p as unknown as { __data__?: PathLinkDatum }).__data__;
+      if (!datum) return;
+      const sources = Array.isArray(datum.source) ? datum.source : [datum.source];
+      const orphaned = [...sources, datum.target].some((node) => !cardIds.has(node.data.id));
+      p.style.display = orphaned ? "none" : "";
+    });
+
     const linkTextEls = container.querySelectorAll<SVGGElement>("g.link-text");
     // Every card that has a spouse shows up as a node on at least one
     // link-text's datum, so this doubles as "every card position in the
@@ -562,6 +591,12 @@ function App() {
       // family-chart binds its d3 data straight onto the DOM node — no
       // extra plumbing needed to recover which two people this link joins.
       const datum = (g as unknown as { __data__?: LinkTextDatum }).__data__;
+      if (datum && (!cardIds.has(datum.nodes[0].data.id) || !cardIds.has(datum.nodes[1].data.id))) {
+        g.style.display = "none";
+        g.onclick = null;
+        return;
+      }
+      g.style.display = "";
       const union = datum && unionsByPairKeyRef.current.get(pairKey(datum.nodes[0].data.id, datum.nodes[1].data.id));
       g.style.cursor = union ? "pointer" : "default";
       g.onclick = union
