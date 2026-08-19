@@ -400,6 +400,8 @@
     "createTreeSubmit": "Crear",
     "createTreeImport": "Importar CSV/GEDCOM…",
     "importingTree": "Importando…",
-    "createTreeCancel": "Cancelar"
+    "createTreeCancel": "Cancelar",
+    "version": "Versión {{commit}}",
+    "updateAvailable": "Hay una actualización disponible"
   }
 }

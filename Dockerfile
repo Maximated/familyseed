@@ -6,6 +6,11 @@
 # ---- frontend ----
 FROM node:22-slim AS frontend-build
 WORKDIR /app/frontend
+# Passed in from CI as the commit being built (see docker-publish.yml) — the
+# build context here is just frontend/, with no .git, so vite.config.ts
+# can't derive it itself the way it does for a local `npm run build`.
+ARG COMMIT_SHA=dev
+ENV COMMIT_SHA=$COMMIT_SHA
 COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci
 COPY frontend/ ./

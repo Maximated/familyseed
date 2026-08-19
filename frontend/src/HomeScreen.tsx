@@ -10,6 +10,7 @@ import TreeReportModal from "./TreeReportModal";
 import ShareTreeModal from "./ShareTreeModal";
 import DeleteTreeModal from "./DeleteTreeModal";
 import { ArrowUpDownIcon, FileTextIcon, PencilIcon, ShareIcon, Trash2Icon } from "./Icons";
+import { APP_COMMIT, checkForUpdate } from "./version";
 
 function TreeRow({
   tree,
@@ -165,6 +166,11 @@ export default function HomeScreen() {
   const [reportTreeId, setReportTreeId] = useState<string | null>(null);
   const [shareTreeId, setShareTreeId] = useState<string | null>(null);
   const [deleteTreeId, setDeleteTreeId] = useState<string | null>(null);
+  const [updateAvailable, setUpdateAvailable] = useState(false);
+
+  useEffect(() => {
+    checkForUpdate().then(({ hasUpdate }) => setUpdateAvailable(hasUpdate));
+  }, []);
 
   function load() {
     setLoading(true);
@@ -376,6 +382,10 @@ export default function HomeScreen() {
         >
           VectorStock / topor
         </a>
+      </p>
+      <p className="home-footer-version">
+        {t("home.version", { commit: APP_COMMIT })}
+        {updateAvailable && <span className="home-update-badge">{t("home.updateAvailable")}</span>}
       </p>
 
       {gedcomTreeId && (

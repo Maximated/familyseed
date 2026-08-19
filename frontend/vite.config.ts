@@ -1,9 +1,26 @@
+import { execSync } from 'node:child_process'
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 
+// The Docker build copies only frontend/ into its build stage (no .git),
+// so it passes the commit it's building from via this env var (see
+// Dockerfile's COMMIT_SHA build arg). Falls back to reading git directly,
+// which works for local `npm run dev`/`build` where .git is present.
+function resolveCommitSha(): string {
+  if (process.env.COMMIT_SHA) return process.env.COMMIT_SHA.slice(0, 7)
+  try {
+    return execSync('git rev-parse --short HEAD').toString().trim()
+  } catch {
+    return 'dev'
+  }
+}
+
 // https://vite.dev/config/
 export default defineConfig({
+  define: {
+    __APP_COMMIT__: JSON.stringify(resolveCommitSha()),
+  },
   plugins: [
     react(),
     VitePWA({
