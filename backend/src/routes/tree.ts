@@ -31,10 +31,13 @@ const deleteTreeBodySchema = {
 export default async function treeRoutes(fastify: FastifyInstance) {
   fastify.get("/", async (request) => {
     const treeId = request.treeId!;
-    const tree = await prisma.tree.findUniqueOrThrow({ where: { id: treeId } });
+    const [tree, memberCount] = await Promise.all([
+      prisma.tree.findUniqueOrThrow({ where: { id: treeId } }),
+      prisma.treeMember.count({ where: { treeId } }),
+    ]);
     const { people, unions } = await buildTreeData(treeId);
 
-    return { id: tree.id, name: tree.name, role: request.treeRole, people, unions };
+    return { id: tree.id, name: tree.name, role: request.treeRole, memberCount, people, unions };
   });
 
   fastify.patch("/", { schema: { body: updateTreeBodySchema } }, async (request) => {

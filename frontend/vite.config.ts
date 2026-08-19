@@ -63,6 +63,11 @@ export default defineConfig({
       // unaffected by denylisting /trees/ (plural, backend-only).
       workbox: {
         navigateFallbackDenylist: [/^\/auth\//, /^\/trees\//, /^\/uploads\//],
+        // heic2any's WASM-backed decoder chunk is sizable and only loaded
+        // on demand (see heic.ts) when someone actually picks a HEIC
+        // photo — excluding it from the precache manifest keeps every
+        // other install/update from downloading it upfront for nothing.
+        globIgnores: ['**/heic2any-*.js'],
       },
     }),
   ],

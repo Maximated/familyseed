@@ -217,6 +217,27 @@ body {
   color: #b00020;
 }
 
+.icon-button-badged {
+  position: relative;
+}
+
+.icon-button-badge {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  min-width: 15px;
+  height: 15px;
+  padding: 0 3px;
+  border-radius: 999px;
+  background: var(--color-amber);
+  color: #fff;
+  font-size: 0.62rem;
+  font-weight: 700;
+  line-height: 15px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
 .popover-anchor {
   position: relative;
 }

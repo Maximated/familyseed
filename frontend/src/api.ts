@@ -232,6 +232,7 @@ export type TreeSummary = {
   name: string;
   role: TreeRole;
   createdAt: string;
+  memberCount: number;
 };
 
 export async function fetchTrees(): Promise<{ owned: TreeSummary[]; shared: TreeSummary[] }> {
@@ -333,6 +334,7 @@ export async function fetchTree(treeId: string): Promise<{
   id: string;
   name: string;
   role: TreeRole;
+  memberCount: number;
   people: TreePerson[];
   unions: UnionInfo[];
 }> {

@@ -11,8 +11,17 @@ const createTreeBodySchema = {
   additionalProperties: false,
 };
 
-function treeSummary(member: { role: string; tree: { id: string; name: string; createdAt: Date } }) {
-  return { id: member.tree.id, name: member.tree.name, role: member.role, createdAt: member.tree.createdAt };
+function treeSummary(member: {
+  role: string;
+  tree: { id: string; name: string; createdAt: Date; _count: { members: number } };
+}) {
+  return {
+    id: member.tree.id,
+    name: member.tree.name,
+    role: member.role,
+    createdAt: member.tree.createdAt,
+    memberCount: member.tree._count.members,
+  };
 }
 
 // Top-level (not nested under /trees/:treeId) — this is the entry point
@@ -24,7 +33,7 @@ export default async function treesRoutes(fastify: FastifyInstance) {
   fastify.get("/", async (request) => {
     const memberships = await prisma.treeMember.findMany({
       where: { userId: request.userId },
-      include: { tree: true },
+      include: { tree: { include: { _count: { select: { members: true } } } } },
       orderBy: { tree: { createdAt: "asc" } },
     });
 
@@ -43,6 +52,6 @@ export default async function treesRoutes(fastify: FastifyInstance) {
       return created;
     });
 
-    return reply.code(201).send({ id: tree.id, name: tree.name, role: "OWNER", createdAt: tree.createdAt });
+    return reply.code(201).send({ id: tree.id, name: tree.name, role: "OWNER", createdAt: tree.createdAt, memberCount: 1 });
   });
 }

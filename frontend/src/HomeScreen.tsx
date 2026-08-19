@@ -116,15 +116,16 @@ function TreeRow({
         {tree.role === "OWNER" && (
           <button
             type="button"
-            className="icon-button"
-            aria-label={t("app.share")}
-            title={t("app.share")}
+            className="icon-button icon-button-badged"
+            aria-label={tree.memberCount > 1 ? t("app.manageGuests", { count: tree.memberCount - 1 }) : t("app.share")}
+            title={tree.memberCount > 1 ? t("app.manageGuests", { count: tree.memberCount - 1 }) : t("app.share")}
             onClick={(e) => {
               e.stopPropagation();
               onShare(tree.id);
             }}
           >
             <ShareIcon />
+            {tree.memberCount > 1 && <span className="icon-button-badge">{tree.memberCount - 1}</span>}
           </button>
         )}
         {tree.role === "OWNER" && (

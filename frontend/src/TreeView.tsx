@@ -468,6 +468,7 @@ function App() {
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
   const [treeName, setTreeName] = useState("");
   const [treeRole, setTreeRole] = useState<TreeRole | null>(null);
+  const [treeMemberCount, setTreeMemberCount] = useState(1);
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState("");
   const [showLineageMenu, setShowLineageMenu] = useState(false);
@@ -731,10 +732,11 @@ function App() {
   const loadTree = useCallback(
     async (recenterOnId?: string) => {
       if (!treeId) return;
-      const { name, role, people, unions } = await fetchTree(treeId);
+      const { name, role, memberCount, people, unions } = await fetchTree(treeId);
       if (!containerRef.current) return;
       setTreeName(name);
       setTreeRole(role);
+      setTreeMemberCount(memberCount);
       if (!people.length) {
         setError(t("app.noIndividuals"));
         return;
@@ -1229,12 +1231,13 @@ function App() {
             {treeRole === "OWNER" && (
               <button
                 type="button"
-                className="icon-button"
+                className="icon-button icon-button-badged"
                 onClick={() => setShowShareModal(true)}
-                aria-label={t("app.share")}
-                title={t("app.share")}
+                aria-label={treeMemberCount > 1 ? t("app.manageGuests", { count: treeMemberCount - 1 }) : t("app.share")}
+                title={treeMemberCount > 1 ? t("app.manageGuests", { count: treeMemberCount - 1 }) : t("app.share")}
               >
                 <ShareIcon />
+                {treeMemberCount > 1 && <span className="icon-button-badge">{treeMemberCount - 1}</span>}
               </button>
             )}
           </div>

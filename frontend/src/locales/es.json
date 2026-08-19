@@ -29,6 +29,7 @@
     "gedcom": "Importar/exportar",
     "search": "Buscar personas",
     "share": "Compartir árbol",
+    "manageGuests": "Gestionar invitados ({{count}})",
     "renameTree": "Cambiar nombre del árbol",
     "deleteTree": "Eliminar árbol",
     "duplicates": "Personas duplicadas",
@@ -127,6 +128,8 @@
   },
   "personFields": {
     "photo": "Fotografía",
+    "convertingPhoto": "Convirtiendo foto…",
+    "heicError": "No se pudo convertir la foto. Prueba con otro archivo (JPEG o PNG).",
     "photoPreviewAlt": "Vista previa",
     "givenNames": "Nombre",
     "surname1": "Primer apellido (paterno en España, único en Polonia)",

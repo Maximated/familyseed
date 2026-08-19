@@ -9,6 +9,7 @@ import {
   type PersonMediaType,
 } from "./api";
 import { resizeImage } from "./media";
+import { convertHeicIfNeeded } from "./heic";
 import PhotoLightbox from "./PhotoLightbox";
 
 type Props = {
@@ -52,7 +53,7 @@ export default function PersonMediaTab({ treeId, personId, type }: Props) {
     setUploading(true);
     setError(null);
     try {
-      const upload = type === "PHOTO" ? await resizeImage(file, 900, 0.85) : file;
+      const upload = type === "PHOTO" ? await resizeImage(await convertHeicIfNeeded(file), 900, 0.85) : file;
       const created = await uploadPersonMedia(treeId, personId, upload, file.name);
       setItems((prev) => [created, ...prev]);
     } catch (err) {
@@ -135,7 +136,7 @@ export default function PersonMediaTab({ treeId, personId, type }: Props) {
       <input
         ref={fileInputRef}
         type="file"
-        accept={type === "PHOTO" ? "image/*" : undefined}
+        accept={type === "PHOTO" ? "image/*,.heic,.heif" : undefined}
         onChange={handleFileChange}
         style={{ display: "none" }}
       />

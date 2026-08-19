@@ -22,6 +22,7 @@ import {
   type UpdateIndividualPayload,
 } from "./api";
 import { resizeImage } from "./media";
+import { convertHeicIfNeeded } from "./heic";
 import PersonPicker from "./PersonPicker";
 import PhotoCropModal from "./PhotoCropModal";
 import { Trash2Icon } from "./Icons";
@@ -69,6 +70,7 @@ export default function EditPersonForm({ treeId, personId, onSaved, onDeleted, o
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [cropSource, setCropSource] = useState<File | null>(null);
+  const [convertingPhoto, setConvertingPhoto] = useState(false);
 
   const [parents, setParents] = useState<RelatedPerson[]>([]);
   const [addingParent, setAddingParent] = useState(false);
@@ -233,11 +235,19 @@ export default function EditPersonForm({ treeId, personId, onSaved, onDeleted, o
     }
   }
 
-  function handlePhotoChange(event: React.ChangeEvent<HTMLInputElement>) {
+  async function handlePhotoChange(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     event.target.value = "";
     if (!file) return;
-    setCropSource(file);
+    setConvertingPhoto(true);
+    setError(null);
+    try {
+      setCropSource(await convertHeicIfNeeded(file));
+    } catch {
+      setError(t("personFields.heicError"));
+    } finally {
+      setConvertingPhoto(false);
+    }
   }
 
   function handlePhotoCropped(cropped: File) {
@@ -472,8 +482,9 @@ export default function EditPersonForm({ treeId, personId, onSaved, onDeleted, o
               <legend>{t("editPerson.personLegend")}</legend>
               <label>
                 {t("personFields.photo")}
-                <input type="file" accept="image/*" onChange={handlePhotoChange} />
+                <input type="file" accept="image/*,.heic,.heif" onChange={handlePhotoChange} disabled={convertingPhoto} />
               </label>
+              {convertingPhoto && <p className="field-hint">{t("personFields.convertingPhoto")}</p>}
               {photoPreview && <img src={photoPreview} alt={t("personFields.photoPreviewAlt")} className="photo-preview" />}
               <label>
                 {t("personFields.givenNames")}

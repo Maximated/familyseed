@@ -11,6 +11,7 @@ import {
   type UnionType,
 } from "./api";
 import { resizeImage } from "./media";
+import { convertHeicIfNeeded } from "./heic";
 import PhotoCropModal from "./PhotoCropModal";
 import PersonPicker from "./PersonPicker";
 import IOSToggle from "./IOSToggle";
@@ -60,15 +61,24 @@ export default function AddPersonForm({ treeId, onCreated, onClose }: Props) {
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [cropSource, setCropSource] = useState<File | null>(null);
+  const [convertingPhoto, setConvertingPhoto] = useState(false);
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  function handlePhotoChange(event: React.ChangeEvent<HTMLInputElement>) {
+  async function handlePhotoChange(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     event.target.value = "";
     if (!file) return;
-    setCropSource(file);
+    setConvertingPhoto(true);
+    setError(null);
+    try {
+      setCropSource(await convertHeicIfNeeded(file));
+    } catch {
+      setError(t("personFields.heicError"));
+    } finally {
+      setConvertingPhoto(false);
+    }
   }
 
   function handlePhotoCropped(cropped: File) {
@@ -268,8 +278,9 @@ export default function AddPersonForm({ treeId, onCreated, onClose }: Props) {
           <legend>{t("addPerson.personLegend")}</legend>
           <label>
             {t("personFields.photo")}
-            <input type="file" accept="image/*" onChange={handlePhotoChange} />
+            <input type="file" accept="image/*,.heic,.heif" onChange={handlePhotoChange} disabled={convertingPhoto} />
           </label>
+          {convertingPhoto && <p className="field-hint">{t("personFields.convertingPhoto")}</p>}
           {photoPreview && <img src={photoPreview} alt={t("personFields.photoPreviewAlt")} className="photo-preview" />}
           <label>
             {t("personFields.givenNames")}
