@@ -31,6 +31,7 @@ import {
   ArrowUpDownIcon,
   ColumnsIcon,
   DuplicatesIcon,
+  UnresolvedIcon,
   GitBranchIcon,
   HomeIcon,
   LinkIcon,
@@ -49,6 +50,7 @@ import LinkPeopleModal from "./LinkPeopleModal";
 import LineagesManageView from "./LineagesManageView";
 import PhotoLightbox from "./PhotoLightbox";
 import GedcomView from "./GedcomView";
+import RelationshipWizard from "./RelationshipWizard";
 
 // Generous enough that a realistic family tree's every reachable ancestor/
 // descendant renders — family-chart has no separate "show every person"
@@ -457,6 +459,8 @@ function App() {
   const [showDuplicates, setShowDuplicates] = useState(false);
   const [showLinkPeople, setShowLinkPeople] = useState(false);
   const [showGedcom, setShowGedcom] = useState(false);
+  const [wizardIds, setWizardIds] = useState<string[] | null>(null);
+  const [noUnrelatedMessage, setNoUnrelatedMessage] = useState(false);
   // Set by dragging a relation branch from one card onto another (see
   // startRelateDrag) — both people are already chosen, unlike
   // showLinkPeople's blank "pick two people" entry point.
@@ -1004,6 +1008,22 @@ function App() {
     chart.updateTree({ tree_position: "fit" });
   }
 
+  // Re-opens the same wizard shown right after an import, for anyone still
+  // missing every relationship — covers closing it by accident mid-import,
+  // as well as any other stray unlinked person (manual entry, an older
+  // import from before the wizard existed, etc), not just the last batch.
+  function handleOpenUnrelatedWizard() {
+    const unrelatedIds = treeData
+      .filter((p) => p.rels.parents.length === 0 && p.rels.spouses.length === 0 && p.rels.children.length === 0)
+      .map((p) => p.id);
+    if (unrelatedIds.length === 0) {
+      setNoUnrelatedMessage(true);
+      window.setTimeout(() => setNoUnrelatedMessage(false), 3000);
+      return;
+    }
+    setWizardIds(unrelatedIds);
+  }
+
   // Manual fallback for the auto-derivation every create/edit/import
   // already does on its own — for data that predates that feature, or an
   // older import that ran before this codebase's own gap was fixed.
@@ -1203,6 +1223,16 @@ function App() {
             <button
               type="button"
               className="icon-button"
+              onClick={handleOpenUnrelatedWizard}
+              disabled={treeRole === "VIEWER"}
+              aria-label={t("app.unrelatedWizard")}
+              title={t("app.unrelatedWizard")}
+            >
+              <UnresolvedIcon />
+            </button>
+            <button
+              type="button"
+              className="icon-button"
               onClick={() => setShowLinkPeople(true)}
               disabled={treeRole === "VIEWER"}
               aria-label={t("app.linkPeople")}
@@ -1245,6 +1275,7 @@ function App() {
       </header>
       {loading && <p className="status">{t("app.loadingTree")}</p>}
       {error && <p className="status status-error">{error}</p>}
+      {noUnrelatedMessage && <p className="status">{t("relationshipWizard.noneUnrelated")}</p>}
       <div className="main-area">
         <div className="tree-canvas-wrap">
           <div id="FamilyChart" ref={containerRef} className="f3 tree-container" />
@@ -1303,6 +1334,17 @@ function App() {
             fetchLineages(treeId).then(setLineages).catch(() => {});
           }}
           onClose={() => setShowGedcom(false)}
+        />
+      )}
+      {wizardIds && (
+        <RelationshipWizard
+          treeId={treeId}
+          personIds={wizardIds}
+          onFinished={() => {
+            loadTree().catch((err: Error) => setError(err.message));
+            fetchLineages(treeId).then(setLineages).catch(() => {});
+          }}
+          onClose={() => setWizardIds(null)}
         />
       )}
       {showSearch && (

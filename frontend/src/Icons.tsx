@@ -197,6 +197,20 @@ export function ColumnsIcon({ size }: IconProps) {
   );
 }
 
+// A question mark in a circle — reused for "people with no relationships
+// yet" (e.g. right after an import that got interrupted), since each is an
+// open question about how they connect to the rest of the tree, unlike a
+// duplicate pair (DuplicatesIcon) or an already-chosen pair (LinkIcon).
+export function UnresolvedIcon({ size }: IconProps) {
+  return (
+    <Svg size={size}>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
+      <path d="M12 17h.01" />
+    </Svg>
+  );
+}
+
 export function MenuIcon({ size }: IconProps) {
   return (
     <Svg size={size}>
