@@ -9,12 +9,23 @@ import { deriveLineagesFromSurnames } from "./routes/individuals.js";
 
 type Sex = "MALE" | "FEMALE" | "UNKNOWN";
 type DatePrecision = "EXACT" | "ABOUT" | "BEFORE" | "AFTER" | "UNKNOWN";
+type UnionType = "MARRIAGE" | "PARTNERSHIP" | "EXTRAMARITAL" | "UNKNOWN";
+type UnionStatus = "ONGOING" | "ENDED_BY_DEATH" | "DIVORCED" | "SEPARATED" | "ANNULLED";
 
 // Our own simple format (not tied to any other genealogy tool) — one row
 // per person, parent links expressed via a CSV-local `id` column rather
 // than database ids, so a file can be filled in by hand in a spreadsheet
 // before ever touching the app. Order matters for the downloadable
 // template but not for import (columns are matched by header name).
+//
+// spouse_id + the union_* columns are how a couple gets recorded even
+// with no children together (father_id/mother_id alone can only imply a
+// relationship via a shared child) and how the union's own type/status/
+// date/place/notes survive a round trip, which they never used to —
+// only one of the two partners' rows needs to fill these in for a given
+// pair (see importCsvIntoTree), and like father_id/mother_id, a person
+// with more than one relationship can only have one of them represented
+// here — same trade-off this format already makes for adoption.
 export const CSV_HEADERS = [
   "id",
   "given_names",
@@ -31,6 +42,12 @@ export const CSV_HEADERS = [
   "biography",
   "father_id",
   "mother_id",
+  "spouse_id",
+  "union_type",
+  "union_status",
+  "union_date",
+  "union_place",
+  "union_notes",
 ] as const;
 
 export function csvTemplate(): string {
@@ -50,6 +67,12 @@ export function csvTemplate(): string {
     biography: "",
     father_id: "",
     mother_id: "",
+    spouse_id: "3",
+    union_type: "MARRIAGE",
+    union_status: "ENDED_BY_DEATH",
+    union_date: "1952-06-10",
+    union_place: "Sevilla",
+    union_notes: "",
   };
   const example2 = {
     id: "2",
@@ -67,8 +90,40 @@ export function csvTemplate(): string {
     biography: "",
     father_id: "",
     mother_id: "1",
+    spouse_id: "",
+    union_type: "",
+    union_status: "",
+    union_date: "",
+    union_place: "",
+    union_notes: "",
   };
-  return stringifyCsvSync([example1, example2], { header: true, columns: CSV_HEADERS as unknown as string[] });
+  // Demonstrates a couple with no children together — the only way to
+  // record that a relationship exists at all without spouse_id, since
+  // father_id/mother_id can only ever be inferred from a shared child.
+  const example3 = {
+    id: "3",
+    given_names: "Antonio",
+    surname1: "Ruiz",
+    surname2: "",
+    surname1_birth_name: "",
+    alias: "",
+    sex: "M",
+    birth_date: "1928-01-20",
+    birth_place: "",
+    death_date: "",
+    death_place: "",
+    notes: "",
+    biography: "",
+    father_id: "",
+    mother_id: "",
+    spouse_id: "",
+    union_type: "",
+    union_status: "",
+    union_date: "",
+    union_place: "",
+    union_notes: "",
+  };
+  return stringifyCsvSync([example1, example2, example3], { header: true, columns: CSV_HEADERS as unknown as string[] });
 }
 
 // ---------------------------------------------------------------------
@@ -80,6 +135,28 @@ function normalizeSex(raw: string | undefined): Sex {
   if (v === "M" || v === "MALE" || v === "H" || v === "HOMBRE") return "MALE";
   if (v === "F" || v === "FEMALE" || v === "MUJER") return "FEMALE";
   return "UNKNOWN";
+}
+
+// Accepts the enum's own value or a plain Spanish word — same spirit as
+// normalizeSex, since a hand-filled spreadsheet is more likely to have
+// "Matrimonio" in it than "MARRIAGE". Falls back to the schema's own
+// default (UNKNOWN/ONGOING) for anything blank or unrecognized, same as
+// leaving a Family's union fields untouched at creation would.
+function normalizeUnionType(raw: string | undefined): UnionType {
+  const v = (raw ?? "").trim().toUpperCase();
+  if (v === "MARRIAGE" || v === "MATRIMONIO") return "MARRIAGE";
+  if (v === "PARTNERSHIP" || v === "PAREJA DE HECHO" || v === "PAREJA") return "PARTNERSHIP";
+  if (v === "EXTRAMARITAL" || v === "RELACION EXTRAMATRIMONIAL" || v === "RELACIÓN EXTRAMATRIMONIAL") return "EXTRAMARITAL";
+  return "UNKNOWN";
+}
+
+function normalizeUnionStatus(raw: string | undefined): UnionStatus {
+  const v = (raw ?? "").trim().toUpperCase();
+  if (v === "ENDED_BY_DEATH" || v === "VIUDEZ" || v === "FALLECIMIENTO") return "ENDED_BY_DEATH";
+  if (v === "DIVORCED" || v === "DIVORCIO") return "DIVORCED";
+  if (v === "SEPARATED" || v === "SEPARACION" || v === "SEPARACIÓN") return "SEPARATED";
+  if (v === "ANNULLED" || v === "ANULADO" || v === "ANULACION" || v === "ANULACIÓN") return "ANNULLED";
+  return "ONGOING";
 }
 
 // Accepts ISO (YYYY-MM-DD), Spanish-style DD/MM/YYYY, or a bare year, with
@@ -141,6 +218,14 @@ export type ParsedCsvIndividual = {
   biography: string | null;
   fatherCsvId: string | null;
   motherCsvId: string | null;
+  spouseCsvId: string | null;
+  unionType: UnionType;
+  unionStatus: UnionStatus;
+  unionDateText: string | null;
+  unionDateValue: Date | null;
+  unionDatePrecision: DatePrecision | null;
+  unionPlace: string | null;
+  unionNotes: string | null;
 };
 
 function blankToNull(v: string | undefined): string | null {
@@ -189,6 +274,7 @@ export function parseCsvFile(text: string): ParsedCsvIndividual[] {
 
     const birth = parseCsvDate(row.birth_date);
     const death = parseCsvDate(row.death_date);
+    const union = parseCsvDate(row.union_date);
 
     return {
       csvId,
@@ -210,6 +296,14 @@ export function parseCsvFile(text: string): ParsedCsvIndividual[] {
       biography: blankToNull(row.biography),
       fatherCsvId: blankToNull(row.father_id),
       motherCsvId: blankToNull(row.mother_id),
+      spouseCsvId: blankToNull(row.spouse_id),
+      unionType: normalizeUnionType(row.union_type),
+      unionStatus: normalizeUnionStatus(row.union_status),
+      unionDateText: union.text ?? null,
+      unionDateValue: union.value ?? null,
+      unionDatePrecision: union.precision ?? null,
+      unionPlace: blankToNull(row.union_place),
+      unionNotes: blankToNull(row.union_notes),
     };
   });
 
@@ -219,6 +313,12 @@ export function parseCsvFile(text: string): ParsedCsvIndividual[] {
     }
     if (ind.motherCsvId && !seenIds.has(ind.motherCsvId)) {
       throw new Error(`mother_id "${ind.motherCsvId}" no corresponde a ningún id de este archivo`);
+    }
+    if (ind.spouseCsvId && !seenIds.has(ind.spouseCsvId)) {
+      throw new Error(`spouse_id "${ind.spouseCsvId}" no corresponde a ningún id de este archivo`);
+    }
+    if (ind.spouseCsvId && ind.csvId === ind.spouseCsvId) {
+      throw new Error(`Fila con id "${ind.csvId}": spouse_id no puede apuntar a la misma persona`);
     }
   }
 
@@ -312,6 +412,51 @@ export async function importCsvIntoTree(
         }
       }
 
+      // Explicit couples, via spouse_id — the only way a childless pair
+      // ever gets a Family row at all, and the only current source of
+      // real union_type/status/date/place/notes (father_id/mother_id
+      // alone never carried any of that). Only one row per pair needs to
+      // declare it; `pairKey` skips the second row once the first's
+      // already been processed, rather than re-processing (and
+      // potentially conflicting with) the same union twice.
+      const processedPairs = new Set<string>();
+      for (const ind of parsed) {
+        if (!ind.spouseCsvId || !ind.csvId) continue;
+        const selfId = csvIdToDbId.get(ind.csvId);
+        const spouseId = csvIdToDbId.get(ind.spouseCsvId);
+        if (!selfId || !spouseId) continue;
+
+        const pairKey = [selfId, spouseId].sort().join("|");
+        if (processedPairs.has(pairKey)) continue;
+        processedPairs.add(pairKey);
+
+        const unionData = {
+          unionType: ind.unionType,
+          unionStatus: ind.unionStatus,
+          unionDateText: ind.unionDateText,
+          unionDateValue: ind.unionDateValue,
+          unionDatePrecision: ind.unionDatePrecision,
+          unionPlace: ind.unionPlace,
+          notes: ind.unionNotes,
+        };
+
+        const existing = await tx.family.findFirst({
+          where: {
+            treeId,
+            OR: [
+              { partner1Id: selfId, partner2Id: spouseId },
+              { partner1Id: spouseId, partner2Id: selfId },
+            ],
+          },
+        });
+        if (existing) {
+          await tx.family.update({ where: { id: existing.id }, data: unionData });
+        } else {
+          await tx.family.create({ data: { treeId, partner1Id: selfId, partner2Id: spouseId, ...unionData } });
+          familiesWritten++;
+        }
+      }
+
       return { individuals: parsed.length, families: familiesWritten, individualIds };
     },
     { timeout: 30_000 },
@@ -342,14 +487,20 @@ export type ExportCsvFamily = {
   partner1Id: string | null;
   partner2Id: string | null;
   childIds: string[];
+  unionType: UnionType;
+  unionStatus: UnionStatus;
+  unionDateText: string | null;
+  unionPlace: string | null;
+  notes: string | null;
 };
 
 // One row per person, using the real database id as the CSV `id` — good
 // enough for a round trip back into this same app (or another FamilySeed
 // tree), though a person who's a child in more than one family (e.g.
-// adopted) only gets one father_id/mother_id pair here. GEDCOM export
-// preserves the full relationship model; this format trades that for
-// being editable by hand in a spreadsheet.
+// adopted) only gets one father_id/mother_id pair here, and likewise a
+// person in more than one union only gets one spouse_id/union_* set —
+// GEDCOM export preserves the full relationship model; this format
+// trades that for being editable by hand in a spreadsheet.
 export function serializeCsv(individuals: ExportCsvIndividual[], families: ExportCsvFamily[]): string {
   const parentsByChild = new Map<string, { fatherId: string | null; motherId: string | null }>();
   for (const fam of families) {
@@ -359,8 +510,35 @@ export function serializeCsv(individuals: ExportCsvIndividual[], families: Expor
     }
   }
 
+  // Emitted on partner1's row (falling back to partner2's if partner1
+  // isn't in this export, e.g. an ancestors-only slice) so each union
+  // appears exactly once instead of redundantly on both partners' rows.
+  const unionByPersonId = new Map<
+    string,
+    { spouseId: string; unionType: UnionType; unionStatus: UnionStatus; unionDateText: string | null; unionPlace: string | null; notes: string | null }
+  >();
+  for (const fam of families) {
+    if (!fam.partner1Id || !fam.partner2Id) continue;
+    const unionInfo = {
+      unionType: fam.unionType,
+      unionStatus: fam.unionStatus,
+      unionDateText: fam.unionDateText,
+      unionPlace: fam.unionPlace,
+      notes: fam.notes,
+    };
+    if (!unionByPersonId.has(fam.partner1Id)) {
+      unionByPersonId.set(fam.partner1Id, { spouseId: fam.partner2Id, ...unionInfo });
+    } else if (!unionByPersonId.has(fam.partner2Id)) {
+      unionByPersonId.set(fam.partner2Id, { spouseId: fam.partner1Id, ...unionInfo });
+    }
+    // else: both partners' one spouse_id slot is already taken by a
+    // different union of theirs — can't be represented in this export,
+    // same documented limitation as father_id/mother_id above.
+  }
+
   const rows = individuals.map((ind) => {
     const parents = parentsByChild.get(ind.id);
+    const union = unionByPersonId.get(ind.id);
     return {
       id: ind.id,
       given_names: ind.givenNames,
@@ -377,6 +555,12 @@ export function serializeCsv(individuals: ExportCsvIndividual[], families: Expor
       biography: ind.biography ?? "",
       father_id: parents?.fatherId ?? "",
       mother_id: parents?.motherId ?? "",
+      spouse_id: union?.spouseId ?? "",
+      union_type: union?.unionType ?? "",
+      union_status: union?.unionStatus ?? "",
+      union_date: union?.unionDateText ?? "",
+      union_place: union?.unionPlace ?? "",
+      union_notes: union?.notes ?? "",
     };
   });
 

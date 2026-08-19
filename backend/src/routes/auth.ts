@@ -1,10 +1,14 @@
-import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
+import type { FastifyInstance } from "fastify";
 import { prisma } from "../db.js";
 import { hashPassword, verifyPassword } from "../auth.js";
 import { googleOAuthEnabled } from "./google-oauth.js";
+import { endSession, requireAuth, startSession } from "../session.js";
 
-const SESSION_COOKIE = "session";
-const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 30; // 30 days
+// Re-exported so every other route file's `import { requireAuth } from
+// "./auth.js"` keeps working — the actual session logic (and the
+// signed-cookie ↔ Session-row lookup it depends on) lives in session.ts,
+// shared with google-oauth.ts instead of each duplicating it.
+export { requireAuth };
 
 const registerBodySchema = {
   type: "object",
@@ -27,34 +31,8 @@ const loginBodySchema = {
   additionalProperties: false,
 };
 
-function setSessionCookie(reply: FastifyReply, userId: string) {
-  reply.setCookie(SESSION_COOKIE, userId, {
-    httpOnly: true,
-    // Dev serves the frontend over plain http://localhost, where a
-    // secure-only cookie would never come back — production (behind the
-    // real domain) is always https, per APP_ORIGIN.
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    path: "/",
-    maxAge: SESSION_MAX_AGE_SECONDS,
-    signed: true,
-  });
-}
-
 function publicUser(user: { id: string; email: string | null; name: string | null }) {
   return { id: user.id, email: user.email, name: user.name };
-}
-
-// Every tree-scoped route (from phase 2 onward) and GET /auth/me itself
-// use this — reads the signed session cookie, decorates `request.userId`,
-// 401s otherwise. Exported so other route files can attach it too.
-export async function requireAuth(request: FastifyRequest, reply: FastifyReply) {
-  const raw = request.cookies[SESSION_COOKIE];
-  const unsigned = raw ? request.unsignCookie(raw) : null;
-  if (!unsigned?.valid || !unsigned.value) {
-    return reply.code(401).send({ error: "No has iniciado sesión" });
-  }
-  request.userId = unsigned.value;
 }
 
 export default async function authRoutes(fastify: FastifyInstance) {
@@ -77,7 +55,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
       const passwordHash = await hashPassword(password);
       const user = await prisma.user.create({ data: { email, name, passwordHash } });
 
-      setSessionCookie(reply, user.id);
+      await startSession(reply, user.id);
       return reply.code(201).send(publicUser(user));
     },
   );
@@ -95,13 +73,13 @@ export default async function authRoutes(fastify: FastifyInstance) {
         return reply.code(401).send({ error: "Email o contraseña incorrectos" });
       }
 
-      setSessionCookie(reply, user.id);
+      await startSession(reply, user.id);
       return publicUser(user);
     },
   );
 
-  fastify.post("/logout", async (_request, reply) => {
-    reply.clearCookie(SESSION_COOKIE, { path: "/" });
+  fastify.post("/logout", async (request, reply) => {
+    await endSession(request, reply);
     return reply.code(204).send();
   });
 

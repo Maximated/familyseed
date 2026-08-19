@@ -6,6 +6,7 @@ import type { OAuth2Namespace } from "@fastify/oauth2";
 declare module "fastify" {
   interface FastifyRequest {
     userId?: string;
+    sessionId?: string;
     treeId?: string;
     treeRole?: "OWNER" | "EDITOR" | "VIEWER";
   }

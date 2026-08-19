@@ -90,8 +90,29 @@ model User {
 
   memberships TreeMember[]
   changes     ChangeLogEntry[]
+  sessions    Session[]
 
   @@map("users")
+}
+
+// The session cookie holds this row's id (signed), not the userId directly
+// — the previous scheme signed the raw userId, which meant "log out"
+// could only ever clear the cookie client-side: the same signed value
+// would keep authenticating forever (up to its 30-day maxAge) if it had
+// already been copied elsewhere. Looking a session up here on every
+// request means logout — or revoking a specific device — actually ends
+// it, immediately, everywhere that cookie is used.
+model Session {
+  id String @id @default(cuid())
+
+  userId String @map("user_id")
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  expiresAt DateTime @map("expires_at")
+
+  @@index([userId])
+  @@map("sessions")
 }
 
 // A family tree. Every genealogical entity (Individual, Family, Lineage)

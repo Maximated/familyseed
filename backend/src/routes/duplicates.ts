@@ -91,10 +91,27 @@ export default async function duplicateRoutes(fastify: FastifyInstance) {
         if (normalizeName(a.givenNames) !== normalizeName(b.givenNames)) continue;
         if (normalizeName(a.surname1) !== normalizeName(b.surname1)) continue;
 
-        const sameBirthYear =
-          !!a.birthDateValue && !!b.birthDateValue && a.birthDateValue.getUTCFullYear() === b.birthDateValue.getUTCFullYear();
+        // A repeated surname within one family tree (common with Polish
+        // village/family naming patterns) means same-given-name +
+        // same-surname alone flags plenty of pairs who are actually
+        // different people — birth year and birth/maiden name are the two
+        // signals a genealogy record actually has to tell them apart, so
+        // a clear mismatch on either rules the pair out entirely instead
+        // of just downgrading it to "possible" noise.
+        const yearGap =
+          a.birthDateValue && b.birthDateValue
+            ? Math.abs(a.birthDateValue.getUTCFullYear() - b.birthDateValue.getUTCFullYear())
+            : null;
+        if (yearGap !== null && yearGap > 2) continue;
 
-        suggestions.push({ aId: a.id, bId: b.id, confidence: sameBirthYear ? "high" : "possible" });
+        const aBirthName = a.surname1BirthName ? normalizeName(a.surname1BirthName) : null;
+        const bBirthName = b.surname1BirthName ? normalizeName(b.surname1BirthName) : null;
+        if (aBirthName && bBirthName && aBirthName !== bBirthName) continue;
+
+        const sameBirthYear = yearGap === 0;
+        const sameBirthName = !!aBirthName && !!bBirthName && aBirthName === bBirthName;
+
+        suggestions.push({ aId: a.id, bId: b.id, confidence: sameBirthYear || sameBirthName ? "high" : "possible" });
       }
     }
 

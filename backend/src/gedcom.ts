@@ -41,6 +41,21 @@ function noteLines(level: number, tag: string, text: string): string[] {
   return lines;
 }
 
+// The reverse of noteLines — reassembles a NOTE's own value plus any
+// CONT (new line) / CONC (same line, no separator) continuation children
+// back into the original multi-line text.
+function readNote(node: GedNode | undefined): string | null {
+  const note = findChild(node, "NOTE");
+  if (!note) return null;
+  let text = note.value ?? "";
+  for (const child of note.children) {
+    if (child.type === "CONT") text += "\n" + (child.value ?? "");
+    else if (child.type === "CONC") text += child.value ?? "";
+  }
+  const trimmed = text.trim();
+  return trimmed || null;
+}
+
 // ---------------------------------------------------------------------
 // Export: our data model -> GEDCOM 5.5.1 text
 // ---------------------------------------------------------------------
@@ -74,6 +89,7 @@ export type ExportFamily = {
   unionDateValue: Date | null;
   unionDatePrecision: DatePrecision | null;
   unionPlace: string | null;
+  notes: string | null;
   childIds: string[];
 };
 
@@ -159,6 +175,7 @@ export function serializeGedcom(individuals: ExportIndividual[], families: Expor
     }
     if (family.unionStatus === "DIVORCED" || family.unionStatus === "SEPARATED") lines.push("1 DIV");
     if (family.unionStatus === "ANNULLED") lines.push("1 ANUL");
+    if (family.notes) lines.push(...noteLines(1, "NOTE", family.notes));
 
     for (const childId of family.childIds) {
       const childXref = individualXref.get(childId);
@@ -280,6 +297,7 @@ export type ParsedFamily = {
   unionDateValue: Date | null;
   unionDatePrecision: DatePrecision | null;
   unionPlace: string | null;
+  notes: string | null;
 };
 
 export function parseGedcomFile(text: string): { individuals: ParsedIndividual[]; families: ParsedFamily[] } {
@@ -336,6 +354,7 @@ export function parseGedcomFile(text: string): { individuals: ParsedIndividual[]
       unionDateValue: marriage.value ?? null,
       unionDatePrecision: marriage.precision ?? null,
       unionPlace: findChild(marr, "PLAC")?.value?.trim() || null,
+      notes: readNote(node),
     });
   }
 
@@ -420,6 +439,7 @@ export async function importGedcomIntoTree(
             unionDateValue: fam.unionDateValue,
             unionDatePrecision: fam.unionDatePrecision,
             unionPlace: fam.unionPlace,
+            notes: fam.notes,
           },
           update: {
             partner1Id,
@@ -430,6 +450,7 @@ export async function importGedcomIntoTree(
             unionDateValue: fam.unionDateValue,
             unionDatePrecision: fam.unionDatePrecision,
             unionPlace: fam.unionPlace,
+            notes: fam.notes,
           },
         });
         familiesWritten++;

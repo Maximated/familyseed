@@ -71,6 +71,11 @@ export default async function csvRoutes(fastify: FastifyInstance) {
       partner1Id: f.partner1Id && includedSet.has(f.partner1Id) ? f.partner1Id : null,
       partner2Id: f.partner2Id && includedSet.has(f.partner2Id) ? f.partner2Id : null,
       childIds: f.children.map((c) => c.individualId).filter((id) => includedSet.has(id)),
+      unionType: f.unionType,
+      unionStatus: f.unionStatus,
+      unionDateText: f.unionDateText,
+      unionPlace: f.unionPlace,
+      notes: f.notes,
     }));
 
     const csv = serializeCsv(individuals, families);

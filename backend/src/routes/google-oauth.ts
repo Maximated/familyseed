@@ -1,9 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import fastifyOauth2 from "@fastify/oauth2";
 import { prisma } from "../db.js";
-
-const SESSION_COOKIE = "session";
-const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 30; // 30 days, same as email/password login
+import { startSession } from "../session.js";
 
 export function googleOAuthEnabled(): boolean {
   return Boolean(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET);
@@ -87,14 +85,7 @@ export default async function googleOAuthRoutes(fastify: FastifyInstance) {
       });
     }
 
-    reply.setCookie(SESSION_COOKIE, user.id, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      path: "/",
-      maxAge: SESSION_MAX_AGE_SECONDS,
-      signed: true,
-    });
+    await startSession(reply, user.id);
     return reply.redirect(successRedirect);
   });
 }
