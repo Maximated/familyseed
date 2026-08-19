@@ -3,12 +3,13 @@ import { useTranslation } from "react-i18next";
 import {
   addParent,
   createFamily,
-  fetchIndividuals,
+  fetchIndividual,
   type Individual,
   type UnionStatus,
   type UnionType,
 } from "./api";
 import IOSToggle from "./IOSToggle";
+import PersonPicker from "./PersonPicker";
 
 type Props = {
   treeId: string;
@@ -39,9 +40,8 @@ function personLabel(person: Individual) {
 export default function LinkPeopleModal({ treeId, fixedPersonAId, fixedPersonBId, onLinked, onClose }: Props) {
   const { t } = useTranslation();
   const isFixed = Boolean(fixedPersonAId && fixedPersonBId);
-  const [individuals, setIndividuals] = useState<Individual[]>([]);
-  const [personAId, setPersonAId] = useState(fixedPersonAId ?? "");
-  const [personBId, setPersonBId] = useState(fixedPersonBId ?? "");
+  const [personA, setPersonA] = useState<Individual | null>(null);
+  const [personB, setPersonB] = useState<Individual | null>(null);
   const [linkKind, setLinkKind] = useState<LinkKind>("A_PARENT_OF_B");
   const [unionType, setUnionType] = useState<UnionType>("MARRIAGE");
   const [unionStatus, setUnionStatus] = useState<UnionStatus>("ONGOING");
@@ -50,19 +50,25 @@ export default function LinkPeopleModal({ treeId, fixedPersonAId, fixedPersonBId
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // The drag-to-link flow already knows both people — fetch just those two
+  // instead of the picker's own search, since there's nothing left to pick.
   useEffect(() => {
-    fetchIndividuals(treeId)
-      .then(setIndividuals)
+    if (!fixedPersonAId || !fixedPersonBId) return;
+    Promise.all([fetchIndividual(treeId, fixedPersonAId), fetchIndividual(treeId, fixedPersonBId)])
+      .then(([a, b]) => {
+        setPersonA(a);
+        setPersonB(b);
+      })
       .catch((err: Error) => setError(err.message));
-  }, [treeId]);
+  }, [treeId, fixedPersonAId, fixedPersonBId]);
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
-    if (!personAId || !personBId) {
+    if (!personA || !personB) {
       setError(t("linkPeople.validationBoth"));
       return;
     }
-    if (personAId === personBId) {
+    if (personA.id === personB.id) {
       setError(t("linkPeople.validationDistinct"));
       return;
     }
@@ -71,13 +77,13 @@ export default function LinkPeopleModal({ treeId, fixedPersonAId, fixedPersonBId
     setError(null);
     try {
       if (linkKind === "A_PARENT_OF_B") {
-        await addParent(treeId, personBId, personAId);
+        await addParent(treeId, personB.id, personA.id);
       } else if (linkKind === "B_PARENT_OF_A") {
-        await addParent(treeId, personAId, personBId);
+        await addParent(treeId, personA.id, personB.id);
       } else {
         await createFamily(treeId, {
-          partner1Id: personAId,
-          partner2Id: personBId,
+          partner1Id: personA.id,
+          partner2Id: personB.id,
           unionType,
           unionStatus,
           unionDateText: unionDateText.trim() || undefined,
@@ -101,38 +107,32 @@ export default function LinkPeopleModal({ treeId, fixedPersonAId, fixedPersonBId
         {isFixed ? (
           <div className="link-people-fixed-pair">
             <p>
-              <strong>{t("linkPeople.personA")}:</strong>{" "}
-              {individuals.find((p) => p.id === personAId) ? personLabel(individuals.find((p) => p.id === personAId)!) : "…"}
+              <strong>{t("linkPeople.personA")}:</strong> {personA ? personLabel(personA) : "…"}
             </p>
             <p>
-              <strong>{t("linkPeople.personB")}:</strong>{" "}
-              {individuals.find((p) => p.id === personBId) ? personLabel(individuals.find((p) => p.id === personBId)!) : "…"}
+              <strong>{t("linkPeople.personB")}:</strong> {personB ? personLabel(personB) : "…"}
             </p>
           </div>
         ) : (
           <>
             <label>
               {t("linkPeople.personA")}
-              <select value={personAId} onChange={(e) => setPersonAId(e.target.value)} required>
-                <option value="">{t("linkPeople.personPlaceholder")}</option>
-                {individuals.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {personLabel(p)}
-                  </option>
-                ))}
-              </select>
+              <PersonPicker
+                treeId={treeId}
+                selectedName={personA ? personLabel(personA) : null}
+                onSelect={setPersonA}
+                excludeIds={personB ? [personB.id] : []}
+              />
             </label>
 
             <label>
               {t("linkPeople.personB")}
-              <select value={personBId} onChange={(e) => setPersonBId(e.target.value)} required>
-                <option value="">{t("linkPeople.personPlaceholder")}</option>
-                {individuals.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {personLabel(p)}
-                  </option>
-                ))}
-              </select>
+              <PersonPicker
+                treeId={treeId}
+                selectedName={personB ? personLabel(personB) : null}
+                onSelect={setPersonB}
+                excludeIds={personA ? [personA.id] : []}
+              />
             </label>
           </>
         )}

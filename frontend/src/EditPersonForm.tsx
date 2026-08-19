@@ -3,6 +3,7 @@ import { Trans, useTranslation } from "react-i18next";
 import {
   addIndividualLineage,
   addParent,
+  createFamily,
   createLineage,
   deleteIndividual,
   fetchIndividualRelations,
@@ -15,6 +16,7 @@ import {
   type DatePrecision,
   type Individual,
   type Lineage,
+  type Partnership,
   type RelatedPerson,
   type Sex,
   type UpdateIndividualPayload,
@@ -74,6 +76,10 @@ export default function EditPersonForm({ treeId, personId, onSaved, onDeleted, o
   const [addingChild, setAddingChild] = useState(false);
   const [childError, setChildError] = useState<string | null>(null);
 
+  const [partnerships, setPartnerships] = useState<Partnership[]>([]);
+  const [addingPartner, setAddingPartner] = useState(false);
+  const [partnerError, setPartnerError] = useState<string | null>(null);
+
   const [lineages, setLineages] = useState<Lineage[]>([]);
   const [lineageIds, setLineageIds] = useState<string[]>([]);
   const [addingLineage, setAddingLineage] = useState(false);
@@ -85,7 +91,7 @@ export default function EditPersonForm({ treeId, personId, onSaved, onDeleted, o
 
   useEffect(() => {
     fetchIndividualRelations(treeId, personId)
-      .then(({ individual: person, parents, children }) => {
+      .then(({ individual: person, parents, children, partnerships }) => {
         setGivenNames(person.givenNames);
         setSurname1(person.surname1);
         setSurname2(person.surname2 ?? "");
@@ -105,6 +111,7 @@ export default function EditPersonForm({ treeId, personId, onSaved, onDeleted, o
         setPhotoPreview(person.photoUrl ? mediaUrl(person.photoUrl) : null);
         setParents(parents);
         setChildren(children);
+        setPartnerships(partnerships);
         setLineageIds(person.lineageIds ?? []);
       })
       .catch((err: Error) => setError(err.message))
@@ -177,6 +184,22 @@ export default function EditPersonForm({ treeId, personId, onSaved, onDeleted, o
       onRelationsChanged();
     } catch (err) {
       setChildError((err as Error).message);
+    }
+  }
+
+  // Defaults the new union to MARRIAGE, same as RelationshipWizard's own
+  // partner step — refining the type/status/date is one click away
+  // afterward via the union's own info panel, so it isn't duplicated here.
+  async function handleAddPartner(partner: Individual) {
+    setPartnerError(null);
+    try {
+      await createFamily(treeId, { partner1Id: personId, partner2Id: partner.id, unionType: "MARRIAGE" });
+      const { partnerships: updatedPartnerships } = await fetchIndividualRelations(treeId, personId);
+      setPartnerships(updatedPartnerships);
+      setAddingPartner(false);
+      onRelationsChanged();
+    } catch (err) {
+      setPartnerError((err as Error).message);
     }
   }
 
@@ -324,6 +347,37 @@ export default function EditPersonForm({ treeId, personId, onSaved, onDeleted, o
                   </button>
                 ))}
               {parentError && <p className="status status-error">{parentError}</p>}
+            </fieldset>
+
+            <fieldset>
+              <legend>{t("editPerson.partnersLegend")}</legend>
+              {partnerships.length === 0 ? (
+                <p className="field-hint">{t("editPerson.noPartners")}</p>
+              ) : (
+                <ul className="edit-parents-list">
+                  {partnerships.map(
+                    (partnership) =>
+                      partnership.partner && (
+                        <li key={partnership.familyId}>
+                          <span>{`${partnership.partner.givenNames} ${partnership.partner.surname1}`}</span>
+                        </li>
+                      ),
+                  )}
+                </ul>
+              )}
+              {addingPartner ? (
+                <PersonPicker
+                  treeId={treeId}
+                  selectedName={null}
+                  onSelect={handleAddPartner}
+                  excludeIds={[personId, ...partnerships.flatMap((p) => (p.partner ? [p.partner.id] : []))]}
+                />
+              ) : (
+                <button type="button" className="union-notes-edit-link" onClick={() => setAddingPartner(true)}>
+                  {t("editPerson.addPartner")}
+                </button>
+              )}
+              {partnerError && <p className="status status-error">{partnerError}</p>}
             </fieldset>
 
             <fieldset>

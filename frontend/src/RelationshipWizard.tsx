@@ -4,8 +4,10 @@ import {
   addParent,
   createFamily,
   fetchIndividualRelations,
+  fillFamilyPartner,
   type Individual,
   type IndividualRelations,
+  type RelatedPerson,
 } from "./api";
 import PersonPicker from "./PersonPicker";
 
@@ -94,6 +96,17 @@ export default function RelationshipWizard({ treeId, personIds, onFinished, onCl
   const [relations, setRelations] = useState<IndividualRelations | null>(null);
   const [loading, setLoading] = useState(false);
 
+  const [addingPartner, setAddingPartner] = useState(false);
+  const [partnerError, setPartnerError] = useState<string | null>(null);
+  // Set when the just-picked partner already has children on a family with
+  // only one known parent — asks whether those children should end up
+  // shared by both, instead of silently creating a second, separate union.
+  const [pendingPartner, setPendingPartner] = useState<{
+    partner: Individual;
+    familyId: string;
+    children: RelatedPerson[];
+  } | null>(null);
+
   const currentId = personIds[index];
   const done = index >= personIds.length;
 
@@ -105,9 +118,62 @@ export default function RelationshipWizard({ treeId, personIds, onFinished, onCl
       .finally(() => setLoading(false));
   }, [started, done, treeId, currentId]);
 
+  useEffect(() => {
+    setAddingPartner(false);
+    setPartnerError(null);
+    setPendingPartner(null);
+  }, [currentId]);
+
   async function refresh() {
     const updated = await fetchIndividualRelations(treeId, currentId);
     setRelations(updated);
+  }
+
+  // A family counts as "has unclaimed children" only when it's the sole
+  // family with an empty slot — if the candidate has two or more, it's
+  // ambiguous which past union the new partner should join, so the smart
+  // merge is skipped and a plain new union is created instead (safe
+  // default, no risk of attaching someone to the wrong past relationship).
+  async function findInheritableChildren(candidate: Individual) {
+    const candidateRelations = await fetchIndividualRelations(treeId, candidate.id);
+    const emptySlotFamilyIds = candidateRelations.partnerships.filter((p) => p.partner === null).map((p) => p.familyId);
+    if (emptySlotFamilyIds.length !== 1) return null;
+    const [familyId] = emptySlotFamilyIds;
+    const children = candidateRelations.children.filter((c) => c.familyId === familyId);
+    return children.length > 0 ? { familyId, children } : null;
+  }
+
+  async function handlePartnerSelected(candidate: Individual) {
+    setPartnerError(null);
+    try {
+      const inheritable = await findInheritableChildren(candidate);
+      if (inheritable) {
+        setPendingPartner({ partner: candidate, ...inheritable });
+      } else {
+        await createFamily(treeId, { partner1Id: currentId, partner2Id: candidate.id, unionType: "MARRIAGE" });
+        setAddingPartner(false);
+        await refresh();
+      }
+    } catch (err) {
+      setPartnerError((err as Error).message);
+    }
+  }
+
+  async function resolvePendingPartner(inheritChildren: boolean) {
+    if (!pendingPartner) return;
+    setPartnerError(null);
+    try {
+      if (inheritChildren) {
+        await fillFamilyPartner(treeId, pendingPartner.familyId, currentId);
+      } else {
+        await createFamily(treeId, { partner1Id: currentId, partner2Id: pendingPartner.partner.id, unionType: "MARRIAGE" });
+      }
+      setPendingPartner(null);
+      setAddingPartner(false);
+      await refresh();
+    } catch (err) {
+      setPartnerError((err as Error).message);
+    }
   }
 
   function handleFinishNow() {
@@ -185,18 +251,46 @@ export default function RelationshipWizard({ treeId, personIds, onFinished, onCl
                 }}
               />
 
-              <AddRelationSection
-                legend={t("relationshipWizard.partnerLegend")}
-                people={partners}
-                peopleLabel={(p) => `${p.givenNames} ${p.surname1}`}
-                treeId={treeId}
-                excludeIds={alreadyRelatedIds}
-                addLabel={t("relationshipWizard.addPartner")}
-                onAdd={async (partner) => {
-                  await createFamily(treeId, { partner1Id: currentId, partner2Id: partner.id, unionType: "MARRIAGE" });
-                  await refresh();
-                }}
-              />
+              <fieldset>
+                <legend>{t("relationshipWizard.partnerLegend")}</legend>
+                {partners.length === 0 ? null : (
+                  <ul className="edit-parents-list">
+                    {partners.map((p) => (
+                      <li key={p.id}>{`${p.givenNames} ${p.surname1}`}</li>
+                    ))}
+                  </ul>
+                )}
+                {pendingPartner ? (
+                  <div className="field-hint">
+                    <p>
+                      {t("relationshipWizard.inheritChildrenPrompt", {
+                        partner: personLabel(pendingPartner.partner),
+                        children: pendingPartner.children.map((c) => `${c.givenNames} ${c.surname1}`).join(", "),
+                      })}
+                    </p>
+                    <div className="modal-actions">
+                      <button type="button" onClick={() => resolvePendingPartner(false)}>
+                        {t("relationshipWizard.inheritChildrenNo")}
+                      </button>
+                      <button type="button" className="btn-primary" onClick={() => resolvePendingPartner(true)}>
+                        {t("relationshipWizard.inheritChildrenYes")}
+                      </button>
+                    </div>
+                  </div>
+                ) : addingPartner ? (
+                  <PersonPicker
+                    treeId={treeId}
+                    selectedName={null}
+                    excludeIds={alreadyRelatedIds}
+                    onSelect={handlePartnerSelected}
+                  />
+                ) : (
+                  <button type="button" className="union-notes-edit-link" onClick={() => setAddingPartner(true)}>
+                    {t("relationshipWizard.addPartner")}
+                  </button>
+                )}
+                {partnerError && <p className="status status-error">{partnerError}</p>}
+              </fieldset>
 
               <AddRelationSection
                 legend={t("editPerson.childrenLegend")}

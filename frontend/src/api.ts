@@ -684,3 +684,16 @@ export async function createFamily(treeId: string, payload: CreateFamilyPayload)
   });
   await throwIfNotOk(res);
 }
+
+// Fills the still-empty partner slot on an existing union — used instead of
+// createFamily when the new partner already has children recorded on a
+// family with only one known parent, so those children end up shared by
+// both parents instead of duplicated onto a second, separate union.
+export async function fillFamilyPartner(treeId: string, familyId: string, partnerId: string): Promise<void> {
+  const res = await apiFetch(`/trees/${treeId}/families/${familyId}/partner`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ partnerId }),
+  });
+  await throwIfNotOk(res);
+}

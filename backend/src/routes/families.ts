@@ -230,6 +230,48 @@ export default async function familyRoutes(fastify: FastifyInstance) {
     return reply.code(204).send();
   });
 
+  // Fills whichever partner slot on this union is still empty — the other
+  // half of "this person already has children from a family with only one
+  // known parent": rather than creating a second, separate union (which
+  // would leave the existing children pointing at only one of the two real
+  // parents), the new partner is attached to the SAME family, so the
+  // existing FamilyChild rows already cover them without any duplication.
+  fastify.post("/:id/partner", { schema: { body: { type: "object", required: ["partnerId"], properties: { partnerId: { type: "string" } }, additionalProperties: false } } }, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const { partnerId } = request.body as { partnerId: string };
+    const treeId = request.treeId!;
+
+    const family = await prisma.family.findFirst({ where: { id, treeId } });
+    if (!family) {
+      return reply.code(404).send({ error: `No existe la unión ${id}` });
+    }
+    if (family.partner1Id && family.partner2Id) {
+      return reply.code(400).send({ error: "Esta unión ya tiene dos personas" });
+    }
+    if (partnerId === family.partner1Id || partnerId === family.partner2Id) {
+      return reply.code(400).send({ error: "Una persona no puede ser su propia pareja" });
+    }
+    const partner = await prisma.individual.findFirst({ where: { id: partnerId, treeId, deletedAt: null } });
+    if (!partner) {
+      return reply.code(404).send({ error: `No existe el individuo ${partnerId}` });
+    }
+
+    const updated = await prisma.family.update({
+      where: { id },
+      data: family.partner1Id ? { partner2Id: partnerId } : { partner1Id: partnerId },
+    });
+
+    await logChange({
+      treeId,
+      userId: request.userId ?? null,
+      action: "family.fillPartner",
+      entityType: "Family",
+      entityId: id,
+    });
+
+    return updated;
+  });
+
   // Attaches an existing individual as a child of this specific union —
   // unlike POST /individuals/:id/parents (which links one parent at a time
   // and has to guess/merge which family a second parent belongs to), this
