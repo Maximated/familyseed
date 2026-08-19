@@ -144,21 +144,10 @@ type LinkTextDatum = { nodes: [LinkTextNode, LinkTextNode] };
 type PathLinkNode = { data: { id: string } };
 type PathLinkDatum = { source: PathLinkNode | (PathLinkNode | null | undefined)[]; target: PathLinkNode };
 
-// A card's own footprint, in the same local units as node.x/y — used below
-// to detect a union mark landing on top of someone else's card rather than
-// in the empty gap between the two people it actually marks.
-const CARD_COLLISION_RADIUS_X = 40;
-const CARD_COLLISION_RADIUS_Y = 20;
-// family-chart lays rows out 150 local units apart (its own internal
-// vertical separation), but our custom HTML card (.f3 .card-inner in
-// App.css) is 128 local units tall — taller than family-chart's own
-// built-in card assumption, which is what its default spacing leaves room
-// for. A lift has to clear this real card height, landing centered in the
-// (150 - 128 = 22 unit) gap that's actually left above it, or it just ends
-// up partway up the card instead of past it.
-const CARD_HEIGHT = 128;
-const ROW_SEPARATION = 150;
-const CARD_COLLISION_LIFT = CARD_HEIGHT / 2 + (ROW_SEPARATION - CARD_HEIGHT) / 2;
+// How close two nodes' y have to be to count as "the same row" — well
+// under family-chart's actual row spacing (150 local units), so it can't
+// mistake an adjacent generation for this one.
+const SAME_ROW_Y_TOLERANCE = 20;
 
 // family-chart positions a spouse-link mark (marriage/divorce/etc. symbol)
 // using a heuristic — one card's x plus half the fixed inter-card spacing —
@@ -175,25 +164,50 @@ const CARD_COLLISION_LIFT = CARD_HEIGHT / 2 + (ROW_SEPARATION - CARD_HEIGHT) / 2
 // That true midpoint is sometimes still a bad place to put it, though: when
 // the two spouses aren't adjacent (someone else's card sits between them,
 // e.g. an ex-partner whose own remarriage put a third card in this row),
-// the midpoint can land almost exactly on that third card — the mark is
-// technically correct but visually swallowed by an unrelated person's card.
-// `allNodes` is every other spouse in the current render, so that case can
-// be detected and the mark nudged up clear of the row instead.
+// the midpoint can land almost exactly on that third card. Lifting the mark
+// up instead (an earlier attempt at this) trades that for a different
+// collision: family-chart routes its own ancestor/descendant connector
+// lines through the strip between rows, at a fixed height that turned out
+// to overlap the lift too. Neither problem exists at the row's own height,
+// where the actual spouse-to-spouse line is drawn — so instead this slots
+// the mark into whichever real gap between adjacent cards in the row falls
+// closest to the true midpoint, which is always clear of every card by
+// construction (same uniform spacing family-chart lays every row out with).
 function correctLinkTextTransform(g: SVGGElement, allNodes: LinkTextNode[]): string | null {
   const datum = (g as unknown as { __data__?: LinkTextDatum }).__data__;
   if (!datum) return null;
   const [sp1, sp2] = datum.nodes;
   if (typeof sp1.x !== "number" || typeof sp2.x !== "number" || typeof sp1.y !== "number") return null;
-  const midX = (sp1.x + sp2.x) / 2;
-  const collides = allNodes.some(
-    (node) =>
-      node.data.id !== sp1.data.id &&
-      node.data.id !== sp2.data.id &&
-      Math.abs(node.x - midX) < CARD_COLLISION_RADIUS_X &&
-      Math.abs(node.y - sp1.y) < CARD_COLLISION_RADIUS_Y,
-  );
-  const y = collides ? sp1.y - CARD_COLLISION_LIFT : sp1.y - 3;
-  return `translate(${midX}, ${y})`;
+  const y = sp1.y - 3;
+  const loX = Math.min(sp1.x, sp2.x);
+  const hiX = Math.max(sp1.x, sp2.x);
+  const rawMidX = (sp1.x + sp2.x) / 2;
+
+  const between = allNodes
+    .filter(
+      (node) =>
+        node.data.id !== sp1.data.id &&
+        node.data.id !== sp2.data.id &&
+        Math.abs(node.y - sp1.y) < SAME_ROW_Y_TOLERANCE &&
+        node.x > loX &&
+        node.x < hiX,
+    )
+    .sort((a, b) => a.x - b.x);
+
+  if (between.length === 0) return `translate(${rawMidX}, ${y})`;
+
+  const boundaries = [loX, ...between.map((node) => node.x), hiX];
+  let bestX = rawMidX;
+  let bestDist = Infinity;
+  for (let i = 0; i < boundaries.length - 1; i++) {
+    const gapCenter = (boundaries[i] + boundaries[i + 1]) / 2;
+    const dist = Math.abs(gapCenter - rawMidX);
+    if (dist < bestDist) {
+      bestDist = dist;
+      bestX = gapCenter;
+    }
+  }
+  return `translate(${bestX}, ${y})`;
 }
 
 // Standard genealogical marks (⚭ marriage, ⚮ divorce, ⚯ unmarried
