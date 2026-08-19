@@ -37,6 +37,42 @@ type MergeBody = {
   individual: IndividualFieldsInput;
 };
 
+const resolveFamilyBodySchema = {
+  type: "object",
+  required: ["familyId", "childId"],
+  properties: {
+    familyId: { type: "string" },
+    childId: { type: "string" },
+  },
+  additionalProperties: false,
+};
+
+type ResolveFamilyBody = { familyId: string; childId: string };
+
+// Removes one child's redundant link to a single-parent "ghost" family that
+// duplicates a link they already have to a real family with the same known
+// parent — see the GET .../family-suggestions handler below for how these
+// are detected. Deletes the ghost family too once it has no children left,
+// but only if it carries no date/place/notes of its own worth keeping.
+async function resolveFamilyDuplicate(treeId: string, familyId: string, childId: string): Promise<void> {
+  await prisma.$transaction(async (tx) => {
+    const link = await tx.familyChild.findFirst({
+      where: { familyId, individualId: childId, family: { treeId } },
+    });
+    if (!link) throw new HttpError(404, "No existe ese vínculo");
+
+    await tx.familyChild.delete({ where: { id: link.id } });
+
+    const remaining = await tx.familyChild.count({ where: { familyId } });
+    if (remaining > 0) return;
+
+    const family = await tx.family.findUnique({ where: { id: familyId } });
+    if (family && !family.unionDateText && !family.unionPlace && !family.notes) {
+      await tx.family.delete({ where: { id: familyId } });
+    }
+  });
+}
+
 export default async function duplicateRoutes(fastify: FastifyInstance) {
   // Automatic suggestions: same normalized given name + surname1 is the
   // core signal (this is exactly the shape of the real duplicate this
@@ -63,6 +99,79 @@ export default async function duplicateRoutes(fastify: FastifyInstance) {
     }
 
     return suggestions;
+  });
+
+  // A different kind of duplicate than the person-merge feature above: a
+  // "ghost" single-parent Family row left over from an import/edit that
+  // never got consolidated — the same child already has a proper link to
+  // another Family where the same person is a partner. attachParent()
+  // prevents new ones of these going forward (see its comment), but never
+  // retroactively cleans up rows that predate that guard, so this scans for
+  // them directly instead.
+  fastify.get("/family-suggestions", async (request) => {
+    const treeId = request.treeId!;
+    const families = await prisma.family.findMany({
+      where: { treeId },
+      include: { children: true },
+    });
+
+    const familiesByParent = new Map<string, typeof families>();
+    for (const family of families) {
+      for (const parentId of [family.partner1Id, family.partner2Id]) {
+        if (!parentId) continue;
+        const list = familiesByParent.get(parentId) ?? [];
+        list.push(family);
+        familiesByParent.set(parentId, list);
+      }
+    }
+
+    const suggestions: Array<{ familyId: string; keepFamilyId: string; parentId: string; childId: string }> = [];
+    for (const family of families) {
+      const knownParentId = family.partner1Id && family.partner2Id ? null : (family.partner1Id ?? family.partner2Id);
+      if (!knownParentId) continue;
+
+      for (const link of family.children) {
+        const other = (familiesByParent.get(knownParentId) ?? []).find(
+          (f) => f.id !== family.id && f.children.some((c) => c.individualId === link.individualId),
+        );
+        if (other) {
+          suggestions.push({ familyId: family.id, keepFamilyId: other.id, parentId: knownParentId, childId: link.individualId });
+        }
+      }
+    }
+
+    if (suggestions.length === 0) return [];
+
+    const individuals = await prisma.individual.findMany({
+      where: { treeId, deletedAt: null, id: { in: [...new Set(suggestions.flatMap((s) => [s.parentId, s.childId]))] } },
+    });
+    const labelById = new Map(individuals.map((i) => [i.id, personLabel(i)]));
+
+    return suggestions
+      .filter((s) => labelById.has(s.parentId) && labelById.has(s.childId))
+      .map((s) => ({ ...s, parentName: labelById.get(s.parentId)!, childName: labelById.get(s.childId)! }));
+  });
+
+  fastify.post("/family-resolve", { schema: { body: resolveFamilyBodySchema } }, async (request, reply) => {
+    const treeId = request.treeId!;
+    const { familyId, childId } = request.body as ResolveFamilyBody;
+    try {
+      await resolveFamilyDuplicate(treeId, familyId, childId);
+      await logChange({
+        treeId,
+        userId: request.userId ?? null,
+        action: "family.dedupe",
+        entityType: "Family",
+        entityId: familyId,
+        summary: "Eliminado vínculo duplicado a familia de un solo progenitor",
+      });
+      return reply.send({ ok: true });
+    } catch (error) {
+      if (error instanceof HttpError) {
+        return reply.code(error.statusCode).send({ error: error.message });
+      }
+      throw error;
+    }
   });
 
   // Applies the caller-resolved field values to `keepId`, reassigns every

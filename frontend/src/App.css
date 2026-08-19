@@ -1355,6 +1355,7 @@ body {
   align-items: center;
   gap: 0.6rem;
   font-size: 0.9rem;
+  min-width: 0;
 }
 
 .duplicates-suggestion-row > span:first-child {
@@ -1363,6 +1364,10 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.duplicates-suggestion-row > button {
+  flex-shrink: 0;
 }
 
 .merge-review-panel {
@@ -1616,6 +1621,11 @@ body {
   border: 1px solid #ddd;
   border-radius: 6px;
   margin-bottom: 1rem;
+  /* Browsers give <fieldset> a default min-width of its content's
+     min-content, ignoring the modal's fixed width — a long unwrapped
+     row (e.g. a family-duplicate entry) would otherwise force the whole
+     modal wider instead of letting its own ellipsis truncation kick in. */
+  min-width: 0;
 }
 
 .modal-panel legend {

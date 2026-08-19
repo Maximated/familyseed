@@ -483,6 +483,32 @@ export async function mergeIndividuals(
   await throwIfNotOk(res);
 }
 
+// A "ghost" single-parent Family row left behind by an old import/edit,
+// duplicating a child's link to another Family where the same person is
+// already a partner — see backend/src/routes/duplicates.ts for detection.
+export type FamilyDuplicateSuggestion = {
+  familyId: string;
+  keepFamilyId: string;
+  parentId: string;
+  parentName: string;
+  childId: string;
+  childName: string;
+};
+
+export async function fetchFamilyDuplicateSuggestions(treeId: string): Promise<FamilyDuplicateSuggestion[]> {
+  const res = await apiFetch(`/trees/${treeId}/duplicates/family-suggestions`);
+  return parseJsonOrThrow(res);
+}
+
+export async function resolveFamilyDuplicate(treeId: string, familyId: string, childId: string): Promise<void> {
+  const res = await apiFetch(`/trees/${treeId}/duplicates/family-resolve`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ familyId, childId }),
+  });
+  await throwIfNotOk(res);
+}
+
 export async function deleteIndividual(treeId: string, id: string): Promise<void> {
   const res = await apiFetch(`/trees/${treeId}/individuals/${id}`, { method: "DELETE" });
   await throwIfNotOk(res);

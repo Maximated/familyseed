@@ -289,7 +289,13 @@
     "personALabel": "Primera persona",
     "personBLabel": "Segunda persona",
     "compare": "Comparar",
-    "samePersonError": "Elige dos personas distintas."
+    "samePersonError": "Elige dos personas distintas.",
+    "familiesLegend": "Familias duplicadas",
+    "familiesHint": "Restos de una familia de un solo progenitor que ya tiene otro vínculo completo con la misma persona — normalmente de una importación antigua.",
+    "noFamilySuggestions": "No se han encontrado familias duplicadas.",
+    "familyDuplicateRow": "{{child}} — vínculo repetido con {{parent}}",
+    "resolveFamily": "Eliminar",
+    "resolveAllFamilies": "Eliminar todos"
   },
   "mergeReview": {
     "title": "Fusionar personas",

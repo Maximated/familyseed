@@ -1,6 +1,14 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { fetchDuplicateSuggestions, fetchIndividuals, type DuplicateSuggestion, type Individual } from "./api";
+import {
+  fetchDuplicateSuggestions,
+  fetchFamilyDuplicateSuggestions,
+  fetchIndividuals,
+  resolveFamilyDuplicate,
+  type DuplicateSuggestion,
+  type FamilyDuplicateSuggestion,
+  type Individual,
+} from "./api";
 import PersonPicker from "./PersonPicker";
 import MergeReviewModal from "./MergeReviewModal";
 
@@ -27,6 +35,12 @@ export default function DuplicatesView({ treeId, onClose, onMerged }: Props) {
 
   const [reviewPair, setReviewPair] = useState<{ aId: string; bId: string } | null>(null);
 
+  const [familySuggestions, setFamilySuggestions] = useState<FamilyDuplicateSuggestion[]>([]);
+  const [familyLoading, setFamilyLoading] = useState(true);
+  const [familyError, setFamilyError] = useState<string | null>(null);
+  const [resolvingKey, setResolvingKey] = useState<string | null>(null);
+  const [resolvingAll, setResolvingAll] = useState(false);
+
   function load() {
     setLoading(true);
     Promise.all([fetchDuplicateSuggestions(treeId), fetchIndividuals(treeId)])
@@ -38,7 +52,48 @@ export default function DuplicatesView({ treeId, onClose, onMerged }: Props) {
       .finally(() => setLoading(false));
   }
 
+  function loadFamilies() {
+    setFamilyLoading(true);
+    fetchFamilyDuplicateSuggestions(treeId)
+      .then(setFamilySuggestions)
+      .catch((err: Error) => setFamilyError(err.message))
+      .finally(() => setFamilyLoading(false));
+  }
+
   useEffect(load, [treeId]);
+  useEffect(loadFamilies, [treeId]);
+
+  async function handleResolveFamily(suggestion: FamilyDuplicateSuggestion) {
+    const key = `${suggestion.familyId}-${suggestion.childId}`;
+    setResolvingKey(key);
+    setFamilyError(null);
+    try {
+      await resolveFamilyDuplicate(treeId, suggestion.familyId, suggestion.childId);
+      setFamilySuggestions((prev) => prev.filter((s) => s !== suggestion));
+      onMerged();
+    } catch (err) {
+      setFamilyError((err as Error).message);
+    } finally {
+      setResolvingKey(null);
+    }
+  }
+
+  async function handleResolveAllFamilies() {
+    setResolvingAll(true);
+    setFamilyError(null);
+    try {
+      for (const suggestion of familySuggestions) {
+        await resolveFamilyDuplicate(treeId, suggestion.familyId, suggestion.childId);
+      }
+      setFamilySuggestions([]);
+      onMerged();
+    } catch (err) {
+      setFamilyError((err as Error).message);
+      loadFamilies();
+    } finally {
+      setResolvingAll(false);
+    }
+  }
 
   function personById(id: string): Individual | undefined {
     return people.find((p) => p.id === id);
@@ -90,6 +145,47 @@ export default function DuplicatesView({ treeId, onClose, onMerged }: Props) {
               })}
             </ul>
           )}
+        </fieldset>
+
+        <fieldset>
+          <legend>{t("duplicates.familiesLegend")}</legend>
+          <p className="field-hint">{t("duplicates.familiesHint")}</p>
+          {familyLoading ? (
+            <p className="status">{t("common.loading")}</p>
+          ) : familySuggestions.length === 0 ? (
+            <p className="field-hint">{t("duplicates.noFamilySuggestions")}</p>
+          ) : (
+            <>
+              <ul className="duplicates-suggestion-list">
+                {familySuggestions.map((suggestion) => {
+                  const key = `${suggestion.familyId}-${suggestion.childId}`;
+                  return (
+                    <li key={key} className="duplicates-suggestion-row">
+                      <span>
+                        {t("duplicates.familyDuplicateRow", {
+                          child: suggestion.childName,
+                          parent: suggestion.parentName,
+                        })}
+                      </span>
+                      <button
+                        type="button"
+                        disabled={resolvingKey === key || resolvingAll}
+                        onClick={() => handleResolveFamily(suggestion)}
+                      >
+                        {t("duplicates.resolveFamily")}
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+              <div className="modal-actions">
+                <button type="button" disabled={resolvingAll} onClick={handleResolveAllFamilies}>
+                  {t("duplicates.resolveAllFamilies")}
+                </button>
+              </div>
+            </>
+          )}
+          {familyError && <p className="status status-error">{familyError}</p>}
         </fieldset>
 
         <fieldset>
