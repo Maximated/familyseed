@@ -786,11 +786,13 @@ body {
 }
 
 /* Dock-style magnification, replacing the rectangle's old hover/main
-   treatment: the selected ("main") card keeps this same enlarged size
+   treatment: the selected ("main") card keeps an enlarged size
    permanently (family-chart already groups `.card-main` with `:hover` in
    its own stylesheet for the equivalent rule, so this mirrors that
    pairing) — kept moderate on purpose, since the main card wears it at
-   all times, not just for the instant of a hover. */
+   all times, not just for the instant of a hover. Main itself goes a
+   touch larger still than a plain hover, so the selected person reads as
+   genuinely singled out rather than just currently moused-over. */
 .f3 div.card-main .card-avatar,
 .f3 div.card-main .card-avatar-placeholder,
 .f3 div.card:hover .card-avatar,
@@ -798,6 +800,12 @@ body {
   width: 66px;
   height: 66px;
   box-shadow: 0 6px 16px rgba(0, 0, 0, 0.38);
+}
+
+.f3 div.card-main .card-avatar,
+.f3 div.card-main .card-avatar-placeholder {
+  width: 74px;
+  height: 74px;
 }
 
 .card-avatar-placeholder svg {
@@ -808,6 +816,11 @@ body {
 .f3 div.card:hover .card-avatar-placeholder svg {
   width: 34px;
   height: 34px;
+}
+
+.f3 div.card-main .card-avatar-placeholder svg {
+  width: 38px;
+  height: 38px;
 }
 
 /* The card's old background color moves here — a ring around the avatar
@@ -849,6 +862,55 @@ body {
   height: 26px;
 }
 
+/* A slowly turning ring behind the selected person's avatar, in the same
+   gender color as the flat ring everyone else gets, gradating into a
+   darker tone of that same hue rather than a true color-wheel complement
+   — jarring against these pastels — so it still reads as "this person's
+   own color," just in motion. Drawn as a `::before` on .card-inner
+   (relatively positioned, overflow: visible — see above) rather than on
+   the avatar itself, since a rotating conic-gradient needs its own
+   un-rotated box to mask into a ring; sized a few px past the avatar's
+   own edge so the flat ring peeks out as a thin static rim in front of
+   it, and stacks behind the avatar for free from source order alone (a
+   ::before always paints before its element's other box content). */
+.f3 div.card-main .card-inner::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 88px;
+  height: 88px;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 4px), #000 calc(100% - 4px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 4px), #000 calc(100% - 4px));
+  animation: card-main-ring-spin 7s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .f3 div.card-main .card-inner::before {
+    animation: none;
+  }
+}
+
+@keyframes card-main-ring-spin {
+  to {
+    transform: translate(-50%, -50%) rotate(360deg);
+  }
+}
+
+.f3 div.card-main.card-male .card-inner::before {
+  background: conic-gradient(var(--color-male), color-mix(in srgb, var(--color-male) 55%, black), var(--color-male));
+}
+
+.f3 div.card-main.card-female .card-inner::before {
+  background: conic-gradient(var(--color-female), color-mix(in srgb, var(--color-female) 55%, black), var(--color-female));
+}
+
+.f3 div.card-main.card-genderless .card-inner::before {
+  background: conic-gradient(var(--color-other), color-mix(in srgb, var(--color-other) 55%, black), var(--color-other));
+}
+
 
 /* Positioned right below the avatar (see .card-avatar's own center-pin)
    so the two read as one balanced unit and hover-growth pushes this down
@@ -869,6 +931,10 @@ body {
 .f3 div.card-main .card-text,
 .f3 div.card:hover .card-text {
   top: calc(50% + 36px);
+}
+
+.f3 div.card-main .card-text {
+  top: calc(50% + 40px);
 }
 
 /* A union/descent line can cross behind the text (a sibling fan-out's
@@ -937,18 +1003,19 @@ body {
   text-align: center;
 }
 
-/* All four corner toggles are hover-revealed together, at the same
-   moment, to keep the card uncluttered by default — expanding, editing,
-   relating, or exploring a specific person's hidden ancestry is one
-   hover away instead of always on show. Expand/edit sit at the top
-   corners; relate and ancestry share the bottom row, one to each free
-   corner — ancestry's own `display` is additionally toggled per-card in
-   wireCardAndUnionClicks, since (unlike the other three) it only applies
-   to cards with real, undrawn parent data. */
+/* The expand/edit/relate corner toggles are hover-revealed together, at
+   the same moment, to keep the card uncluttered by default — one hover
+   away instead of always on show. Expand/edit sit at the top corners;
+   relate takes the bottom right. The ancestry toggle (bottom left) is
+   deliberately NOT part of that hover group — it's an at-a-glance signal
+   ("there's more above this person") rather than an action someone needs
+   to go looking for, so it stays visible on its own whenever it applies;
+   its `display` is toggled per-card in wireCardAndUnionClicks, since
+   unlike the other three it only applies to cards with real, undrawn
+   parent data. */
 .card-expand-toggle,
 .card-edit-toggle,
-.card-relate-toggle,
-.card-ancestry-toggle {
+.card-relate-toggle {
   position: absolute;
   width: 20px;
   height: 20px;
@@ -963,6 +1030,22 @@ body {
   cursor: pointer;
   opacity: 0;
   transition: opacity 150ms ease, background 150ms ease;
+}
+
+.card-ancestry-toggle {
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  border: 1px solid var(--color-bg);
+  background: var(--color-forest);
+  color: var(--color-bg);
+  cursor: pointer;
+  transition: background 150ms ease, transform 150ms ease;
 }
 
 .card-expand-toggle {
@@ -992,9 +1075,12 @@ body {
 
 .card:hover .card-expand-toggle,
 .card:hover .card-edit-toggle,
-.card:hover .card-relate-toggle,
-.card:hover .card-ancestry-toggle {
+.card:hover .card-relate-toggle {
   opacity: 1;
+}
+
+.card-ancestry-toggle:hover {
+  transform: scale(1.15);
 }
 
 .card-expand-toggle svg,
