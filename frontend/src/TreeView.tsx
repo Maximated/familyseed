@@ -129,9 +129,30 @@ function pairKey(idA: string, idB: string): string {
 }
 
 // The datum d3 binds onto each `g.link-text` element for the marriage/
-// divorce/etc. mark on a spouse link — just enough to recover which two
-// people it joins.
-type LinkTextDatum = { nodes: [{ data: { id: string } }, { data: { id: string } }] };
+// divorce/etc. mark on a spouse link — enough to recover which two people
+// it joins, plus their own laid-out coordinates (see correctLinkTextTransform
+// below, which needs those to fix family-chart's own positioning bug).
+type LinkTextNode = { data: { id: string }; x: number; y: number };
+type LinkTextDatum = { nodes: [LinkTextNode, LinkTextNode] };
+
+// family-chart positions a spouse-link mark (marriage/divorce/etc. symbol)
+// using a heuristic — one card's x plus half the fixed inter-card spacing —
+// that assumes the two spouses are the only couple in their row, sitting
+// exactly one spacing unit apart. That's true for a single marriage, but
+// false the moment someone has two-plus spouses rendered side by side (a
+// remarriage): the mark for whichever pair *isn't* horizontally adjacent
+// lands at that wrong fixed offset instead of their real midpoint —
+// reported as union icons drifting to one side or hovering over blank
+// space. The fix is just the true midpoint of the two spouses' own laid-out
+// x — those coordinates are right there on the bound datum, unlike the
+// heuristic family-chart derives them with.
+function correctLinkTextTransform(g: SVGGElement): string | null {
+  const datum = (g as unknown as { __data__?: LinkTextDatum }).__data__;
+  if (!datum) return null;
+  const [sp1, sp2] = datum.nodes;
+  if (typeof sp1.x !== "number" || typeof sp2.x !== "number" || typeof sp1.y !== "number") return null;
+  return `translate(${(sp1.x + sp2.x) / 2}, ${sp1.y - 3})`;
+}
 
 // Standard genealogical marks (⚭ marriage, ⚮ divorce, ⚯ unmarried
 // partnership) plus a couple of homemade ones where no standard symbol
@@ -351,6 +372,7 @@ function App() {
   const isGoingBackRef = useRef(false);
   const treeDataRef = useRef<TreePerson[]>([]);
   const unionsByPairKeyRef = useRef<Map<string, UnionInfo>>(new Map());
+  const linkTextCleanupRef = useRef<Array<() => void>>([]);
   const selectedLineageIdsRef = useRef<Set<string>>(new Set());
   const lineageMenuRef = useRef<HTMLDivElement>(null);
 
@@ -497,6 +519,9 @@ function App() {
       };
     });
 
+    linkTextCleanupRef.current.forEach((cleanup) => cleanup());
+    linkTextCleanupRef.current = [];
+
     container.querySelectorAll<SVGGElement>("g.link-text").forEach((g) => {
       // family-chart binds its d3 data straight onto the DOM node — no
       // extra plumbing needed to recover which two people this link joins.
@@ -509,6 +534,29 @@ function App() {
             setInfoPanel(buildUnionInfoPanel(union, treeDataRef.current));
           }
         : null;
+
+      // family-chart re-sets this element's transform via its own d3
+      // transition on every update, so correcting it once here would just
+      // get overwritten mid-animation. Instead, wait for the transition to
+      // settle (no further transform mutations for 120ms) and correct it
+      // then — see correctLinkTextTransform for why it needs correcting.
+      let settleTimer: number | undefined;
+      const settle = () => {
+        window.clearTimeout(settleTimer);
+        settleTimer = window.setTimeout(() => {
+          const correct = correctLinkTextTransform(g);
+          if (correct && g.getAttribute("transform") !== correct) {
+            g.setAttribute("transform", correct);
+          }
+        }, 120);
+      };
+      settle();
+      const observer = new MutationObserver(settle);
+      observer.observe(g, { attributes: true, attributeFilter: ["transform"] });
+      linkTextCleanupRef.current.push(() => {
+        window.clearTimeout(settleTimer);
+        observer.disconnect();
+      });
     });
   }, [startRelateDrag]);
 
@@ -636,6 +684,13 @@ function App() {
       cancelled = true;
     };
   }, [loadTree, treeId]);
+
+  useEffect(() => {
+    return () => {
+      linkTextCleanupRef.current.forEach((cleanup) => cleanup());
+      linkTextCleanupRef.current = [];
+    };
+  }, []);
 
   // family-chart only fits the tree to its container at chart creation and
   // on explicit navigation (handleFitAll, handleBack, etc.) — never in
