@@ -607,11 +607,44 @@ function App() {
     // that just never gets drawn from whichever root the current view
     // picked. Clicking it re-centers on them, the same as clicking the
     // card itself, which is what actually reveals that ancestry.
+    //
+    // Which cards exist at all is still settling when this synchronous
+    // afterUpdate callback runs (family-chart's add/remove diff briefly
+    // shows a transitional superset of old+new cards before landing on
+    // the final set) — computing against that snapshot once and never
+    // again left a card that just lost/gained a rendered parent stuck
+    // with a stale icon state forever. A MutationObserver on the
+    // container catches whenever cards actually finish being added or
+    // removed and recomputes then, the same "wait for it to settle"
+    // approach correctLinkTextTransform already uses for transforms.
+    function updateAncestryToggles() {
+      const currentCardIds = new Set(
+        [...container.querySelectorAll<HTMLElement>(".card-inner[data-person-id]")].map((el) => el.dataset.personId),
+      );
+      container.querySelectorAll<HTMLButtonElement>(".card-ancestry-toggle").forEach((btn) => {
+        const personId = btn.dataset.personId;
+        const person = personId ? treeDataRef.current.find((p) => p.id === personId) : undefined;
+        const hasUnrenderedParent = person?.rels.parents.some((parentId) => !currentCardIds.has(parentId)) ?? false;
+        btn.style.display = hasUnrenderedParent ? "" : "none";
+      });
+    }
+    updateAncestryToggles();
+
+    let ancestrySettleTimer: number | undefined;
+    const scheduleAncestryUpdate = () => {
+      window.clearTimeout(ancestrySettleTimer);
+      ancestrySettleTimer = window.setTimeout(updateAncestryToggles, 150);
+    };
+    scheduleAncestryUpdate();
+    const cardSetObserver = new MutationObserver(scheduleAncestryUpdate);
+    cardSetObserver.observe(container, { childList: true, subtree: true });
+    linkTextCleanupRef.current.push(() => {
+      window.clearTimeout(ancestrySettleTimer);
+      cardSetObserver.disconnect();
+    });
+
     container.querySelectorAll<HTMLButtonElement>(".card-ancestry-toggle").forEach((btn) => {
       const personId = btn.dataset.personId;
-      const person = personId ? treeDataRef.current.find((p) => p.id === personId) : undefined;
-      const hasUnrenderedParent = person?.rels.parents.some((parentId) => !cardIds.has(parentId)) ?? false;
-      btn.style.display = hasUnrenderedParent ? "" : "none";
       btn.onclick = (e) => {
         e.stopPropagation();
         const chart = chartRef.current;
