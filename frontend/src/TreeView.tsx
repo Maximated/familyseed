@@ -218,7 +218,12 @@ function correctLinkTextTransform(
   // And, only in horizontal mode, dropped a few px along the spread axis
   // (screen-y there) so it clears the line vertically too, not just
   // sideways.
-  const spreadNudge = orientation === "horizontal" ? 10 : 0;
+  // The geometric midpoint between the two avatar centers doesn't account
+  // for a two-line name+lifespan text block hanging well below the upper
+  // spouse's own avatar — a small nudge cleared the avatar but still left
+  // the mark sitting against that text. Sized closer to a real text
+  // block's height instead of a token few px.
+  const spreadNudge = orientation === "horizontal" ? 30 : 0;
 
   const sp1Spread = spread(sp1);
   const sp2Spread = spread(sp2);
@@ -1140,7 +1145,7 @@ function App() {
     setExportingImage(true);
     setError(null);
     setShowExportMenu(false);
-    const linkTextRestores: Array<() => void> = [];
+    const exportDomRestores: Array<() => void> = [];
     try {
       handleFitAll();
       // A fixed wait here used to race the fit transition + its own
@@ -1164,16 +1169,15 @@ function App() {
       // `style="fill:...;font-size:...` from family-chart itself, which
       // beats a presentation attribute — that one has to be overridden via
       // .style, the same place it's already declared, to actually win.
-      const forestColor =
-        getComputedStyle(document.documentElement).getPropertyValue("--color-forest").trim() || "#1b4332";
       // Black rather than the on-screen forest green, by request — reads
       // better dropped onto someone else's own document/print layout than
-      // the app's own accent color would.
+      // the app's own accent color would. Covers both the connecting lines
+      // and the marriage/divorce/etc. marks on them.
       container.querySelectorAll<SVGPathElement>("path.link").forEach((p) => {
         p.setAttribute("stroke", "#000000");
       });
       container.querySelectorAll<SVGTextElement>("g.link-text text").forEach((t) => {
-        t.style.fill = forestColor;
+        t.style.fill = "#000000";
         t.style.fontSize = "28px";
         t.style.fontWeight = "700";
       });
@@ -1204,7 +1208,7 @@ function App() {
         // so the settle MutationObserver — which only watches that
         // attribute — doesn't wake up and fight this.
         g.style.transform = "none";
-        linkTextRestores.push(() => {
+        exportDomRestores.push(() => {
           text.removeAttribute("x");
           text.removeAttribute("y");
           g.style.transform = "";
@@ -1229,6 +1233,21 @@ function App() {
         container.style.setProperty("--color-bg", "transparent");
       }
 
+      // The currently-centered person's card carries family-chart's own
+      // "card-main" class, which a whole family of .card-main rules uses to
+      // render them larger (avatar, text) with a spinning ring behind the
+      // avatar — a fine in-app cue for "this is who you're looking at," but
+      // this is a static export of the whole tree, not a single focused
+      // view, and singling that one person out doesn't belong in it (the
+      // frozen mid-rotation ring in particular renders as a stray
+      // half-drawn shape). Simply removing the class for the capture makes
+      // every .f3 div.card-main rule stop matching, so that card falls back
+      // to the same styling as everyone else's.
+      container.querySelectorAll<HTMLElement>(".card-main").forEach((el) => {
+        el.classList.remove("card-main");
+        exportDomRestores.push(() => el.classList.add("card-main"));
+      });
+
       const { toPng } = await import("html-to-image");
       const dataUrl = await toPng(container, {
         backgroundColor: transparent
@@ -1246,7 +1265,7 @@ function App() {
       container.classList.remove("tree-container-no-watermark");
       container.style.background = "";
       container.style.removeProperty("--color-bg");
-      linkTextRestores.forEach((restore) => restore());
+      exportDomRestores.forEach((restore) => restore());
       setExportingImage(false);
     }
   }

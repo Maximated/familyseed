@@ -635,7 +635,7 @@ body {
   padding: 0;
   border: 1px solid rgba(27, 67, 50, 0.12);
   border-radius: 999px;
-  background: rgba(116, 168, 146, 0.4);
+  background: rgba(116, 168, 146, 0.14);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   color: var(--color-forest);
@@ -671,7 +671,7 @@ body {
   max-width: min(420px, calc(100vw - 64px));
   padding: 0.6rem 1rem;
   border-radius: 10px;
-  background: rgba(116, 168, 146, 0.4);
+  background: rgba(116, 168, 146, 0.14);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   box-shadow: 0 4px 16px rgba(27, 67, 50, 0.1);
@@ -757,7 +757,7 @@ body {
   max-width: calc(100vw - 32px);
   padding: 0.85rem 1rem;
   border-radius: 14px;
-  background: rgba(220, 203, 234, 0.4);
+  background: rgba(220, 203, 234, 0.14);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
   box-shadow: 0 12px 32px rgba(27, 67, 50, 0.22);
