@@ -671,6 +671,15 @@ body {
   z-index: 5;
 }
 
+/* This alpha is a deliberate compromise, not a first guess: a browser
+   privacy shield (confirmed with Brave — its per-site anti-fingerprinting
+   protection silently no-ops backdrop-filter's actual rendering without
+   making the property invalid, so @supports can't detect it and a
+   feature-query fallback was a dead end) can leave this panel with no
+   blur at all, in which case the background alpha is the *only* thing
+   determining legibility. Low enough to read as glass when the blur does
+   render, high enough to still look intentional — not a broken, near-
+   invisible smear — when it doesn't. */
 .legend-trigger {
   display: flex;
   align-items: center;
@@ -680,7 +689,7 @@ body {
   padding: 0;
   border: 1px solid rgba(27, 67, 50, 0.12);
   border-radius: 999px;
-  background: rgba(116, 168, 146, 0.14);
+  background: rgba(116, 168, 146, 0.35);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   color: var(--color-forest);
@@ -716,7 +725,7 @@ body {
   max-width: min(420px, calc(100vw - 64px));
   padding: 0.6rem 1rem;
   border-radius: 10px;
-  background: rgba(116, 168, 146, 0.14);
+  background: rgba(116, 168, 146, 0.35);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   box-shadow: 0 4px 16px rgba(27, 67, 50, 0.1);
@@ -791,9 +800,10 @@ body {
    it for a second (see the timer in wireCardAndUnionClicks). Deliberately
    borderless and roomy enough to spill over neighboring cards — it's a
    glance, not a panel meant to coexist with the tree around it. Same
-   translucency + blur treatment as the legend, but in --color-other
-   (lavender) rather than the forest/amber/beige already carrying every
-   other meaning in the app. */
+   translucency + blur treatment as the legend (see its own comment on
+   why that alpha is what it is), but in --color-other (lavender) rather
+   than the forest/amber/beige already carrying every other meaning in
+   the app. */
 .hover-preview {
   position: absolute;
   z-index: 8;
@@ -801,33 +811,13 @@ body {
   max-width: calc(100vw - 32px);
   padding: 0.85rem 1rem;
   border-radius: 14px;
-  background: rgba(220, 203, 234, 0.14);
+  background: rgba(220, 203, 234, 0.35);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
   box-shadow: 0 12px 32px rgba(27, 67, 50, 0.22);
   pointer-events: none;
   transform: translate(-50%, calc(-100% - 16px));
   animation: hover-preview-fade-in 160ms ease both;
-}
-
-/* The low alpha above only reads as "frosted glass" together with the
-   blur — without it, the same value looks like almost nothing sits there
-   at all, or (once there's enough going on behind it) like it's letting
-   *too much* show through with no diffusion to soften it. A browser that
-   silently doesn't apply backdrop-filter (this turned out to be exactly
-   what was happening in production but not in local testing — the two
-   were simply being viewed in different browsers) needs a real fallback,
-   not just a hope that the blur is there: raise the opacity enough to
-   read as a solid, legible panel on its own. */
-@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-  .legend-trigger,
-  .legend-panel {
-    background: rgba(116, 168, 146, 0.92);
-  }
-
-  .hover-preview {
-    background: rgba(220, 203, 234, 0.94);
-  }
 }
 
 /* Anchored below the card instead of above it when there isn't enough
