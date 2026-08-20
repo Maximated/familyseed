@@ -480,12 +480,35 @@ function buildUnionInfoPanel(union: UnionInfo, people: TreePerson[]): InfoPanelD
     .filter((p) => p.rels.parents.includes(union.partner1Id) && p.rels.parents.includes(union.partner2Id))
     .map((p) => ({ id: p.id, name: name(p) }));
 
+  // Was previously empty — InfoPanel's own edit-only sub-components
+  // (UnionDetailsEditor etc., driven by the separate `union`/`familyId`
+  // fields below) covered this when the full panel was opened by clicking,
+  // but HoverPreview only ever renders `sections`, so a hovered union mark
+  // showed nothing beyond its own two names. Same read-only wording
+  // UnionDetailsEditor/UnionChildrenEditor already use, just not gated
+  // behind a click.
+  const sections: InfoPanelSection[] = [
+    {
+      heading: i18n.t("infoPanel.unionHeading"),
+      items: [
+        i18n.t("infoPanel.unionType", { value: i18n.t(`unionType.${union.unionType}`) }),
+        i18n.t("infoPanel.unionStatus", { value: i18n.t(`unionStatus.${union.unionStatus}`) }),
+        i18n.t("infoPanel.unionDate", { value: union.unionDateText || i18n.t("infoPanel.unknownDate") }),
+        ...(union.unionPlace ? [i18n.t("infoPanel.unionPlace", { value: union.unionPlace })] : []),
+      ],
+    },
+  ];
+  if (union.notes) sections.push({ heading: i18n.t("infoPanel.sectionNotes"), items: splitLines(union.notes) });
+  if (children.length > 0) {
+    sections.push({ heading: i18n.t("editPerson.childrenLegend"), items: children.map((c) => c.name) });
+  }
+
   return {
     icon: <span className="info-panel-union-symbol">{unionIcon(union)}</span>,
     iconClassName: "info-panel-icon-union",
     title: `${name(partner1)} & ${name(partner2)}`,
     subtitle: union.order >= 2 ? i18n.t("infoPanel.unionOrder", { order: union.order }) : undefined,
-    sections: [],
+    sections,
     familyId: union.id,
     notes: union.notes,
     union: {

@@ -110,16 +110,23 @@ export default function InfoPanel({ treeId, data, onClose, onNavigateToPerson, o
 
         {tab === "ficha" && (
           <div className="info-panel-sections">
-            {data.sections.map((section) => (
-              <div className="info-panel-section" key={section.heading}>
-                <h3 className="info-panel-section-heading">{section.heading}</h3>
-                <ul className="info-panel-bullets">
-                  {section.items.map((item, index) => (
-                    <li key={index}>{item}</li>
-                  ))}
-                </ul>
-              </div>
-            ))}
+            {/* A union's own equivalent of this same read-only content also
+                lives in `data.sections` (see buildUnionInfoPanel) — that
+                copy is for the hover-preview, which never renders these
+                editors at all. Showing both here would just repeat every
+                bullet twice, so the editors below take over entirely once
+                there's a familyId. */}
+            {!data.familyId &&
+              data.sections.map((section) => (
+                <div className="info-panel-section" key={section.heading}>
+                  <h3 className="info-panel-section-heading">{section.heading}</h3>
+                  <ul className="info-panel-bullets">
+                    {section.items.map((item, index) => (
+                      <li key={index}>{item}</li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
             {data.familyId && data.union && (
               <UnionDetailsEditor treeId={treeId} familyId={data.familyId} initial={data.union} onSaved={onDataChanged} />
             )}
