@@ -468,8 +468,53 @@ body {
 .export-image-popover {
   display: flex;
   flex-direction: column;
+  gap: 0.7rem;
+  min-width: 220px;
+}
+
+.export-option-group {
+  display: flex;
+  flex-direction: column;
   gap: 0.3rem;
-  min-width: 180px;
+}
+
+.export-option-label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--color-text-secondary);
+}
+
+.export-option-buttons {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.export-option-btn {
+  flex: 1;
+  font-size: 0.85rem;
+  font-weight: 700;
+  padding: 0.4rem 0.6rem;
+  border-radius: 999px;
+  border: 1.5px solid #ccc;
+  background: #fff;
+  color: var(--color-forest);
+  cursor: pointer;
+  transition: background 150ms ease, border-color 150ms ease, color 150ms ease;
+}
+
+.export-option-btn:hover {
+  border-color: var(--color-forest-light);
+}
+
+.export-option-btn-active {
+  background: var(--color-forest-light);
+  border-color: var(--color-forest-light);
+  color: #fff;
+}
+
+.export-option-submit {
+  width: 100%;
+  text-align: center;
 }
 
 /* family-chart layers its HTML cards (#htmlSvg) on top of the SVG that

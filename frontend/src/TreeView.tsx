@@ -550,6 +550,9 @@ function App() {
   const [titleDraft, setTitleDraft] = useState("");
   const [showLineageMenu, setShowLineageMenu] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
+  const [exportFormat, setExportFormat] = useState<"png" | "svg">("png");
+  const [exportBackground, setExportBackground] = useState<"opaque" | "transparent">("opaque");
+  const [exportQuality, setExportQuality] = useState<"standard" | "high">("high");
   const [orientation, setOrientation] = useState<"vertical" | "horizontal">("vertical");
   // wireCardAndUnionClicks (below) is a long-lived useCallback that doesn't
   // list `orientation` as a dependency — correctLinkTextTransform's settle
@@ -1139,7 +1142,15 @@ function App() {
   // watermark behind the canvas — meant for dropping the export into
   // another document (InDesign, a scrapbook page, ...) where the caller's
   // own background should show through instead of the app's own cream.
-  async function handleExportTreeImage(transparent: boolean) {
+  // `format: "svg"` sidesteps the whole raster-quality question (it's
+  // vector — never pixelates at any zoom); `pixelRatio` only matters for
+  // "png".
+  async function handleExportTreeImage(options: {
+    transparent: boolean;
+    format: "png" | "svg";
+    pixelRatio: number;
+  }) {
+    const { transparent, format, pixelRatio } = options;
     const container = containerRef.current;
     if (!container || exportingImage) return;
     setExportingImage(true);
@@ -1248,16 +1259,41 @@ function App() {
         exportDomRestores.push(() => el.classList.add("card-main"));
       });
 
-      const { toPng } = await import("html-to-image");
-      const dataUrl = await toPng(container, {
-        backgroundColor: transparent
-          ? undefined
-          : getComputedStyle(document.documentElement).getPropertyValue("--color-bg").trim() || "#faf6ef",
-        pixelRatio: 2,
-      });
+      // The "more ancestry available" corner icon (a small solid-forest-
+      // green circle — this is what was actually showing up as a stray
+      // green dot in exports, not a union mark at all) is deliberately
+      // *not* hover-gated in the app, since it's meant to catch the eye
+      // whenever it applies (see wireCardAndUnionClicks). The edit/expand/
+      // relate corner buttons are hover-gated via CSS opacity, so they're
+      // already invisible on export — hidden here too anyway, since all
+      // four are interactive affordances for the live app, not something
+      // that belongs in a static picture of the tree.
+      container
+        .querySelectorAll<HTMLElement>(
+          ".card-ancestry-toggle, .card-expand-toggle, .card-edit-toggle, .card-relate-toggle",
+        )
+        .forEach((el) => {
+          const previousDisplay = el.style.display;
+          el.style.display = "none";
+          exportDomRestores.push(() => {
+            el.style.display = previousDisplay;
+          });
+        });
+
+      const backgroundColor = transparent
+        ? undefined
+        : getComputedStyle(document.documentElement).getPropertyValue("--color-bg").trim() || "#faf6ef";
       const link = document.createElement("a");
-      link.href = dataUrl;
-      link.download = `${(treeName || "arbol").replace(/[^a-z0-9]+/gi, "_")}.png`;
+      const baseName = (treeName || "arbol").replace(/[^a-z0-9]+/gi, "_");
+      if (format === "svg") {
+        const { toSvg } = await import("html-to-image");
+        link.href = await toSvg(container, { backgroundColor });
+        link.download = `${baseName}.svg`;
+      } else {
+        const { toPng } = await import("html-to-image");
+        link.href = await toPng(container, { backgroundColor, pixelRatio });
+        link.download = `${baseName}.png`;
+      }
       link.click();
     } catch (err) {
       setError((err as Error).message);
@@ -1548,11 +1584,82 @@ function App() {
               </button>
               {showExportMenu && (
                 <div className="popover export-image-popover">
-                  <button type="button" className="union-notes-edit-link" onClick={() => handleExportTreeImage(false)}>
-                    {t("app.exportTreeImageWithBg")}
-                  </button>
-                  <button type="button" className="union-notes-edit-link" onClick={() => handleExportTreeImage(true)}>
-                    {t("app.exportTreeImageTransparent")}
+                  <div className="export-option-group">
+                    <span className="export-option-label">{t("app.exportFormatLabel")}</span>
+                    <div className="export-option-buttons">
+                      <button
+                        type="button"
+                        className={`export-option-btn${exportFormat === "png" ? " export-option-btn-active" : ""}`}
+                        onClick={() => setExportFormat("png")}
+                      >
+                        PNG
+                      </button>
+                      <button
+                        type="button"
+                        className={`export-option-btn${exportFormat === "svg" ? " export-option-btn-active" : ""}`}
+                        onClick={() => setExportFormat("svg")}
+                      >
+                        SVG
+                      </button>
+                    </div>
+                    {exportFormat === "svg" && <p className="field-hint">{t("app.exportFormatSvgHint")}</p>}
+                  </div>
+
+                  <div className="export-option-group">
+                    <span className="export-option-label">{t("app.exportBackgroundLabel")}</span>
+                    <div className="export-option-buttons">
+                      <button
+                        type="button"
+                        className={`export-option-btn${exportBackground === "opaque" ? " export-option-btn-active" : ""}`}
+                        onClick={() => setExportBackground("opaque")}
+                      >
+                        {t("app.exportTreeImageWithBg")}
+                      </button>
+                      <button
+                        type="button"
+                        className={`export-option-btn${exportBackground === "transparent" ? " export-option-btn-active" : ""}`}
+                        onClick={() => setExportBackground("transparent")}
+                      >
+                        {t("app.exportTreeImageTransparent")}
+                      </button>
+                    </div>
+                  </div>
+
+                  {exportFormat === "png" && (
+                    <div className="export-option-group">
+                      <span className="export-option-label">{t("app.exportQualityLabel")}</span>
+                      <div className="export-option-buttons">
+                        <button
+                          type="button"
+                          className={`export-option-btn${exportQuality === "standard" ? " export-option-btn-active" : ""}`}
+                          onClick={() => setExportQuality("standard")}
+                        >
+                          {t("app.exportQualityStandard")}
+                        </button>
+                        <button
+                          type="button"
+                          className={`export-option-btn${exportQuality === "high" ? " export-option-btn-active" : ""}`}
+                          onClick={() => setExportQuality("high")}
+                        >
+                          {t("app.exportQualityHigh")}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  <button
+                    type="button"
+                    className="btn-primary export-option-submit"
+                    disabled={exportingImage}
+                    onClick={() =>
+                      handleExportTreeImage({
+                        transparent: exportBackground === "transparent",
+                        format: exportFormat,
+                        pixelRatio: exportQuality === "high" ? 4 : 2,
+                      })
+                    }
+                  >
+                    {exportingImage ? t("app.exportingTreeImage") : t("app.exportSubmit")}
                   </button>
                 </div>
               )}
