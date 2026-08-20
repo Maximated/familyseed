@@ -656,7 +656,7 @@ body {
   max-width: min(420px, calc(100vw - 64px));
   padding: 0.6rem 1rem;
   border-radius: 10px;
-  background: rgba(116, 168, 146, 0.85);
+  background: rgba(116, 168, 146, 0.6);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   box-shadow: 0 4px 16px rgba(27, 67, 50, 0.1);
@@ -725,6 +725,44 @@ body {
   font-size: 0.65rem;
   font-style: italic;
   color: var(--color-text-secondary);
+}
+
+/* A quick read-only peek at a card's extended info, shown after hovering
+   it for a second (see the timer in wireCardAndUnionClicks). Deliberately
+   borderless and roomy enough to spill over neighboring cards — it's a
+   glance, not a panel meant to coexist with the tree around it. Same
+   translucency + blur treatment as the legend, but in --color-other
+   (lavender) rather than the forest/amber/beige already carrying every
+   other meaning in the app. */
+.hover-preview {
+  position: absolute;
+  z-index: 8;
+  width: 280px;
+  max-width: calc(100vw - 32px);
+  padding: 0.85rem 1rem;
+  border-radius: 14px;
+  background: rgba(220, 203, 234, 0.6);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  box-shadow: 0 12px 32px rgba(27, 67, 50, 0.22);
+  pointer-events: none;
+  transform: translate(-50%, calc(-100% - 16px));
+  animation: hover-preview-fade-in 160ms ease both;
+}
+
+/* Anchored below the card instead of above it when there isn't enough
+   room above (near the top edge of the canvas). */
+.hover-preview-below {
+  transform: translate(-50%, 16px);
+}
+
+@keyframes hover-preview-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 /* Compact tree card: name + optional birth surname/alias + a lifespan

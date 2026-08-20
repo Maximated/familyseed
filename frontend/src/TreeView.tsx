@@ -25,6 +25,7 @@ import IndividualsSearchView from "./IndividualsSearchView";
 import LineageChips from "./LineageChips";
 import Timeline from "./Timeline";
 import Legend from "./Legend";
+import HoverPreview from "./HoverPreview";
 import InfoPanel, { type InfoPanelData, type InfoPanelSection } from "./InfoPanel";
 import {
   ArrowLeftIcon,
@@ -204,9 +205,19 @@ function correctLinkTextTransform(
   const toTransform = (mid: number, rowDepth: number) =>
     orientation === "horizontal" ? `translate(${rowDepth}, ${mid})` : `translate(${mid}, ${rowDepth})`;
 
+  // Horizontal mode needs its own, bigger nudge here: the connecting line
+  // itself runs along the depth axis (screen-x) at this row, and the mark
+  // was still landing right on top of it — vertical mode's -3 was tuned
+  // for that orientation alone and never meant to double as horizontal's.
+  const depthNudge = orientation === "horizontal" ? -7 : -3;
+  // And, only in horizontal mode, dropped a few px along the spread axis
+  // (screen-y there) so it clears the line vertically too, not just
+  // sideways.
+  const spreadNudge = orientation === "horizontal" ? 6 : 0;
+
   const sp1Spread = spread(sp1);
   const sp2Spread = spread(sp2);
-  const rowDepth = depth(sp1) - 3;
+  const rowDepth = depth(sp1) + depthNudge;
   const loSpread = Math.min(sp1Spread, sp2Spread);
   const hiSpread = Math.max(sp1Spread, sp2Spread);
   const rawMidSpread = (sp1Spread + sp2Spread) / 2;
@@ -222,7 +233,7 @@ function correctLinkTextTransform(
     )
     .sort((a, b) => spread(a) - spread(b));
 
-  if (between.length === 0) return toTransform(rawMidSpread, rowDepth);
+  if (between.length === 0) return toTransform(rawMidSpread + spreadNudge, rowDepth);
 
   const boundaries = [loSpread, ...between.map((node) => spread(node)), hiSpread];
   let bestMid = rawMidSpread;
@@ -235,7 +246,7 @@ function correctLinkTextTransform(
       bestMid = gapCenter;
     }
   }
-  return toTransform(bestMid, rowDepth);
+  return toTransform(bestMid + spreadNudge, rowDepth);
 }
 
 // Standard genealogical marks (⚭ marriage, ⚮ divorce, ⚯ unmarried
@@ -512,6 +523,10 @@ function App() {
   }, [orientation]);
   const [legendOpen, setLegendOpen] = useState(false);
   const [exportingImage, setExportingImage] = useState(false);
+  const [hoverPreview, setHoverPreview] = useState<{ data: InfoPanelData; x: number; y: number; flip: boolean } | null>(
+    null,
+  );
+  const hoverTimerRef = useRef<number | undefined>(undefined);
 
   const runHighlight = useCallback(() => {
     if (!containerRef.current) return;
@@ -623,6 +638,45 @@ function App() {
       img.onclick = (e) => {
         e.stopPropagation();
         setLightboxUrl(img.src);
+      };
+    });
+
+    // A quick, read-only peek at a card's extended info after the pointer
+    // rests on it for a second — mouseenter/mouseleave only, so it never
+    // fires on touch (where "hovering" isn't a real gesture anyway). Any
+    // pending timer or open preview is torn down whenever the tree
+    // re-renders (this whole function reruns), since the card it was
+    // anchored to may have moved or been replaced.
+    window.clearTimeout(hoverTimerRef.current);
+    setHoverPreview(null);
+    container.querySelectorAll<HTMLElement>(".card-inner[data-person-id]").forEach((card) => {
+      const personId = card.dataset.personId;
+      card.onmouseenter = () => {
+        window.clearTimeout(hoverTimerRef.current);
+        hoverTimerRef.current = window.setTimeout(() => {
+          const person = personId ? treeDataRef.current.find((p) => p.id === personId) : undefined;
+          const containerEl = containerRef.current;
+          if (!person || !containerEl) return;
+          const cardRect = card.getBoundingClientRect();
+          const containerRect = containerEl.getBoundingClientRect();
+          const relativeTop = cardRect.top - containerRect.top;
+          setHoverPreview({
+            data: buildPersonInfoPanel(person),
+            x: cardRect.left + cardRect.width / 2 - containerRect.left,
+            y: relativeTop,
+            // Not enough room above the card to grow upward without
+            // clipping out of view — anchor below it instead.
+            flip: relativeTop < 220,
+          });
+        }, 1000);
+      };
+      card.onmouseleave = () => {
+        window.clearTimeout(hoverTimerRef.current);
+        setHoverPreview(null);
+      };
+      card.onmousedown = () => {
+        window.clearTimeout(hoverTimerRef.current);
+        setHoverPreview(null);
       };
     });
 
@@ -1041,6 +1095,30 @@ function App() {
       // every render, so a generous fixed wait for the fit transition and
       // its own union-mark correction to finish is simpler and plenty.
       await new Promise((resolve) => setTimeout(resolve, 1000));
+
+      // html-to-image clones the DOM and inlines each *HTML* element's
+      // computed style onto its clone, but never does that for SVG-namespace
+      // elements — so the connecting lines and union marks, which only get
+      // their real color from the .f3 path.link / g.link-text stylesheet
+      // rules, serialize with family-chart's own raw placeholder values
+      // instead (white-on-cream, effectively invisible). Setting the actual
+      // values here works around that without changing anything on screen —
+      // path.link has no competing inline style, so a plain attribute is
+      // enough, but g.link-text's <text> already carries an inline
+      // `style="fill:...;font-size:...` from family-chart itself, which
+      // beats a presentation attribute — that one has to be overridden via
+      // .style, the same place it's already declared, to actually win.
+      const forestColor =
+        getComputedStyle(document.documentElement).getPropertyValue("--color-forest").trim() || "#1b4332";
+      container.querySelectorAll<SVGPathElement>("path.link").forEach((p) => {
+        p.setAttribute("stroke", forestColor);
+      });
+      container.querySelectorAll<SVGTextElement>("g.link-text text").forEach((t) => {
+        t.style.fill = forestColor;
+        t.style.fontSize = "28px";
+        t.style.fontWeight = "700";
+      });
+
       const { toPng } = await import("html-to-image");
       const dataUrl = await toPng(container, {
         backgroundColor: getComputedStyle(document.documentElement).getPropertyValue("--color-bg").trim() || "#faf6ef",
@@ -1370,6 +1448,9 @@ function App() {
           <div id="FamilyChart" ref={containerRef} className="f3 tree-container" />
           <svg ref={relateOverlayRef} className="relate-drag-overlay" aria-hidden="true" />
           <Legend open={legendOpen} onToggle={() => setLegendOpen((v) => !v)} />
+          {hoverPreview && (
+            <HoverPreview data={hoverPreview.data} x={hoverPreview.x} y={hoverPreview.y} flip={hoverPreview.flip} />
+          )}
         </div>
         {/* Far side in vertical mode (a right-hand column, via normal flex
             row order) but the top edge in horizontal mode (.timeline gets
