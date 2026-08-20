@@ -6,6 +6,7 @@ import { walkGraph } from "./tree-data.js";
 import { uploadsRoot } from "./uploads.js";
 
 export type ReportDirection = "ancestors" | "descendants" | "both";
+export type ReportLayout = "vertical" | "horizontal" | "descending";
 
 const UP_LABELS = ["Padres", "Abuelos", "Bisabuelos", "Tatarabuelos"];
 const DOWN_LABELS = ["Hijos", "Nietos", "Bisnietos", "Tataranietos"];
@@ -91,46 +92,89 @@ async function generationSectionHtml(
     </section>`;
 }
 
-export async function renderReportHtml(
+async function rootSectionHtml(root: TreePerson): Promise<string> {
+  const card = await personCardHtml(root);
+  return `
+    <section class="generation root-section">
+      <h2 class="root-heading">${escapeHtml(personName(root))}</h2>
+      <div class="generation-grid">${card}</div>
+    </section>`;
+}
+
+// Merges every root's walkGraph(...) result into one map, keyed by person —
+// when the same person is reached from more than one root (e.g. a shared
+// great-grandparent between two grandparents both picked as roots), the
+// shallowest/closest relationship wins, so they're shown once under the
+// generation label that's actually most relevant, not duplicated or
+// mislabeled as more distant than they are from at least one root. Any
+// person who is themselves one of the selected roots is excluded — they
+// get their own root-section instead of also appearing folded into a
+// generation.
+function mergeWalks(
   people: TreePerson[],
-  rootId: string,
-  treeName: string,
-  direction: ReportDirection,
-): Promise<string> {
-  const root = people.find((p) => p.id === rootId);
-  if (!root) throw new Error(`No existe el individuo ${rootId}`);
-
-  const sections: string[] = [];
-
-  if (direction === "ancestors" || direction === "both") {
-    const ancestors = walkGraph(people, rootId, "up");
-    const byGeneration = new Map<number, TreePerson[]>();
-    for (const { person, generation } of ancestors.values()) {
-      if (!byGeneration.has(generation)) byGeneration.set(generation, []);
-      byGeneration.get(generation)!.push(person);
-    }
-    const generations = [...byGeneration.keys()].sort((a, b) => b - a);
-    for (const generation of generations) {
-      const group = byGeneration.get(generation)!.sort((a, b) => personName(a).localeCompare(personName(b)));
-      sections.push(await generationSectionHtml(generation, group));
+  rootIds: string[],
+  direction: "up" | "down",
+): Map<string, { person: TreePerson; generation: number }> {
+  const rootIdSet = new Set(rootIds);
+  const merged = new Map<string, { person: TreePerson; generation: number }>();
+  for (const rootId of rootIds) {
+    for (const [id, entry] of walkGraph(people, rootId, direction)) {
+      if (rootIdSet.has(id)) continue;
+      const existing = merged.get(id);
+      if (!existing || Math.abs(entry.generation) < Math.abs(existing.generation)) {
+        merged.set(id, entry);
+      }
     }
   }
+  return merged;
+}
 
-  const rootCard = await personCardHtml(root);
+async function generationSections(
+  merged: Map<string, { person: TreePerson; generation: number }>,
+  sortAscending: boolean,
+): Promise<string[]> {
+  const byGeneration = new Map<number, TreePerson[]>();
+  for (const { person, generation } of merged.values()) {
+    if (!byGeneration.has(generation)) byGeneration.set(generation, []);
+    byGeneration.get(generation)!.push(person);
+  }
+  const generations = [...byGeneration.keys()].sort((a, b) => (sortAscending ? a - b : b - a));
+  const sections: string[] = [];
+  for (const generation of generations) {
+    const group = byGeneration.get(generation)!.sort((a, b) => personName(a).localeCompare(personName(b)));
+    sections.push(await generationSectionHtml(generation, group));
+  }
+  return sections;
+}
+
+export async function renderReportHtml(
+  people: TreePerson[],
+  rootIds: string[],
+  treeName: string,
+  direction: ReportDirection,
+  layout: ReportLayout = "vertical",
+): Promise<string> {
+  const roots = rootIds.map((id) => {
+    const person = people.find((p) => p.id === id);
+    if (!person) throw new Error(`No existe el individuo ${id}`);
+    return person;
+  });
+
+  // "descending" only changes generation order (youngest-first instead of
+  // oldest-first) — it's the same two sort calls the single-root version
+  // always had, just both flipped together.
+  const ascendingSort = layout === "descending";
+
+  const sections: string[] = [];
+  if (direction === "ancestors" || direction === "both") {
+    sections.push(...(await generationSections(mergeWalks(people, rootIds, "up"), !ascendingSort)));
+  }
+
+  const rootSections = await Promise.all(roots.map(rootSectionHtml));
 
   const descendantSections: string[] = [];
   if (direction === "descendants" || direction === "both") {
-    const descendants = walkGraph(people, rootId, "down");
-    const byGeneration = new Map<number, TreePerson[]>();
-    for (const { person, generation } of descendants.values()) {
-      if (!byGeneration.has(generation)) byGeneration.set(generation, []);
-      byGeneration.get(generation)!.push(person);
-    }
-    const generations = [...byGeneration.keys()].sort((a, b) => a - b);
-    for (const generation of generations) {
-      const group = byGeneration.get(generation)!.sort((a, b) => personName(a).localeCompare(personName(b)));
-      descendantSections.push(await generationSectionHtml(generation, group));
-    }
+    descendantSections.push(...(await generationSections(mergeWalks(people, rootIds, "down"), ascendingSort)));
   }
 
   const title =
@@ -139,6 +183,12 @@ export async function renderReportHtml(
       : direction === "descendants"
         ? "Descendientes"
         : "Ascendientes y descendientes";
+
+  const bodyBlocks = [...sections, ...rootSections, ...descendantSections];
+  const bodyHtml =
+    layout === "horizontal"
+      ? `<div class="generations-row">${bodyBlocks.join("")}</div>`
+      : bodyBlocks.join("");
 
   return `<!doctype html>
 <html lang="es">
@@ -175,15 +225,6 @@ export async function renderReportHtml(
     color: var(--color-text-secondary);
     font-size: 13px;
   }
-  .root-heading {
-    font-family: "Fraunces", Georgia, serif;
-    font-size: 16px;
-    font-weight: 600;
-    color: var(--color-amber);
-    margin: 28px 0 10px;
-    padding-bottom: 4px;
-    border-bottom: 2px solid var(--color-amber);
-  }
   .generation {
     margin-bottom: 20px;
     break-inside: avoid;
@@ -195,10 +236,38 @@ export async function renderReportHtml(
     margin: 0 0 8px;
     color: var(--color-forest);
   }
+  /* Wins over the plain ".generation h2" rule above (two classes beats one
+     class + one element) so a root's own heading keeps its amber/underline
+     treatment even though it's now rendered inside the same ".generation"
+     wrapper as every other section, for the horizontal-layout column CSS
+     below to apply to it too. */
+  .generation h2.root-heading {
+    color: var(--color-amber);
+    font-size: 16px;
+    border-bottom: 2px solid var(--color-amber);
+    padding-bottom: 4px;
+  }
   .generation-grid {
     display: flex;
     flex-wrap: wrap;
     gap: 10px;
+  }
+  /* Horizontal layout: generations (and each root's own section) become
+     columns side by side instead of stacked rows — no chart library
+     involved, just a flex-direction swap on the same markup. */
+  .generations-row {
+    display: flex;
+    flex-direction: row;
+    align-items: flex-start;
+    gap: 24px;
+  }
+  .generations-row .generation {
+    flex-shrink: 0;
+    width: 260px;
+  }
+  .generations-row .generation-grid {
+    flex-direction: column;
+    flex-wrap: nowrap;
   }
   .person-card {
     display: flex;
@@ -248,10 +317,7 @@ export async function renderReportHtml(
 <body>
   <h1>${escapeHtml(title)}</h1>
   <p class="subtitle">${escapeHtml(treeName)}</p>
-  ${sections.join("")}
-  <div class="root-heading">${escapeHtml(personName(root))}</div>
-  <div class="generation-grid">${rootCard}</div>
-  ${descendantSections.join("")}
+  ${bodyHtml}
 </body>
 </html>`;
 }

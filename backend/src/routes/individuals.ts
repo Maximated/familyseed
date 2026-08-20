@@ -12,7 +12,7 @@ import {
 import { logChange } from "../tree-context.js";
 import { deleteUploadByUrl, saveUpload } from "../uploads.js";
 import { buildTreeData } from "../tree-data.js";
-import { renderReportHtml, renderReportPdf, type ReportDirection } from "../report.js";
+import { renderReportHtml, renderReportPdf, type ReportDirection, type ReportLayout } from "../report.js";
 import { downloadFilename } from "../filename.js";
 
 // Every optional field also accepts `null` (not just omission) — that's how
@@ -1028,28 +1028,42 @@ export default async function individualRoutes(fastify: FastifyInstance) {
     return reply.code(204).send();
   });
 
-  // PDF report of a person's ascendants/descendants — walks the very same
-  // rels.parents/rels.children graph GET /tree hands to the frontend for
-  // navigation (see buildTreeData/walkGraph in tree-data.ts), so the report
-  // can never show a different family shape than the tree UI does.
-  fastify.get("/:id/report", async (request, reply) => {
-    const { id } = request.params as { id: string };
-    const { direction: rawDirection } = request.query as { direction?: string };
+  // PDF report of one or more people's ascendants/descendants — walks the
+  // very same rels.parents/rels.children graph GET /tree hands to the
+  // frontend for navigation (see buildTreeData/walkGraph in tree-data.ts),
+  // so the report can never show a different family shape than the tree UI
+  // does. `rootIds` is a repeated query param (?rootIds=a&rootIds=b), which
+  // Fastify's querystring parser already hands back as an array — kept as
+  // a plain GET (rather than a POST+blob-download) so the existing
+  // <a target="_blank"> download flow on the frontend needs no changes.
+  fastify.get("/report", async (request, reply) => {
+    const query = request.query as { rootIds?: string | string[]; direction?: string; layout?: string };
+    const rootIds = query.rootIds ? (Array.isArray(query.rootIds) ? query.rootIds : [query.rootIds]) : [];
+    if (rootIds.length === 0) {
+      return reply.code(400).send({ error: "Elige al menos una persona" });
+    }
     const direction: ReportDirection =
-      rawDirection === "ancestors" || rawDirection === "descendants" ? rawDirection : "both";
+      query.direction === "ancestors" || query.direction === "descendants" ? query.direction : "both";
+    const layout: ReportLayout =
+      query.layout === "horizontal" || query.layout === "descending" ? query.layout : "vertical";
 
     const treeId = request.treeId!;
-    const individual = await prisma.individual.findFirst({ where: { id, treeId, deletedAt: null } });
-    if (!individual) {
-      return reply.code(404).send({ error: `No existe el individuo ${id}` });
+    const individuals = await prisma.individual.findMany({ where: { id: { in: rootIds }, treeId, deletedAt: null } });
+    const foundIds = new Set(individuals.map((i) => i.id));
+    const missingId = rootIds.find((id) => !foundIds.has(id));
+    if (missingId) {
+      return reply.code(404).send({ error: `No existe el individuo ${missingId}` });
     }
 
     const tree = await prisma.tree.findUniqueOrThrow({ where: { id: treeId } });
     const { people } = await buildTreeData(treeId);
-    const html = await renderReportHtml(people, id, tree.name, direction);
+    const html = await renderReportHtml(people, rootIds, tree.name, direction, layout);
     const pdf = await renderReportPdf(html);
 
-    const filenameSafe = downloadFilename(personLabel(individual), "informe");
+    const byId = new Map(individuals.map((i) => [i.id, i]));
+    const filenameBase =
+      rootIds.length === 1 ? personLabel(byId.get(rootIds[0])!) : `${rootIds.length}_personas`;
+    const filenameSafe = downloadFilename(filenameBase, "informe");
     reply.header("Content-Type", "application/pdf");
     reply.header("Content-Disposition", `attachment; filename="${filenameSafe}.pdf"`);
     return reply.send(pdf);

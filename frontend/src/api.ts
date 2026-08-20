@@ -561,14 +561,24 @@ export async function deletePersonMedia(treeId: string, id: string, mediaId: str
 }
 
 export type ReportDirection = "ancestors" | "descendants" | "both";
+export type ReportLayout = "vertical" | "horizontal" | "descending";
 
 // A direct navigation URL (opened via window.open/<a href>, not fetch) —
 // the backend serves it with Content-Disposition: attachment, so the
 // browser downloads the PDF without any client-side blob handling needed.
 // Cookies ride along automatically on a normal browser navigation, so no
 // credentials option is needed here the way apiFetch needs it.
-export function personReportUrl(treeId: string, id: string, direction: ReportDirection): string {
-  return `${API_URL}/trees/${treeId}/individuals/${id}/report?direction=${direction}`;
+export function personReportUrl(
+  treeId: string,
+  rootIds: string[],
+  direction: ReportDirection,
+  layout: ReportLayout,
+): string {
+  const params = new URLSearchParams();
+  for (const id of rootIds) params.append("rootIds", id);
+  params.set("direction", direction);
+  params.set("layout", layout);
+  return `${API_URL}/trees/${treeId}/individuals/report?${params.toString()}`;
 }
 
 export type ImportResult = { individuals: number; families: number; individualIds: string[] };

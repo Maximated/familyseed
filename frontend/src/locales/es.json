@@ -228,7 +228,15 @@
   "report": {
     "ancestors": "Ascendientes",
     "descendants": "Descendientes",
-    "both": "Ascendientes y descendientes"
+    "both": "Ascendientes y descendientes",
+    "removeRoot": "quitar",
+    "addAnotherRootHint": "Puedes añadir más personas para combinar sus ascendientes/descendientes en un solo informe.",
+    "layoutLegend": "Orientación del informe",
+    "layout": {
+      "vertical": "Vertical",
+      "horizontal": "Horizontal",
+      "descending": "Descendente (más joven arriba)"
+    }
   },
   "search": {
     "title": "Buscar personas",
