@@ -254,6 +254,33 @@ function correctLinkTextTransform(
   return toTransform(bestMid + spreadNudge, rowDepth);
 }
 
+// Resolves once every g.link-text's `transform` attribute has stopped
+// changing for `quietMs` — used before a tree-image capture (see
+// handleExportTreeImage) instead of a fixed delay, since a fit-all's own
+// d3 transition (and correctLinkTextTransform's own settle-correction
+// chasing it) can take a variable amount of time depending on how much
+// the tree actually moved. `maxWaitMs` is just a safety net in case
+// something never truly goes quiet.
+function waitForLinkTextSettle(container: HTMLElement, quietMs = 200, maxWaitMs = 4000): Promise<void> {
+  return new Promise((resolve) => {
+    let quietTimer: number | undefined;
+    let hardCap: number | undefined;
+    const done = () => {
+      observer.disconnect();
+      window.clearTimeout(quietTimer);
+      window.clearTimeout(hardCap);
+      resolve();
+    };
+    const observer = new MutationObserver(() => {
+      window.clearTimeout(quietTimer);
+      quietTimer = window.setTimeout(done, quietMs);
+    });
+    observer.observe(container, { attributes: true, attributeFilter: ["transform"], subtree: true });
+    quietTimer = window.setTimeout(done, quietMs);
+    hardCap = window.setTimeout(done, maxWaitMs);
+  });
+}
+
 // Standard genealogical marks (⚭ marriage, ⚮ divorce, ⚯ unmarried
 // partnership) plus a couple of homemade ones where no standard symbol
 // exists — kept in the legend below the lineage chips since most people
@@ -1113,13 +1140,17 @@ function App() {
     setExportingImage(true);
     setError(null);
     setShowExportMenu(false);
+    const linkTextRestores: Array<() => void> = [];
     try {
       handleFitAll();
-      // No settle-observer here (unlike correctLinkTextTransform) — this
-      // is a one-off manual action, not something that needs to react to
-      // every render, so a generous fixed wait for the fit transition and
-      // its own union-mark correction to finish is simpler and plenty.
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      // A fixed wait here used to race the fit transition + its own
+      // union-mark settle-correction: on a fast run the capture could grab
+      // a g.link-text mid-transition (an intermediate, wrong transform),
+      // landing marks far from where they render once actually settled —
+      // reproducible, not random, just timing-dependent. Waiting for
+      // transform mutations to actually go quiet (instead of guessing a
+      // duration) removes the race outright.
+      await waitForLinkTextSettle(container);
 
       // html-to-image clones the DOM and inlines each *HTML* element's
       // computed style onto its clone, but never does that for SVG-namespace
@@ -1144,10 +1175,53 @@ function App() {
         t.style.fontWeight = "700";
       });
 
+      // html-to-image's own cloning (see clone-node.js's cloneCSSStyle)
+      // overwrites *every* cloned element's inline style with its
+      // getComputedStyle() cssText — including `transform`, which for a
+      // union mark's <g> is how correctLinkTextTransform actually
+      // positions it (an SVG *attribute*, not a CSS property family-chart
+      // ever sets). That computed-transform round-trip comes out wrong for
+      // a <g> nested inside the pan/zoomed "view" group specifically — the
+      // export was landing marks far from their on-screen position. Since
+      // a translate(a, b) on a <g> with a single <text> child is exactly
+      // equivalent to that text carrying its own x="a" y="b", moving the
+      // position there sidesteps the whole transform round-trip: nothing
+      // conflicts with html-to-image's clone regardless of what it does to
+      // `transform`. This is a pure reparameterization (same rendered
+      // position either way), so it's safe to apply directly to the live
+      // elements — restored once the capture is done.
+      container.querySelectorAll<SVGGElement>("g.link-text").forEach((g) => {
+        const text = g.querySelector("text");
+        const match = g.getAttribute("transform")?.match(/translate\(\s*(-?[\d.]+)\s*,\s*(-?[\d.]+)\s*\)/);
+        if (!text || !match) return;
+        const [, x, y] = match;
+        text.setAttribute("x", x);
+        text.setAttribute("y", y);
+        // A style override (not touching the `transform` attribute itself)
+        // so the settle MutationObserver — which only watches that
+        // attribute — doesn't wake up and fight this.
+        g.style.transform = "none";
+        linkTextRestores.push(() => {
+          text.removeAttribute("x");
+          text.removeAttribute("y");
+          g.style.transform = "";
+        });
+      });
+
       // The watermark is a decorative ::before pseudo-element, invisible to
       // both querySelector and html-to-image's own clone — it can only be
       // suppressed via a real class toggle on the container that owns it.
-      if (transparent) container.classList.add("tree-container-no-watermark");
+      // The container's own `.tree-container` CSS rule also paints a flat
+      // background (var(--color-bg)) directly on this element — passing
+      // `backgroundColor: undefined` to toPng only skips painting a rect
+      // *behind* the whole capture, it doesn't touch that; html-to-image
+      // still inlines the container's own computed background onto its
+      // clone regardless, so it has to be cleared here too or "sin fondo"
+      // silently keeps the cream background anyway.
+      if (transparent) {
+        container.classList.add("tree-container-no-watermark");
+        container.style.background = "transparent";
+      }
 
       const { toPng } = await import("html-to-image");
       const dataUrl = await toPng(container, {
@@ -1164,6 +1238,8 @@ function App() {
       setError((err as Error).message);
     } finally {
       container.classList.remove("tree-container-no-watermark");
+      container.style.background = "";
+      linkTextRestores.forEach((restore) => restore());
       setExportingImage(false);
     }
   }

@@ -50,9 +50,18 @@ export async function buildTreeData(treeId: string): Promise<{ people: TreePerso
     where: { treeId, deletedAt: null },
     orderBy: { createdAt: "asc" },
     include: {
-      childOf: { include: { family: true } },
-      familiesAsPartner1: { include: { children: true } },
-      familiesAsPartner2: { include: { children: true } },
+      // Every nested include below needs its own explicit orderBy — without
+      // one, the DB is free to return these rows in whatever order it finds
+      // convenient (SQL gives no ordering guarantee absent an ORDER BY, and
+      // in practice MariaDB doesn't always keep it stable across requests),
+      // and this is exactly what family-chart uses to decide left-to-right/
+      // stacking order for someone's own spouses and children. An unstable
+      // order here was the real cause behind a union mark occasionally
+      // landing correctly-computed-for-the-wrong-layout on reload — not a
+      // math bug, a different (arbitrary) card arrangement each time.
+      childOf: { include: { family: true }, orderBy: { createdAt: "asc" } },
+      familiesAsPartner1: { include: { children: { orderBy: { createdAt: "asc" } } }, orderBy: { createdAt: "asc" } },
+      familiesAsPartner2: { include: { children: { orderBy: { createdAt: "asc" } } }, orderBy: { createdAt: "asc" } },
       lineages: { select: { lineageId: true } },
     },
   });
