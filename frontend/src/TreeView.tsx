@@ -148,10 +148,12 @@ type LinkTextDatum = { nodes: [LinkTextNode, LinkTextNode] };
 type PathLinkNode = { data: { id: string } };
 type PathLinkDatum = { source: PathLinkNode | (PathLinkNode | null | undefined)[]; target: PathLinkNode };
 
-// How close two nodes' y have to be to count as "the same row" — well
-// under family-chart's actual row spacing (150 local units), so it can't
-// mistake an adjacent generation for this one.
-const SAME_ROW_Y_TOLERANCE = 20;
+// How close two nodes' depth coordinate has to be to count as "the same
+// row" — well under family-chart's actual row spacing (150 local units),
+// so it can't mistake an adjacent generation for this one. "Depth" is
+// whichever screen axis that actually is for the current orientation (see
+// correctLinkTextTransform).
+const SAME_ROW_TOLERANCE = 20;
 
 // family-chart positions a spouse-link mark (marriage/divorce/etc. symbol)
 // using a heuristic — one card's x plus half the fixed inter-card spacing —
@@ -177,41 +179,62 @@ const SAME_ROW_Y_TOLERANCE = 20;
 // the mark into whichever real gap between adjacent cards in the row falls
 // closest to the true midpoint, which is always clear of every card by
 // construction (same uniform spacing family-chart lays every row out with).
-function correctLinkTextTransform(g: SVGGElement, allNodes: LinkTextNode[]): string | null {
+// family-chart swaps which screen axis is "spread" (spouses/siblings laid
+// out side by side within a row) vs "depth" (generation) when the tree is
+// horizontal — see its own d.psx/d.psy assignment, which reads `p.sx`/`p.y`
+// in one order for vertical and the other for horizontal. Everything below
+// used to hardcode x=spread/y=depth, which is only correct in vertical
+// mode; in horizontal mode it was grouping "same row" by the wrong axis and
+// searching for gaps along the wrong axis too, landing the mark on the
+// wrong spot (or on top of another card) — this is orientation-aware so
+// both modes use whichever axis actually is "spread" for them.
+function correctLinkTextTransform(
+  g: SVGGElement,
+  allNodes: LinkTextNode[],
+  orientation: "vertical" | "horizontal",
+): string | null {
   const datum = (g as unknown as { __data__?: LinkTextDatum }).__data__;
   if (!datum) return null;
   const [sp1, sp2] = datum.nodes;
   if (typeof sp1.x !== "number" || typeof sp2.x !== "number" || typeof sp1.y !== "number") return null;
-  const y = sp1.y - 3;
-  const loX = Math.min(sp1.x, sp2.x);
-  const hiX = Math.max(sp1.x, sp2.x);
-  const rawMidX = (sp1.x + sp2.x) / 2;
+
+  const spread = (n: { x: number; y: number }) => (orientation === "horizontal" ? n.y : n.x);
+  const depth = (n: { x: number; y: number }) => (orientation === "horizontal" ? n.x : n.y);
+  const toTransform = (mid: number, rowDepth: number) =>
+    orientation === "horizontal" ? `translate(${rowDepth}, ${mid})` : `translate(${mid}, ${rowDepth})`;
+
+  const sp1Spread = spread(sp1);
+  const sp2Spread = spread(sp2);
+  const rowDepth = depth(sp1) - 3;
+  const loSpread = Math.min(sp1Spread, sp2Spread);
+  const hiSpread = Math.max(sp1Spread, sp2Spread);
+  const rawMidSpread = (sp1Spread + sp2Spread) / 2;
 
   const between = allNodes
     .filter(
       (node) =>
         node.data.id !== sp1.data.id &&
         node.data.id !== sp2.data.id &&
-        Math.abs(node.y - sp1.y) < SAME_ROW_Y_TOLERANCE &&
-        node.x > loX &&
-        node.x < hiX,
+        Math.abs(depth(node) - depth(sp1)) < SAME_ROW_TOLERANCE &&
+        spread(node) > loSpread &&
+        spread(node) < hiSpread,
     )
-    .sort((a, b) => a.x - b.x);
+    .sort((a, b) => spread(a) - spread(b));
 
-  if (between.length === 0) return `translate(${rawMidX}, ${y})`;
+  if (between.length === 0) return toTransform(rawMidSpread, rowDepth);
 
-  const boundaries = [loX, ...between.map((node) => node.x), hiX];
-  let bestX = rawMidX;
+  const boundaries = [loSpread, ...between.map((node) => spread(node)), hiSpread];
+  let bestMid = rawMidSpread;
   let bestDist = Infinity;
   for (let i = 0; i < boundaries.length - 1; i++) {
     const gapCenter = (boundaries[i] + boundaries[i + 1]) / 2;
-    const dist = Math.abs(gapCenter - rawMidX);
+    const dist = Math.abs(gapCenter - rawMidSpread);
     if (dist < bestDist) {
       bestDist = dist;
-      bestX = gapCenter;
+      bestMid = gapCenter;
     }
   }
-  return `translate(${bestX}, ${y})`;
+  return toTransform(bestMid, rowDepth);
 }
 
 // Standard genealogical marks (⚭ marriage, ⚮ divorce, ⚯ unmarried
@@ -477,6 +500,15 @@ function App() {
   const [titleDraft, setTitleDraft] = useState("");
   const [showLineageMenu, setShowLineageMenu] = useState(false);
   const [orientation, setOrientation] = useState<"vertical" | "horizontal">("vertical");
+  // wireCardAndUnionClicks (below) is a long-lived useCallback that doesn't
+  // list `orientation` as a dependency — correctLinkTextTransform's settle
+  // timer can still be pending from before an orientation toggle, so it
+  // reads this ref instead of the closed-over state to always use the
+  // orientation current at the moment it actually runs.
+  const orientationRef = useRef(orientation);
+  useEffect(() => {
+    orientationRef.current = orientation;
+  }, [orientation]);
   const [legendMagnified, setLegendMagnified] = useState(false);
 
   const runHighlight = useCallback(() => {
@@ -717,7 +749,7 @@ function App() {
       const settle = () => {
         window.clearTimeout(settleTimer);
         settleTimer = window.setTimeout(() => {
-          const correct = correctLinkTextTransform(g, allNodes);
+          const correct = correctLinkTextTransform(g, allNodes, orientationRef.current);
           if (correct && g.getAttribute("transform") !== correct) {
             g.setAttribute("transform", correct);
           }
