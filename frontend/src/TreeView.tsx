@@ -214,7 +214,7 @@ function correctLinkTextTransform(
   // rendered width and shifting by half of it (plus a fixed margin) clears
   // the line regardless of which symbols it's showing.
   const textWidth = g.querySelector("text")?.getBBox().width ?? 20;
-  const depthNudge = orientation === "horizontal" ? -(textWidth / 2 + 12) : -3;
+  const depthNudge = orientation === "horizontal" ? -(textWidth / 2 + 18) : -3;
   // And, only in horizontal mode, dropped a few px along the spread axis
   // (screen-y there) so it clears the line vertically too, not just
   // sideways.
@@ -1166,8 +1166,11 @@ function App() {
       // .style, the same place it's already declared, to actually win.
       const forestColor =
         getComputedStyle(document.documentElement).getPropertyValue("--color-forest").trim() || "#1b4332";
+      // Black rather than the on-screen forest green, by request — reads
+      // better dropped onto someone else's own document/print layout than
+      // the app's own accent color would.
       container.querySelectorAll<SVGPathElement>("path.link").forEach((p) => {
-        p.setAttribute("stroke", forestColor);
+        p.setAttribute("stroke", "#000000");
       });
       container.querySelectorAll<SVGTextElement>("g.link-text text").forEach((t) => {
         t.style.fill = forestColor;
@@ -1211,16 +1214,19 @@ function App() {
       // The watermark is a decorative ::before pseudo-element, invisible to
       // both querySelector and html-to-image's own clone — it can only be
       // suppressed via a real class toggle on the container that owns it.
-      // The container's own `.tree-container` CSS rule also paints a flat
-      // background (var(--color-bg)) directly on this element — passing
-      // `backgroundColor: undefined` to toPng only skips painting a rect
-      // *behind* the whole capture, it doesn't touch that; html-to-image
-      // still inlines the container's own computed background onto its
-      // clone regardless, so it has to be cleared here too or "sin fondo"
-      // silently keeps the cream background anyway.
+      // `--color-bg` also has to be overridden directly (not just the
+      // container's own `background`): every card's name/date text sits on
+      // its own small `::before` fade-mask (see .card-text::before in
+      // App.css) that paints itself in that same variable so a crossing
+      // line fades out behind the text instead of cutting across it — with
+      // nothing to blend into anymore in a transparent export, that mask
+      // was showing up as a solid cream patch under every name. Overriding
+      // the custom property here (it's inherited, so this cascades to every
+      // descendant that reads it) clears both at once.
       if (transparent) {
         container.classList.add("tree-container-no-watermark");
         container.style.background = "transparent";
+        container.style.setProperty("--color-bg", "transparent");
       }
 
       const { toPng } = await import("html-to-image");
@@ -1239,6 +1245,7 @@ function App() {
     } finally {
       container.classList.remove("tree-container-no-watermark");
       container.style.background = "";
+      container.style.removeProperty("--color-bg");
       linkTextRestores.forEach((restore) => restore());
       setExportingImage(false);
     }
