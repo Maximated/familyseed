@@ -223,6 +223,19 @@ export function DiagonalArrowIcon({ size }: IconProps) {
   );
 }
 
+// A picture frame — exports the tree exactly as rendered on screen (cards,
+// connecting lines and all), distinct from the generation-list PDF report
+// (FileTextIcon), which has no visual tree diagram at all.
+export function ImageIcon({ size }: IconProps) {
+  return (
+    <Svg size={size}>
+      <rect x="3" y="3" width="18" height="18" rx="2" />
+      <circle cx="9" cy="9" r="2" />
+      <path d="m21 15-5-5L5 21" />
+    </Svg>
+  );
+}
+
 export function MenuIcon({ size }: IconProps) {
   return (
     <Svg size={size}>

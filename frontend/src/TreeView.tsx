@@ -32,6 +32,7 @@ import {
   ColumnsIcon,
   DuplicatesIcon,
   UnresolvedIcon,
+  ImageIcon,
   GitBranchIcon,
   HomeIcon,
   LinkIcon,
@@ -510,6 +511,7 @@ function App() {
     orientationRef.current = orientation;
   }, [orientation]);
   const [legendOpen, setLegendOpen] = useState(false);
+  const [exportingImage, setExportingImage] = useState(false);
 
   const runHighlight = useCallback(() => {
     if (!containerRef.current) return;
@@ -1020,6 +1022,41 @@ function App() {
     chart.updateTree({ tree_position: "fit" });
   }
 
+  // The PDF report (TreeReportModal, from the home screen) is a
+  // generation-by-generation list with no visual diagram at all — this is
+  // the "actually looks like the tree" export instead: a literal capture
+  // of the live canvas, cards/connecting lines/union marks and all, in
+  // whichever orientation is currently showing. Always fits the whole
+  // tree in first, same as the header's own fit-view button, rather than
+  // exporting whatever partial slice happened to be on screen.
+  async function handleExportTreeImage() {
+    const container = containerRef.current;
+    if (!container || exportingImage) return;
+    setExportingImage(true);
+    setError(null);
+    try {
+      handleFitAll();
+      // No settle-observer here (unlike correctLinkTextTransform) — this
+      // is a one-off manual action, not something that needs to react to
+      // every render, so a generous fixed wait for the fit transition and
+      // its own union-mark correction to finish is simpler and plenty.
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+      const { toPng } = await import("html-to-image");
+      const dataUrl = await toPng(container, {
+        backgroundColor: getComputedStyle(document.documentElement).getPropertyValue("--color-bg").trim() || "#faf6ef",
+        pixelRatio: 2,
+      });
+      const link = document.createElement("a");
+      link.href = dataUrl;
+      link.download = `${(treeName || "arbol").replace(/[^a-z0-9]+/gi, "_")}.png`;
+      link.click();
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setExportingImage(false);
+    }
+  }
+
   // family-chart supports both orientations natively (setOrientationHorizontal/
   // Vertical just flip a flag it already reads on every layout pass), so this
   // is the one piece that's actually simple — re-fit afterward since the
@@ -1290,6 +1327,16 @@ function App() {
               title={t("app.gedcom")}
             >
               <ArrowUpDownIcon />
+            </button>
+            <button
+              type="button"
+              className="icon-button"
+              onClick={handleExportTreeImage}
+              disabled={exportingImage}
+              aria-label={exportingImage ? t("app.exportingTreeImage") : t("app.exportTreeImage")}
+              title={exportingImage ? t("app.exportingTreeImage") : t("app.exportTreeImage")}
+            >
+              <ImageIcon />
             </button>
             <button
               type="button"

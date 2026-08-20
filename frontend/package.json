@@ -12,6 +12,7 @@
   "dependencies": {
     "family-chart": "^0.9.0",
     "heic2any": "^0.0.4",
+    "html-to-image": "^1.11.13",
     "i18next": "^26.3.6",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
