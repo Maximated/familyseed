@@ -44,6 +44,21 @@ export async function requireAuth(request: FastifyRequest, reply: FastifyReply) 
   request.sessionId = session.id;
 }
 
+// Same lookup as requireAuth, but returns null instead of 401ing — for a
+// route that behaves differently for a logged-out visitor rather than just
+// rejecting them outright (e.g. redeeming an invite link: a logged-out
+// visitor gets told to log in first, not a bare 401).
+export async function resolveOptionalUserId(request: FastifyRequest): Promise<string | null> {
+  const raw = request.cookies[SESSION_COOKIE];
+  const unsigned = raw ? request.unsignCookie(raw) : null;
+  if (!unsigned?.valid || !unsigned.value) return null;
+
+  const session = await prisma.session.findUnique({ where: { id: unsigned.value } });
+  if (!session || session.expiresAt < new Date()) return null;
+
+  return session.userId;
+}
+
 // Deletes the session row (not just the client-side cookie) so a copy of
 // the cookie made before logout — already sent somewhere, cached, etc. —
 // stops working immediately rather than staying valid until it expires.

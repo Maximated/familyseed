@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "./AuthContext";
 import GoogleAuthButton from "./GoogleAuthButton";
+import { consumePendingInvite } from "./pendingInvite";
 
 export default function Register() {
   const { t } = useTranslation();
@@ -21,7 +22,8 @@ export default function Register() {
     setError(null);
     try {
       await register(email.trim(), password, name.trim() || undefined);
-      navigate("/", { replace: true });
+      const pendingInvite = consumePendingInvite();
+      navigate(pendingInvite ? `/invite/${pendingInvite}` : "/", { replace: true });
     } catch (err) {
       setError((err as Error).message);
     } finally {

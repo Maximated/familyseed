@@ -5,6 +5,7 @@ import Login from "./Login";
 import Register from "./Register";
 import HomeScreen from "./HomeScreen";
 import TreeView from "./TreeView";
+import InviteRedeem from "./InviteRedeem";
 
 export default function App() {
   return (
@@ -12,6 +13,7 @@ export default function App() {
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
+        <Route path="/invite/:id" element={<InviteRedeem />} />
         <Route
           path="/"
           element={

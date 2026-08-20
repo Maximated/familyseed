@@ -295,6 +295,65 @@ export async function removeTreeMember(treeId: string, userId: string): Promise<
   await throwIfNotOk(res);
 }
 
+export type InviteLinkInfo = {
+  id: string;
+  role: ShareRole;
+  createdAt: string;
+  expiresAt: string | null;
+  revokedAt: string | null;
+  maxUses: number | null;
+  useCount: number;
+};
+
+export async function fetchInviteLinks(treeId: string): Promise<InviteLinkInfo[]> {
+  const res = await apiFetch(`/trees/${treeId}/invite-links`);
+  return parseJsonOrThrow(res);
+}
+
+export async function createInviteLink(
+  treeId: string,
+  params: { role: ShareRole; expiresAt?: string; maxUses?: number },
+): Promise<InviteLinkInfo> {
+  const res = await apiFetch(`/trees/${treeId}/invite-links`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(params),
+  });
+  return parseJsonOrThrow(res);
+}
+
+export async function revokeInviteLink(treeId: string, id: string): Promise<void> {
+  const res = await apiFetch(`/trees/${treeId}/invite-links/${id}`, { method: "DELETE" });
+  await throwIfNotOk(res);
+}
+
+export function inviteLinkUrl(id: string): string {
+  return `${window.location.origin}/invite/${id}`;
+}
+
+export type InviteLinkPeek = {
+  treeName: string;
+  role: ShareRole;
+  valid: boolean;
+  reason?: "revoked" | "expired" | "maxed_out";
+};
+
+// Top-level (not /trees/:treeId/...) — reachable while logged out, see
+// backend/src/routes/invite-redeem.ts.
+export async function peekInviteLink(id: string): Promise<InviteLinkPeek> {
+  const res = await apiFetch(`/invite-links/${id}`);
+  return parseJsonOrThrow(res);
+}
+
+export async function redeemInviteLink(id: string): Promise<{ treeId: string }> {
+  const res = await apiFetch(`/invite-links/${id}/redeem`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: "{}",
+  });
+  return parseJsonOrThrow(res);
+}
+
 // ---------------------------------------------------------------------
 // Uploaded files (photos/documents) — served at a relative /uploads/...
 // path already scoped by treeId server-side, so this just needs the origin.

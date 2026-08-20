@@ -2,9 +2,14 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   addTreeMember,
+  createInviteLink,
+  fetchInviteLinks,
   fetchTreeMembers,
+  inviteLinkUrl,
   removeTreeMember,
+  revokeInviteLink,
   updateTreeMemberRole,
+  type InviteLinkInfo,
   type ShareRole,
   type TreeMemberInfo,
 } from "./api";
@@ -24,11 +29,23 @@ export default function ShareTreeModal({ treeId, onClose }: Props) {
   const [role, setRole] = useState<ShareRole>("VIEWER");
   const [submitting, setSubmitting] = useState(false);
 
+  const [links, setLinks] = useState<InviteLinkInfo[]>([]);
+  const [linksLoading, setLinksLoading] = useState(true);
+  const [linkRole, setLinkRole] = useState<ShareRole>("VIEWER");
+  const [linkExpiresAt, setLinkExpiresAt] = useState("");
+  const [linkMaxUses, setLinkMaxUses] = useState("");
+  const [creatingLink, setCreatingLink] = useState(false);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+
   useEffect(() => {
     fetchTreeMembers(treeId)
       .then(setMembers)
       .catch((err: Error) => setError(err.message))
       .finally(() => setLoading(false));
+    fetchInviteLinks(treeId)
+      .then(setLinks)
+      .catch((err: Error) => setError(err.message))
+      .finally(() => setLinksLoading(false));
   }, [treeId]);
 
   async function handleAdd(event: React.FormEvent) {
@@ -70,6 +87,42 @@ export default function ShareTreeModal({ treeId, onClose }: Props) {
       setMembers(previous);
       setError((err as Error).message);
     }
+  }
+
+  async function handleCreateLink(event: React.FormEvent) {
+    event.preventDefault();
+    setCreatingLink(true);
+    setError(null);
+    try {
+      const maxUses = linkMaxUses.trim() ? Number(linkMaxUses) : undefined;
+      const expiresAt = linkExpiresAt ? new Date(linkExpiresAt).toISOString() : undefined;
+      const link = await createInviteLink(treeId, { role: linkRole, expiresAt, maxUses });
+      setLinks((prev) => [link, ...prev]);
+      setLinkExpiresAt("");
+      setLinkMaxUses("");
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setCreatingLink(false);
+    }
+  }
+
+  async function handleRevokeLink(id: string) {
+    setError(null);
+    const previous = links;
+    setLinks((prev) => prev.map((l) => (l.id === id ? { ...l, revokedAt: new Date().toISOString() } : l)));
+    try {
+      await revokeInviteLink(treeId, id);
+    } catch (err) {
+      setLinks(previous);
+      setError((err as Error).message);
+    }
+  }
+
+  async function handleCopyLink(id: string) {
+    await navigator.clipboard.writeText(inviteLinkUrl(id));
+    setCopiedId(id);
+    setTimeout(() => setCopiedId((current) => (current === id ? null : current)), 2000);
   }
 
   return (
@@ -127,6 +180,71 @@ export default function ShareTreeModal({ treeId, onClose }: Props) {
                   )}
                 </li>
               ))}
+            </ul>
+          )}
+        </fieldset>
+
+        <fieldset>
+          <legend>{t("share.linksLegend")}</legend>
+          <form onSubmit={handleCreateLink} className="field-row">
+            <select value={linkRole} onChange={(e) => setLinkRole(e.target.value as ShareRole)}>
+              <option value="VIEWER">{t("roles.VIEWER")}</option>
+              <option value="EDITOR">{t("roles.EDITOR")}</option>
+            </select>
+            <input
+              type="date"
+              value={linkExpiresAt}
+              onChange={(e) => setLinkExpiresAt(e.target.value)}
+              title={t("share.linkExpiresLabel")}
+            />
+            <input
+              type="number"
+              min={1}
+              placeholder={t("share.linkMaxUsesPlaceholder")}
+              value={linkMaxUses}
+              onChange={(e) => setLinkMaxUses(e.target.value)}
+            />
+            <button type="submit" disabled={creatingLink}>
+              {creatingLink ? t("common.saving") : t("share.createLinkAction")}
+            </button>
+          </form>
+          <p className="field-hint">{t("share.linksHint")}</p>
+
+          {linksLoading ? (
+            <p className="status">{t("common.loading")}</p>
+          ) : links.length === 0 ? (
+            <p className="field-hint">{t("share.noLinks")}</p>
+          ) : (
+            <ul className="share-members-list">
+              {links.map((link) => {
+                const revoked = Boolean(link.revokedAt);
+                const expired = Boolean(link.expiresAt && new Date(link.expiresAt) < new Date());
+                const usage =
+                  link.maxUses !== null
+                    ? t("share.linkUsageOfMax", { count: link.useCount, max: link.maxUses })
+                    : t("share.linkUsage", { count: link.useCount });
+                return (
+                  <li key={link.id} className="share-member-row">
+                    <span className="share-member-identity">
+                      {t(`roles.${link.role}`)}
+                      {" · "}
+                      {usage}
+                      {revoked && ` · ${t("share.linkRevoked")}`}
+                      {!revoked && expired && ` · ${t("share.linkExpired")}`}
+                    </span>
+                    {!revoked && !expired && (
+                      <button type="button" onClick={() => handleCopyLink(link.id)}>
+                        {copiedId === link.id ? t("share.linkCopied") : t("share.copyLinkAction")}
+                      </button>
+                    )}
+                    {!revoked && (
+                      <button type="button" className="delete-button" onClick={() => handleRevokeLink(link.id)}>
+                        {t("share.revokeLinkAction")}
+                      </button>
+                    )}
+                  </li>
+                );
+              })}
             </ul>
           )}
         </fieldset>

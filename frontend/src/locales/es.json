@@ -285,7 +285,21 @@
     "addHint": "Esa persona ya debe tener una cuenta creada en la aplicación — compartir no envía ninguna invitación por email.",
     "membersLegend": "Quién tiene acceso",
     "noMembers": "Todavía no has compartido este árbol con nadie.",
-    "removeAction": "Quitar"
+    "removeAction": "Quitar",
+    "linksLegend": "Enlaces de invitación",
+    "linksHint": "Cualquiera con el enlace puede unirse al árbol iniciando sesión o creando una cuenta — no hace falta que ya tenga una.",
+    "linkExpiresLabel": "Caduca el (opcional)",
+    "linkMaxUsesPlaceholder": "Usos máximos (opcional)",
+    "createLinkAction": "Crear enlace",
+    "noLinks": "Todavía no has creado ningún enlace de invitación.",
+    "linkUsage": "{{count}} uso",
+    "linkUsage_other": "{{count}} usos",
+    "linkUsageOfMax": "{{count}}/{{max}} usos",
+    "linkRevoked": "revocado",
+    "linkExpired": "caducado",
+    "copyLinkAction": "Copiar enlace",
+    "linkCopied": "¡Copiado!",
+    "revokeLinkAction": "Revocar"
   },
   "deleteTree": {
     "title": "Eliminar árbol",
@@ -399,6 +413,19 @@
     "orDivider": "o",
     "continueWithGoogle": "Continuar con Google",
     "googleError": "No se pudo iniciar sesión con Google. Inténtalo de nuevo."
+  },
+  "inviteRedeem": {
+    "title": "Invitación a un árbol",
+    "body": "Te han invitado a unirte a «{{treeName}}» como {{role}}.",
+    "joinButton": "Unirme al árbol",
+    "joiningButton": "Uniéndome…",
+    "loginAction": "Iniciar sesión",
+    "registerAction": "Crear cuenta",
+    "invalid": {
+      "revoked": "Este enlace de invitación ha sido revocado.",
+      "expired": "Este enlace de invitación ha caducado.",
+      "maxed_out": "Este enlace de invitación ya ha alcanzado su límite de usos."
+    }
   },
   "home": {
     "title": "Tus árboles genealógicos",

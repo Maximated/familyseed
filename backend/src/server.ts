@@ -17,6 +17,8 @@ import gedcomRoutes from "./routes/gedcom.js";
 import csvRoutes from "./routes/csv.js";
 import treesRoutes from "./routes/trees.js";
 import copyRoutes from "./routes/copy.js";
+import inviteLinkRoutes from "./routes/invite-links.js";
+import inviteRedeemRoutes from "./routes/invite-redeem.js";
 import uploadsRoutes from "./routes/uploads.js";
 import authRoutes, { requireAuth } from "./routes/auth.js";
 import googleOAuthRoutes from "./routes/google-oauth.js";
@@ -59,6 +61,9 @@ await app.register(treesRoutes, { prefix: "/trees" });
 // Top-level (not nested under /trees/:treeId) — copying spans a source and
 // a destination tree at once, so it does its own dual-membership check.
 await app.register(copyRoutes, { prefix: "/individuals" });
+// Also top-level — the caller isn't a tree member yet, which is the whole
+// point of redeeming a link (see invite-redeem.ts).
+await app.register(inviteRedeemRoutes, { prefix: "/invite-links" });
 
 // Everything genealogical lives under /trees/:treeId — one preHandler here
 // resolves+validates the caller's membership on that specific tree once,
@@ -72,6 +77,7 @@ async function treeScopedRoutes(fastify: FastifyInstance) {
   await fastify.register(familyRoutes, { prefix: "/families" });
   await fastify.register(lineageRoutes, { prefix: "/lineages" });
   await fastify.register(memberRoutes, { prefix: "/members" });
+  await fastify.register(inviteLinkRoutes, { prefix: "/invite-links" });
   await fastify.register(duplicateRoutes, { prefix: "/duplicates" });
   await fastify.register(gedcomRoutes, { prefix: "/gedcom" });
   await fastify.register(csvRoutes, { prefix: "/csv" });

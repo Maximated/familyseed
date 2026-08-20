@@ -35,8 +35,9 @@ type UpdateMemberBody = {
 
 // Only the tree's owner can decide who else gets in — an editor granting
 // themselves or a friend more access (or revoking the owner) would be an
-// odd thing for a "can edit content" permission to also imply.
-function requireOwner(request: FastifyRequest) {
+// odd thing for a "can edit content" permission to also imply. Exported
+// for reuse by invite-links.ts, the other "who gets into this tree" route.
+export function requireOwner(request: FastifyRequest) {
   if (request.treeRole !== "OWNER") {
     throw new HttpError(403, "Solo el propietario del árbol puede gestionar quién tiene acceso");
   }
