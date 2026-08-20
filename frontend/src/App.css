@@ -2,6 +2,7 @@
   --font-ui: "Inter", system-ui, sans-serif;
   --font-name: "Fraunces", Georgia, serif;
   --font-title: "Playfair Display", Georgia, serif;
+  --font-timeline: "Bebas Neue", sans-serif;
 
   --color-bg: #faf6ef;
   --color-forest: #1b4332;
@@ -593,66 +594,34 @@ body {
   display: block;
 }
 
-/* The trunk is a filled tapered shape (thick base/past, thin tip/today),
-   not a stroked line — see trunkPath() in Timeline.tsx. */
-.timeline-trunk {
-  fill: var(--color-tree-black);
+.timeline-line {
+  stroke: var(--color-forest);
+  stroke-width: 1.5;
+  stroke-dasharray: 4 4;
   opacity: 0.55;
 }
 
-.timeline-branch {
-  stroke: var(--color-tree-black);
-  stroke-width: 1;
-  fill: none;
-  opacity: 0.45;
+.timeline-year {
+  font-family: var(--font-timeline);
+  font-size: 13px;
+  letter-spacing: 0.02em;
+  fill: var(--color-forest);
 }
 
-.timeline-leaf {
-  fill: var(--color-tree-black);
-  stroke: var(--color-tree-black);
-  stroke-width: 0.6;
-  opacity: 0.85;
-}
-
-.timeline-label {
-  font-family: var(--font-ui);
-  font-size: 10px;
-  font-weight: 700;
-  fill: var(--color-text-secondary);
-  dominant-baseline: middle;
+.timeline-year-endpoint {
+  font-size: 19px;
 }
 
 .timeline-hit-area {
   fill: transparent;
 }
 
-.timeline-branch-group:hover .timeline-leaf {
-  fill: var(--color-tree-black);
-  opacity: 1;
-}
-
-.timeline-branch-group:hover .timeline-branch {
-  opacity: 1;
-}
-
-.timeline-branch-group:hover .timeline-label {
+.timeline-marker-group:hover .timeline-year {
   fill: var(--color-tree-black);
 }
 
-.timeline-branch-active .timeline-leaf {
+.timeline-marker-active .timeline-year {
   fill: var(--color-amber);
-  stroke: var(--color-amber);
-}
-
-.timeline-branch-active .timeline-branch {
-  stroke: var(--color-amber);
-  opacity: 1;
-  stroke-width: 2;
-}
-
-.timeline-branch-active .timeline-label {
-  fill: var(--color-amber);
-  font-weight: 700;
 }
 
 

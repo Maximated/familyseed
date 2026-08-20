@@ -19,10 +19,10 @@ function toRoman(n: number): string {
 }
 
 // Compresses sparse old ranges into whole-century buckets and expands dense
-// recent ranges into decades, so the sidebar stays a fixed, evenly-clickable
-// strip no matter how far back the data goes — a family with ancestors from
-// the 1700s and a boom of records after 1950 gets a handful of century
-// blocks up top and real decade granularity where the data actually is.
+// recent ranges into decades — reused here purely to pick a reasonable,
+// data-density-aware set of intermediate year markers (see `pickTicks`
+// below), the same judgment call the old trunk-and-branch design used it
+// for.
 export function computeBuckets(birthYears: number[], currentYear: number): Bucket[] {
   if (birthYears.length === 0) return [];
 
@@ -89,78 +89,78 @@ function pickRepresentative(people: TreePerson[], bucket: Bucket): string | null
 
 type Orientation = "vertical" | "horizontal";
 
-// Every geometry function below works in an orientation-agnostic (along,
-// across) space instead of (x, y): "along" is the position along the
-// trunk's own length — the chronological axis, oldest era at 0 and today
-// at the far end — and "across" is the perpendicular distance from the
-// trunk's centerline (0 = on the trunk, positive = out toward a branch's
-// leaves/label). toScreen is the only place that decides which becomes x
-// and which becomes y, so the vertical (trunk running top-to-bottom,
-// branches reaching right) and horizontal (trunk running left-to-right,
-// branches reaching down) modes share every other calculation — matching
-// the same oldest→today direction the tree canvas itself now reads in.
-// Vertical mode mirrors the across-axis — the trunk sits near the outer
-// (right) edge of the sidebar and branches/labels reach left, toward the
-// tree canvas, instead of the other way around. Horizontal mode (the
-// mobile bottom strip) is untouched.
-function toScreen(along: number, across: number, orientation: Orientation): { x: number; y: number } {
-  return orientation === "horizontal"
-    ? { x: along, y: TRUNK_ACROSS + across }
-    : { x: ACROSS_EXTENT - TRUNK_ACROSS - across, y: along };
+type Marker = {
+  year: number;
+  label: string;
+  title: string;
+  personId: string | null;
+  endpoint: boolean;
+};
+
+const MAX_INTERMEDIATE_TICKS = 6;
+const MIN_TICK_GAP_PX = 26;
+const EDGE_PAD = 16;
+// The two orientations have genuinely different cross-axis budgets — the
+// vertical sidebar is a narrow 132px (--timeline-width), the horizontal
+// bottom strip a taller 170px — so the SVG's cross-axis size and where the
+// line sits within it are picked per orientation rather than shared,
+// giving the (much taller, Bebas-Neue-sized) year labels enough room below
+// the line without the SVG's own edge clipping them.
+const CROSS_EXTENT_VERTICAL = 120;
+const CROSS_EXTENT_HORIZONTAL = 150;
+const LINE_ACROSS_VERTICAL = 96;
+const LINE_ACROSS_HORIZONTAL = 40;
+
+// Downsamples to at most `max` entries, always keeping the first and last,
+// evenly spaced across the index range in between.
+function downsample<T>(items: T[], max: number): T[] {
+  if (items.length <= max) return items;
+  const step = (items.length - 1) / (max - 1);
+  const picked: T[] = [];
+  for (let i = 0; i < max; i++) {
+    picked.push(items[Math.round(i * step)]);
+  }
+  return picked.filter((item, i) => i === 0 || item !== picked[i - 1]);
 }
 
-// Visual layout constants for the branch drawing — an organic tapered
-// trunk (thick at the root/oldest era, thin at the newest growth/today)
-// with a curved twig per bucket ending in a pair of small leaves and a
-// date label. Oldest is drawn first (top in vertical mode, left in
-// horizontal) and today last — matching the family tree canvas itself,
-// where ancestors sit above/before descendants. Branches get bigger and
-// more spread out toward today regardless of which end that lands on;
-// the falloff is keyed to chronological recency, not to display position.
-const TRUNK_ACROSS = 18;
-const TRUNK_THIN_HALF = 1;
-const TRUNK_THICK_HALF = 4;
-const ACROSS_EXTENT = 128;
-const WEIGHT_DECAY = 0.78;
-const MIN_SLICE_LENGTH = 20;
-const BRANCH_LEN_MIN = 14;
-const BRANCH_LEN_MAX = 24;
-const RISE_MIN = 2;
-const RISE_MAX = 12;
-const LEAF_SCALE_MIN = 0.65;
-const LEAF_SCALE_MAX = 1.3;
+// Builds the marker list: the exact oldest/youngest birth years as the two
+// endpoints (each pointing straight at that specific person, not a bucket
+// range), plus a handful of intermediate era markers reusing computeBuckets'
+// existing decade/century density judgment so there's still something to
+// click/scrub through between the ends on a tree that spans centuries.
+function buildMarkers(people: TreePerson[]): Marker[] {
+  const withYears = people.filter((p): p is TreePerson & { data: { birthYear: number } } => p.data.birthYear !== undefined);
+  if (withYears.length === 0) return [];
 
-const LEAF_PATH = "M0,0 C1.6,-1.4 1.6,-4.2 0,-5.6 C-1.6,-4.2 -1.6,-1.4 0,0 Z";
+  const minYear = Math.min(...withYears.map((p) => p.data.birthYear));
+  const maxYear = Math.max(...withYears.map((p) => p.data.birthYear));
 
-function lerp(min: number, max: number, t: number): number {
-  return min + (max - min) * t;
-}
+  const oldest = withYears.filter((p) => p.data.birthYear === minYear).sort((a, b) => a.id.localeCompare(b.id))[0];
+  const youngest = withYears.filter((p) => p.data.birthYear === maxYear).sort((a, b) => a.id.localeCompare(b.id))[0];
 
-// The trunk is drawn as a filled tapered shape (not a stroked line) so its
-// width can grow from a thick base at the oldest recorded era down to a
-// thin tip at today — like a trunk widening toward its root.
-function trunkPath(totalLength: number, orientation: Orientation): string {
-  const points = [
-    toScreen(0, -TRUNK_THICK_HALF, orientation),
-    toScreen(totalLength, -TRUNK_THIN_HALF, orientation),
-    toScreen(totalLength, TRUNK_THIN_HALF, orientation),
-    toScreen(0, TRUNK_THICK_HALF, orientation),
+  const markers: Marker[] = [
+    { year: minYear, label: `${minYear}`, title: `${minYear}`, personId: oldest.id, endpoint: true },
   ];
-  return `M ${points[0].x} ${points[0].y} L ${points[1].x} ${points[1].y} L ${points[2].x} ${points[2].y} L ${points[3].x} ${points[3].y} Z`;
+
+  if (maxYear !== minYear) {
+    const buckets = computeBuckets(
+      withYears.map((p) => p.data.birthYear),
+      new Date().getFullYear(),
+    );
+    const middleBuckets = buckets.filter((b) => b.start > minYear && b.start < maxYear);
+    for (const bucket of downsample(middleBuckets, MAX_INTERMEDIATE_TICKS)) {
+      const personId = pickRepresentative(people, bucket);
+      if (personId) markers.push({ year: bucket.start, label: bucket.label, title: bucket.title, personId, endpoint: false });
+    }
+    markers.push({ year: maxYear, label: `${maxYear}`, title: `${maxYear}`, personId: youngest.id, endpoint: true });
+  }
+
+  return markers;
 }
 
-function trunkHalfWidthAt(along: number, totalLength: number): number {
-  const t = totalLength > 0 ? along / totalLength : 0;
-  return lerp(TRUNK_THICK_HALF, TRUNK_THIN_HALF, t);
-}
-
-function branchPath(edgeAcross: number, mid: number, tipAcross: number, tipAlong: number, orientation: Orientation): string {
-  const midAcross = (edgeAcross + tipAcross) / 2;
-  const controlAlong = Math.min(mid, tipAlong) - 4;
-  const start = toScreen(mid, edgeAcross, orientation);
-  const control = toScreen(controlAlong, midAcross, orientation);
-  const tip = toScreen(tipAlong, tipAcross, orientation);
-  return `M ${start.x} ${start.y} Q ${control.x} ${control.y}, ${tip.x} ${tip.y}`;
+function toScreen(along: number, orientation: Orientation): { x: number; y: number } {
+  const lineAcross = orientation === "horizontal" ? LINE_ACROSS_HORIZONTAL : LINE_ACROSS_VERTICAL;
+  return orientation === "horizontal" ? { x: along, y: lineAcross } : { x: lineAcross, y: along };
 }
 
 type Props = {
@@ -171,11 +171,11 @@ type Props = {
 
 export default function Timeline({ people, orientation, onNavigate }: Props) {
   const draggingRef = useRef(false);
-  const lastBucketIndexRef = useRef<number | null>(null);
+  const lastMarkerIndexRef = useRef<number | null>(null);
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
   const [containerLength, setContainerLength] = useState(0);
   // A callback ref (not useRef+useEffect([])) because the container only
-  // starts existing once `buckets` is non-empty (see the early return
+  // starts existing once `markers` is non-empty (see the early return
   // below) — a plain ref's mount effect would fire once with a null node
   // and never re-arm when the div actually shows up later.
   const [container, setContainer] = useState<HTMLDivElement | null>(null);
@@ -192,62 +192,63 @@ export default function Timeline({ people, orientation, onNavigate }: Props) {
     return () => observer.disconnect();
   }, [container, orientation]);
 
-  const buckets = useMemo(() => {
-    const years = people.map((p) => p.data.birthYear).filter((y): y is number => y !== undefined);
-    return computeBuckets(years, new Date().getFullYear());
-  }, [people]);
+  const markers = useMemo(() => buildMarkers(people), [people]);
 
-  // buckets is oldest→newest, and displayOrder renders in that same order
-  // along the trunk — oldest era first (top in vertical mode, left in
-  // horizontal), today last — matching the tree canvas's own direction.
-  // Branch size still falls off by chronological recency (today's bucket
-  // biggest), computed separately from display position so flipping which
-  // end is "first" doesn't also flip which era gets the most visual weight.
-  const slices = useMemo(() => {
-    if (buckets.length === 0 || containerLength === 0) return [];
+  // Positions every marker by true chronological proportion between the
+  // oldest and youngest year — an honest date range, not the old design's
+  // artificial recency weighting. Then thins out any intermediate marker
+  // that lands too close (in pixels) to the one before it, so labels at
+  // the new larger size don't overlap when a lot of the data clusters into
+  // a narrow span of years; the two endpoints are always kept regardless.
+  const positioned = useMemo(() => {
+    if (markers.length === 0 || containerLength === 0) return [];
+    const minYear = markers[0].year;
+    const maxYear = markers[markers.length - 1].year;
+    // Insets both endpoints from the container's edges so the larger
+    // endpoint labels (vertically centered on their tick) have room to
+    // render without getting clipped by the strip's top/bottom.
+    const usable = Math.max(containerLength - 2 * EDGE_PAD, 0);
+    const withAlong = markers.map((marker) => ({
+      marker,
+      along: EDGE_PAD + (maxYear === minYear ? usable / 2 : ((marker.year - minYear) / (maxYear - minYear)) * usable),
+    }));
 
-    const displayOrder = buckets.map((_, i) => i);
-    const weights = displayOrder.map((bucketIndex) => Math.pow(WEIGHT_DECAY, buckets.length - 1 - bucketIndex));
-    const totalWeight = weights.reduce((sum, w) => sum + w, 0);
-    const lengths = weights.map((w) => Math.max((w / totalWeight) * containerLength, MIN_SLICE_LENGTH));
-
-    let cursor = 0;
-    return displayOrder.map((bucketIndex, displayIdx) => {
-      const length = lengths[displayIdx];
-      const mid = cursor + length / 2;
-      cursor += length;
-      return { bucketIndex, mid, weight: weights[displayIdx] };
-    });
-  }, [buckets, containerLength]);
-
-  const contentLength = Math.max(
-    containerLength,
-    slices.length ? slices[slices.length - 1].mid + MIN_SLICE_LENGTH / 2 : 0,
-  );
-
-  function activateBucket(index: number) {
-    const bucket = buckets[index];
-    if (!bucket) return;
-    lastBucketIndexRef.current = index;
-    const personId = pickRepresentative(people, bucket);
-    if (personId) {
-      setActiveIndex(index);
-      onNavigate(personId);
+    // An endpoint always wins over a too-close preceding intermediate tick
+    // (evicting it), rather than the reverse — the exact oldest/youngest
+    // birth year is the one thing the redesign specifically promises.
+    const kept: typeof withAlong = [];
+    for (const entry of withAlong) {
+      const last = kept[kept.length - 1];
+      if (entry.marker.endpoint) {
+        if (last && !last.marker.endpoint && entry.along - last.along < MIN_TICK_GAP_PX) kept.pop();
+        kept.push(entry);
+        continue;
+      }
+      if (!last || entry.along - last.along >= MIN_TICK_GAP_PX) kept.push(entry);
     }
+    return kept;
+  }, [markers, containerLength]);
+
+  function activateMarker(index: number) {
+    const entry = positioned[index];
+    if (!entry?.marker.personId) return;
+    lastMarkerIndexRef.current = index;
+    setActiveIndex(index);
+    onNavigate(entry.marker.personId);
   }
 
   function activateAtPoint(clientX: number, clientY: number) {
     const el = document.elementFromPoint(clientX, clientY);
-    const bucketEl = el?.closest("[data-bucket-index]");
-    if (!bucketEl) return;
-    const index = Number(bucketEl.getAttribute("data-bucket-index"));
-    if (index === lastBucketIndexRef.current) return;
-    activateBucket(index);
+    const markerEl = el?.closest("[data-marker-index]");
+    if (!markerEl) return;
+    const index = Number(markerEl.getAttribute("data-marker-index"));
+    if (index === lastMarkerIndexRef.current) return;
+    activateMarker(index);
   }
 
   function handlePointerDown(e: React.PointerEvent) {
     draggingRef.current = true;
-    lastBucketIndexRef.current = null;
+    lastMarkerIndexRef.current = null;
     activateAtPoint(e.clientX, e.clientY);
   }
 
@@ -260,15 +261,14 @@ export default function Timeline({ people, orientation, onNavigate }: Props) {
     draggingRef.current = false;
   }
 
-  if (buckets.length === 0) return null;
+  if (markers.length === 0) return null;
 
-  const svgWidth = orientation === "horizontal" ? contentLength : ACROSS_EXTENT;
-  const svgHeight = orientation === "horizontal" ? ACROSS_EXTENT : contentLength;
-  const leafRotationOffset = orientation === "horizontal" ? 90 : 0;
-  // Vertical mode's branches now reach left instead of right (see
-  // toScreen) — mirror the leaf spread angles to match, so they still
-  // read as growing out of the branch instead of pointing backward.
-  const leafMirror = orientation === "vertical" ? -1 : 1;
+  const contentLength = Math.max(containerLength, 1);
+  const crossExtent = orientation === "horizontal" ? CROSS_EXTENT_HORIZONTAL : CROSS_EXTENT_VERTICAL;
+  const svgWidth = orientation === "horizontal" ? contentLength : crossExtent;
+  const svgHeight = orientation === "horizontal" ? crossExtent : contentLength;
+  const lineStart = toScreen(0, orientation);
+  const lineEnd = toScreen(contentLength, orientation);
 
   return (
     <div
@@ -281,47 +281,31 @@ export default function Timeline({ people, orientation, onNavigate }: Props) {
     >
       {containerLength > 0 && (
         <svg className="timeline-svg" width={svgWidth} height={svgHeight}>
-          <path d={trunkPath(contentLength, orientation)} className="timeline-trunk" />
-          {slices.map(({ bucketIndex, mid, weight }) => {
-            const bucket = buckets[bucketIndex];
-            const edgeAcross = trunkHalfWidthAt(mid, contentLength);
-            const branchLen = lerp(BRANCH_LEN_MIN, BRANCH_LEN_MAX, weight);
-            const rise = lerp(RISE_MIN, RISE_MAX, weight);
-            const tipAcross = edgeAcross + branchLen;
-            const tipAlong = mid - rise;
-            const leafScale = lerp(LEAF_SCALE_MIN, LEAF_SCALE_MAX, weight);
-            const isActive = bucketIndex === activeIndex;
-            const tip = toScreen(tipAlong, tipAcross, orientation);
-            const hitArea = orientation === "horizontal"
-              ? { x: mid - Math.abs(mid - tipAlong) - 10, y: TRUNK_ACROSS + edgeAcross - 2, width: Math.abs(mid - tipAlong) * 2 + 20, height: ACROSS_EXTENT - edgeAcross + 2 }
-              : { x: -TRUNK_ACROSS, y: Math.min(mid, tipAlong) - 10, width: ACROSS_EXTENT - edgeAcross + 2, height: Math.abs(mid - tipAlong) + 20 };
+          <line x1={lineStart.x} y1={lineStart.y} x2={lineEnd.x} y2={lineEnd.y} className="timeline-line" />
+          {positioned.map(({ marker, along }, index) => {
+            const point = toScreen(along, orientation);
+            const isActive = index === activeIndex;
+            const hitArea =
+              orientation === "horizontal"
+                ? { x: point.x - 18, y: 0, width: 36, height: crossExtent }
+                : { x: 0, y: point.y - 12, width: crossExtent, height: 24 };
 
             return (
               <g
-                key={bucketIndex}
-                data-bucket-index={bucketIndex}
-                className={`timeline-branch-group${isActive ? " timeline-branch-active" : ""}`}
+                key={`${marker.year}-${marker.label}`}
+                data-marker-index={index}
+                className={`timeline-marker-group${isActive ? " timeline-marker-active" : ""}`}
               >
-                <title>{bucket.title}</title>
+                <title>{marker.title}</title>
                 <rect x={hitArea.x} y={hitArea.y} width={hitArea.width} height={hitArea.height} className="timeline-hit-area" />
-                <path d={branchPath(edgeAcross, mid, tipAcross, tipAlong, orientation)} className="timeline-branch" />
-                <path
-                  d={LEAF_PATH}
-                  className="timeline-leaf"
-                  transform={`translate(${tip.x}, ${tip.y}) rotate(${-28 * leafMirror + leafRotationOffset}) scale(${leafScale})`}
-                />
-                <path
-                  d={LEAF_PATH}
-                  className="timeline-leaf"
-                  transform={`translate(${tip.x}, ${tip.y}) rotate(${22 * leafMirror + leafRotationOffset}) scale(${leafScale})`}
-                />
                 <text
-                  x={tip.x + (orientation === "horizontal" ? 0 : -7)}
-                  y={tip.y + (orientation === "horizontal" ? 14 : 3)}
+                  x={orientation === "horizontal" ? point.x : point.x - 10}
+                  y={orientation === "horizontal" ? point.y + 22 : point.y}
                   textAnchor={orientation === "horizontal" ? "middle" : "end"}
-                  className="timeline-label"
+                  dominantBaseline="middle"
+                  className={`timeline-year${marker.endpoint ? " timeline-year-endpoint" : ""}`}
                 >
-                  {bucket.label}
+                  {marker.label}
                 </text>
               </g>
             );
