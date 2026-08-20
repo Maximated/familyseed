@@ -153,14 +153,42 @@ type CreateIndividualBody = {
 
 type UpdateIndividualBody = Partial<CreateIndividualBody["individual"]>;
 
+// Polish (and generally West Slavic) surnames inflect for grammatical
+// gender at the very end — Jasiurkowski/Jasiurkowska is still one family,
+// not two — so an exact-string match alone would split every such family
+// into a separate lineage per gender. Checked longest-suffix-first only to
+// keep the three patterns from ever both matching the same word (each
+// consonant cluster is mutually exclusive anyway — "-dzka" doesn't also
+// end in "-cka" or "-ska" — but ordering by length is the cheap way to stay
+// correct if a pattern is ever added that isn't).
+const GENDERED_SURNAME_SUFFIXES: Array<[masculine: string, feminine: string]> = [
+  ["dzki", "dzka"],
+  ["cki", "cka"],
+  ["ski", "ska"],
+];
+
+// The key two differently-gendered spellings of the same surname collapse
+// to for lineage *matching* — never used as anything actually displayed
+// (a person's own surname field, and an existing lineage's name, are both
+// left exactly as spelled).
+function lineageMatchKey(name: string): string {
+  for (const [masculine, feminine] of GENDERED_SURNAME_SUFFIXES) {
+    if (name.endsWith(feminine)) return name.slice(0, -feminine.length) + masculine;
+  }
+  return name;
+}
+
 // A person can belong to several branches at once (their father's surname,
 // their mother's maiden name, ...) — so lineage membership is derived from
 // every distinct surname passed in, not just one. Auto-creates a Lineage
-// per surname the first time it's seen, then links the individual to it.
-// Never removes an existing membership (including ones the user added or
-// removed by hand) — a name change just adds the new surname's branch
-// alongside whatever was there before, so a manual correction never gets
-// silently undone by editing an unrelated field.
+// per surname the first time it's seen (by lineageMatchKey, so a later
+// person whose surname is just the other gendered spelling of an existing
+// lineage joins that same one instead of splitting off a second), then
+// links the individual to it. Never removes an existing membership
+// (including ones the user added or removed by hand) — a name change just
+// adds the new surname's branch alongside whatever was there before, so a
+// manual correction never gets silently undone by editing an unrelated
+// field.
 export async function deriveLineagesFromSurnames(
   db: Prisma.TransactionClient,
   treeId: string,
@@ -168,10 +196,20 @@ export async function deriveLineagesFromSurnames(
   surnames: Array<string | null | undefined>,
 ): Promise<void> {
   const names = [...new Set(surnames.filter((s): s is string => !!s && s.trim().length > 0).map((s) => s.trim()))];
+  if (names.length === 0) return;
+
+  const existingLineages = await db.lineage.findMany({ where: { treeId } });
 
   for (const name of names) {
-    const lineage =
-      (await db.lineage.findFirst({ where: { treeId, name } })) ?? (await db.lineage.create({ data: { treeId, name } }));
+    const key = lineageMatchKey(name);
+    let lineage = existingLineages.find((l) => lineageMatchKey(l.name) === key);
+    if (!lineage) {
+      lineage = await db.lineage.create({ data: { treeId, name } });
+      // So a second name in this same call (surname1 and its birth-name
+      // variant, say) can also match against a lineage this loop just
+      // created, instead of only ones that existed before it started.
+      existingLineages.push(lineage);
+    }
     await db.individualLineage.upsert({
       where: { individualId_lineageId: { individualId, lineageId: lineage.id } },
       create: { individualId, lineageId: lineage.id },
