@@ -25,6 +25,7 @@ import { resizeImage } from "./media";
 import { convertHeicIfNeeded } from "./heic";
 import PersonPicker from "./PersonPicker";
 import PhotoCropModal from "./PhotoCropModal";
+import PhotoDropzone from "./PhotoDropzone";
 import { Trash2Icon } from "./Icons";
 
 // The backend stores full ISO timestamps (UTC midnight) for date-value
@@ -235,10 +236,7 @@ export default function EditPersonForm({ treeId, personId, onSaved, onDeleted, o
     }
   }
 
-  async function handlePhotoChange(event: React.ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
-    event.target.value = "";
-    if (!file) return;
+  async function handlePhotoFile(file: File) {
     setConvertingPhoto(true);
     setError(null);
     try {
@@ -480,11 +478,8 @@ export default function EditPersonForm({ treeId, personId, onSaved, onDeleted, o
 
             <fieldset>
               <legend>{t("editPerson.personLegend")}</legend>
-              <label>
-                {t("personFields.photo")}
-                <input type="file" accept="image/*,.heic,.heif" onChange={handlePhotoChange} disabled={convertingPhoto} />
-              </label>
-              {convertingPhoto && <p className="field-hint">{t("personFields.convertingPhoto")}</p>}
+              <label>{t("personFields.photo")}</label>
+              <PhotoDropzone onFile={handlePhotoFile} disabled={convertingPhoto} busyHint={t("personFields.convertingPhoto")} />
               {photoPreview && <img src={photoPreview} alt={t("personFields.photoPreviewAlt")} className="photo-preview" />}
               <label>
                 {t("personFields.givenNames")}

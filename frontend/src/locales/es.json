@@ -75,7 +75,7 @@
     "endedByDeath": "Unión finalizada por fallecimiento",
     "unknown": "Tipo de unión sin especificar",
     "hint": "Pulsa un icono de unión, o el de una tarjeta, para ver el detalle",
-    "toggleMagnify": "Agrandar/reducir la leyenda"
+    "toggleReveal": "Mostrar/ocultar la leyenda"
   },
   "card": {
     "viewFull": "Ver ficha completa",
@@ -129,6 +129,8 @@
   },
   "personFields": {
     "photo": "Fotografía",
+    "photoDropHint": "Suelta aquí una foto",
+    "photoDropHintOrBrowse": "o haz clic para elegir un archivo",
     "convertingPhoto": "Convirtiendo foto…",
     "heicError": "No se pudo convertir la foto. Prueba con otro archivo (JPEG o PNG).",
     "photoPreviewAlt": "Vista previa",
@@ -288,8 +290,10 @@
     "removeAction": "Quitar",
     "linksLegend": "Enlaces de invitación",
     "linksHint": "Cualquiera con el enlace puede unirse al árbol iniciando sesión o creando una cuenta — no hace falta que ya tenga una.",
-    "linkExpiresLabel": "Caduca el (opcional)",
-    "linkMaxUsesPlaceholder": "Usos máximos (opcional)",
+    "linkRoleLabel": "Rol que concede el enlace",
+    "linkExpiresLabel": "El enlace deja de funcionar a partir de (opcional)",
+    "linkMaxUsesLabel": "Número máximo de personas que pueden usarlo (opcional)",
+    "linkMaxUsesPlaceholder": "Sin límite",
     "createLinkAction": "Crear enlace",
     "noLinks": "Todavía no has creado ningún enlace de invitación.",
     "linkUsage": "{{count}} uso",

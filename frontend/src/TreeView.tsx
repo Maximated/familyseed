@@ -509,7 +509,7 @@ function App() {
   useEffect(() => {
     orientationRef.current = orientation;
   }, [orientation]);
-  const [legendMagnified, setLegendMagnified] = useState(false);
+  const [legendOpen, setLegendOpen] = useState(false);
 
   const runHighlight = useCallback(() => {
     if (!containerRef.current) return;
@@ -753,6 +753,7 @@ function App() {
           if (correct && g.getAttribute("transform") !== correct) {
             g.setAttribute("transform", correct);
           }
+          g.style.opacity = "";
         }, 120);
       };
       settle();
@@ -1037,6 +1038,15 @@ function App() {
       chart.setOrientationVertical();
     }
     setOrientation(next);
+    // Union marks visibly swim across the screen for the ~1s this
+    // transition takes, since correctLinkTextTransform can only place them
+    // correctly once family-chart's own d3 transition has actually
+    // finished moving everything (see the settle comment below) — hidden
+    // here and faded back in by that same settle step once corrected,
+    // rather than showing that in-between motion at all.
+    containerRef.current?.querySelectorAll<SVGGElement>("g.link-text").forEach((g) => {
+      g.style.opacity = "0";
+    });
     chart.updateTree({ tree_position: "fit" });
   }
 
@@ -1312,23 +1322,12 @@ function App() {
         <div className="tree-canvas-wrap">
           <div id="FamilyChart" ref={containerRef} className="f3 tree-container" />
           <svg ref={relateOverlayRef} className="relate-drag-overlay" aria-hidden="true" />
-          {/* Floats over the canvas here in vertical mode (where the canvas
-              is tall enough that its bottom edge is well clear of any
-              card). In horizontal mode it renders in the other spot below
-              instead — see that one's comment for why. */}
-          {orientation === "vertical" && (
-            <Legend magnified={legendMagnified} onToggle={() => setLegendMagnified((v) => !v)} />
-          )}
+          <Legend open={legendOpen} onToggle={() => setLegendOpen((v) => !v)} />
         </div>
-        {/* In horizontal mode the canvas is much shorter (the timeline strip
-            below eats into its height), so floating the legend over either
-            of its edges started covering cards instead. Rendering it here —
-            a sibling of the canvas, not an overlay on top of it — gives it
-            its own row between the canvas and the timeline strip, taking up
-            real space instead of covering something else's. */}
-        {orientation === "horizontal" && (
-          <Legend magnified={legendMagnified} onToggle={() => setLegendMagnified((v) => !v)} />
-        )}
+        {/* Far side in vertical mode (a right-hand column, via normal flex
+            row order) but the top edge in horizontal mode (.timeline gets
+            order: -1 there — see App.css) — the tall trunk of a sidebar
+            makes no sense once the canvas itself reads left-to-right. */}
         <Timeline people={treeData} orientation={orientation} onNavigate={handleTimelineNavigate} />
       </div>
       {showAddForm && (

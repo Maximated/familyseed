@@ -186,27 +186,33 @@ export default function ShareTreeModal({ treeId, onClose }: Props) {
 
         <fieldset>
           <legend>{t("share.linksLegend")}</legend>
-          <form onSubmit={handleCreateLink} className="field-row">
-            <select value={linkRole} onChange={(e) => setLinkRole(e.target.value as ShareRole)}>
-              <option value="VIEWER">{t("roles.VIEWER")}</option>
-              <option value="EDITOR">{t("roles.EDITOR")}</option>
-            </select>
-            <input
-              type="date"
-              value={linkExpiresAt}
-              onChange={(e) => setLinkExpiresAt(e.target.value)}
-              title={t("share.linkExpiresLabel")}
-            />
-            <input
-              type="number"
-              min={1}
-              placeholder={t("share.linkMaxUsesPlaceholder")}
-              value={linkMaxUses}
-              onChange={(e) => setLinkMaxUses(e.target.value)}
-            />
-            <button type="submit" disabled={creatingLink}>
-              {creatingLink ? t("common.saving") : t("share.createLinkAction")}
-            </button>
+          <form onSubmit={handleCreateLink}>
+            <label>
+              {t("share.linkRoleLabel")}
+              <select value={linkRole} onChange={(e) => setLinkRole(e.target.value as ShareRole)}>
+                <option value="VIEWER">{t("roles.VIEWER")}</option>
+                <option value="EDITOR">{t("roles.EDITOR")}</option>
+              </select>
+            </label>
+            <label>
+              {t("share.linkExpiresLabel")}
+              <input type="date" value={linkExpiresAt} onChange={(e) => setLinkExpiresAt(e.target.value)} />
+            </label>
+            <label>
+              {t("share.linkMaxUsesLabel")}
+              <input
+                type="number"
+                min={1}
+                placeholder={t("share.linkMaxUsesPlaceholder")}
+                value={linkMaxUses}
+                onChange={(e) => setLinkMaxUses(e.target.value)}
+              />
+            </label>
+            <div className="modal-actions">
+              <button type="submit" disabled={creatingLink}>
+                {creatingLink ? t("common.saving") : t("share.createLinkAction")}
+              </button>
+            </div>
           </form>
           <p className="field-hint">{t("share.linksHint")}</p>
 
@@ -233,7 +239,7 @@ export default function ShareTreeModal({ treeId, onClose }: Props) {
                       {!revoked && expired && ` · ${t("share.linkExpired")}`}
                     </span>
                     {!revoked && !expired && (
-                      <button type="button" onClick={() => handleCopyLink(link.id)}>
+                      <button type="button" className="btn-outline" onClick={() => handleCopyLink(link.id)}>
                         {copiedId === link.id ? t("share.linkCopied") : t("share.copyLinkAction")}
                       </button>
                     )}

@@ -1,64 +1,65 @@
 import { useTranslation } from "react-i18next";
+import { DiagonalArrowIcon } from "./Icons";
 
 type Props = {
-  magnified: boolean;
+  open: boolean;
   onToggle: () => void;
 };
 
-// Rendered from two different spots in TreeView depending on tree
-// orientation (see the .legend-panel CSS comment for why) — kept as its
-// own component so that split doesn't mean keeping two copies of this
-// markup in sync by hand.
-export default function Legend({ magnified, onToggle }: Props) {
+// A small always-visible trigger in the canvas's bottom-left corner,
+// revealing the actual legend on hover (desktop) or tap (touch/PWA,
+// via .legend-toggle-open) instead of it permanently occupying screen
+// space — most noticeable in horizontal mode, where the canvas is
+// already short and every row of chrome competes with it directly.
+export default function Legend({ open, onToggle }: Props) {
   const { t } = useTranslation();
   return (
-    <div
-      className={`legend-panel${magnified ? " legend-magnified" : ""}`}
-      role="button"
-      tabIndex={0}
-      aria-pressed={magnified}
-      aria-label={t("legend.toggleMagnify")}
-      onClick={onToggle}
-      onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          onToggle();
-        }
-      }}
-    >
-      <span className="legend-item">
-        <span className="legend-icon">⚭</span>
-        <span className="legend-label">{t("legend.marriage")}</span>
-      </span>
-      <span className="legend-item">
-        <span className="legend-icon">⚭²</span>
-        <span className="legend-label">{t("legend.marriage2")}</span>
-      </span>
-      <span className="legend-item">
-        <span className="legend-icon">⚯</span>
-        <span className="legend-label">{t("legend.partnership")}</span>
-      </span>
-      <span className="legend-item">
-        <span className="legend-icon">※</span>
-        <span className="legend-label">{t("legend.extramarital")}</span>
-      </span>
-      <span className="legend-item">
-        <span className="legend-icon">※²</span>
-        <span className="legend-label">{t("legend.extramarital2")}</span>
-      </span>
-      <span className="legend-item">
-        <span className="legend-icon">⚮</span>
-        <span className="legend-label">{t("legend.endedByDivorce")}</span>
-      </span>
-      <span className="legend-item">
-        <span className="legend-icon">✝</span>
-        <span className="legend-label">{t("legend.endedByDeath")}</span>
-      </span>
-      <span className="legend-item">
-        <span className="legend-icon">○</span>
-        <span className="legend-label">{t("legend.unknown")}</span>
-      </span>
-      <span className="legend-hint">{t("legend.hint")}</span>
+    <div className={`legend-toggle${open ? " legend-toggle-open" : ""}`}>
+      <button
+        type="button"
+        className="legend-trigger"
+        onClick={onToggle}
+        aria-expanded={open}
+        aria-label={t("legend.toggleReveal")}
+        title={t("legend.toggleReveal")}
+      >
+        <DiagonalArrowIcon />
+      </button>
+      <div className="legend-panel">
+        <span className="legend-item">
+          <span className="legend-icon">⚭</span>
+          <span className="legend-label">{t("legend.marriage")}</span>
+        </span>
+        <span className="legend-item">
+          <span className="legend-icon">⚭²</span>
+          <span className="legend-label">{t("legend.marriage2")}</span>
+        </span>
+        <span className="legend-item">
+          <span className="legend-icon">⚯</span>
+          <span className="legend-label">{t("legend.partnership")}</span>
+        </span>
+        <span className="legend-item">
+          <span className="legend-icon">※</span>
+          <span className="legend-label">{t("legend.extramarital")}</span>
+        </span>
+        <span className="legend-item">
+          <span className="legend-icon">※²</span>
+          <span className="legend-label">{t("legend.extramarital2")}</span>
+        </span>
+        <span className="legend-item">
+          <span className="legend-icon">⚮</span>
+          <span className="legend-label">{t("legend.endedByDivorce")}</span>
+        </span>
+        <span className="legend-item">
+          <span className="legend-icon">✝</span>
+          <span className="legend-label">{t("legend.endedByDeath")}</span>
+        </span>
+        <span className="legend-item">
+          <span className="legend-icon">○</span>
+          <span className="legend-label">{t("legend.unknown")}</span>
+        </span>
+        <span className="legend-hint">{t("legend.hint")}</span>
+      </div>
     </div>
   );
 }

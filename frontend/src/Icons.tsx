@@ -211,6 +211,18 @@ export function UnresolvedIcon({ size }: IconProps) {
   );
 }
 
+// A diagonal double-headed arrow — the legend's own reveal trigger, since
+// the panel unfolds diagonally out of the same bottom-left corner this
+// icon sits in.
+export function DiagonalArrowIcon({ size }: IconProps) {
+  return (
+    <Svg size={size}>
+      <path d="M7 17 17 7" />
+      <path d="M8 7h9v9" />
+    </Svg>
+  );
+}
+
 export function MenuIcon({ size }: IconProps) {
   return (
     <Svg size={size}>

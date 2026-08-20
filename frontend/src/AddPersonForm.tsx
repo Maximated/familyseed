@@ -13,6 +13,7 @@ import {
 import { resizeImage } from "./media";
 import { convertHeicIfNeeded } from "./heic";
 import PhotoCropModal from "./PhotoCropModal";
+import PhotoDropzone from "./PhotoDropzone";
 import PersonPicker from "./PersonPicker";
 import IOSToggle from "./IOSToggle";
 
@@ -66,10 +67,7 @@ export default function AddPersonForm({ treeId, onCreated, onClose }: Props) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function handlePhotoChange(event: React.ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
-    event.target.value = "";
-    if (!file) return;
+  async function handlePhotoFile(file: File) {
     setConvertingPhoto(true);
     setError(null);
     try {
@@ -278,9 +276,8 @@ export default function AddPersonForm({ treeId, onCreated, onClose }: Props) {
           <legend>{t("addPerson.personLegend")}</legend>
           <label>
             {t("personFields.photo")}
-            <input type="file" accept="image/*,.heic,.heif" onChange={handlePhotoChange} disabled={convertingPhoto} />
           </label>
-          {convertingPhoto && <p className="field-hint">{t("personFields.convertingPhoto")}</p>}
+          <PhotoDropzone onFile={handlePhotoFile} disabled={convertingPhoto} busyHint={t("personFields.convertingPhoto")} />
           {photoPreview && <img src={photoPreview} alt={t("personFields.photoPreviewAlt")} className="photo-preview" />}
           <label>
             {t("personFields.givenNames")}
