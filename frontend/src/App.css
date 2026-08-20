@@ -720,7 +720,6 @@ body {
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   box-shadow: 0 4px 16px rgba(27, 67, 50, 0.1);
-  border: 1px solid rgba(27, 67, 50, 0.12);
   opacity: 0;
   transform: translateY(6px);
   pointer-events: none;
@@ -809,6 +808,26 @@ body {
   pointer-events: none;
   transform: translate(-50%, calc(-100% - 16px));
   animation: hover-preview-fade-in 160ms ease both;
+}
+
+/* The low alpha above only reads as "frosted glass" together with the
+   blur — without it, the same value looks like almost nothing sits there
+   at all, or (once there's enough going on behind it) like it's letting
+   *too much* show through with no diffusion to soften it. A browser that
+   silently doesn't apply backdrop-filter (this turned out to be exactly
+   what was happening in production but not in local testing — the two
+   were simply being viewed in different browsers) needs a real fallback,
+   not just a hope that the blur is there: raise the opacity enough to
+   read as a solid, legible panel on its own. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .legend-trigger,
+  .legend-panel {
+    background: rgba(116, 168, 146, 0.92);
+  }
+
+  .hover-preview {
+    background: rgba(220, 203, 234, 0.94);
+  }
 }
 
 /* Anchored below the card instead of above it when there isn't enough

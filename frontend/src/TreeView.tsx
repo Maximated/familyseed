@@ -837,6 +837,35 @@ function App() {
           }
         : null;
 
+      // Same 1-second hover-preview as a card gets (see above) — a union
+      // mark opens the exact same InfoPanel on click, so it gets the same
+      // quick-peek on hover too, sharing the one timer since only one
+      // preview is ever open at a time.
+      g.onmouseenter = union
+        ? () => {
+            window.clearTimeout(hoverTimerRef.current);
+            hoverTimerRef.current = window.setTimeout(() => {
+              const containerEl = containerRef.current;
+              if (!containerEl) return;
+              const markRect = g.getBoundingClientRect();
+              const containerRect = containerEl.getBoundingClientRect();
+              const relativeTop = markRect.top - containerRect.top;
+              setHoverPreview({
+                data: buildUnionInfoPanel(union, treeDataRef.current),
+                x: markRect.left + markRect.width / 2 - containerRect.left,
+                y: relativeTop,
+                flip: relativeTop < 220,
+              });
+            }, 1000);
+          }
+        : null;
+      g.onmouseleave = union
+        ? () => {
+            window.clearTimeout(hoverTimerRef.current);
+            setHoverPreview(null);
+          }
+        : null;
+
       // family-chart re-sets this element's transform via its own d3
       // transition on every update, so correcting it once here would just
       // get overwritten mid-animation. Instead, wait for the transition to
