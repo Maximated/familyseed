@@ -23,7 +23,6 @@ import EditPersonForm from "./EditPersonForm";
 import TrashView from "./TrashView";
 import IndividualsSearchView from "./IndividualsSearchView";
 import LineageChips from "./LineageChips";
-import Timeline from "./Timeline";
 import Legend from "./Legend";
 import HoverPreview from "./HoverPreview";
 import InfoPanel, { type InfoPanelData, type InfoPanelSection } from "./InfoPanel";
@@ -1199,13 +1198,6 @@ function App() {
     }
   }
 
-  function handleTimelineNavigate(personId: string) {
-    const chart = chartRef.current;
-    if (!chart) return;
-    chart.updateMainId(personId);
-    chart.updateTree({});
-  }
-
   // Used by the info panel's Relaciones tab — clicking a relative both
   // re-centers the tree on them (like any other navigation) and swaps the
   // panel to their own record, so drilling through a family reads as one
@@ -1452,11 +1444,13 @@ function App() {
             <HoverPreview data={hoverPreview.data} x={hoverPreview.x} y={hoverPreview.y} flip={hoverPreview.flip} />
           )}
         </div>
-        {/* Far side in vertical mode (a right-hand column, via normal flex
-            row order) but the top edge in horizontal mode (.timeline gets
-            order: -1 there — see App.css) — the tall trunk of a sidebar
-            makes no sense once the canvas itself reads left-to-right. */}
-        <Timeline people={treeData} orientation={orientation} onNavigate={handleTimelineNavigate} />
+        {/* Timeline is currently unhooked here (not deleted — see
+            Timeline.tsx) — its scroll position can't stay both linear-by-
+            year and honest about where people actually sit, since the
+            tree's own vertical axis is generation depth, not age; two
+            people born decades apart routinely share a row. Left in place
+            in case a design that doesn't depend on that alignment comes
+            up later. */}
       </div>
       {showAddForm && (
         <AddPersonForm treeId={treeId} onCreated={handlePersonCreated} onClose={() => setShowAddForm(false)} />
