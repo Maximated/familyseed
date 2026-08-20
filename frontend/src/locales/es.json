@@ -159,7 +159,13 @@
     "deathPlace": "Lugar de defunción",
     "notes": "Notas",
     "biography": "Biografía",
-    "biographyPlaceholder": "Un relato breve sobre esta persona: su vida, oficio, anécdotas…"
+    "biographyPlaceholder": "Un relato breve sobre esta persona: su vida, oficio, anécdotas…",
+    "unknownToggle": "Persona sin identificar (desconocida)",
+    "unknownHint": "Rellena el nombre automáticamente y de forma consistente — útil para dejar constancia de alguien real (un antepasado del que no se conserva el nombre, por ejemplo) sin inventarle una identidad. Puedes añadir notas o biografía igualmente.",
+    "unknownGivenNameMale": "Desconocido",
+    "unknownGivenNameFemale": "Desconocida",
+    "unknownGivenNameNeutral": "Desconocido/a",
+    "unknownSurname": "Desconocido"
   },
   "photoCrop": {
     "title": "Recortar fotografía",
@@ -180,7 +186,8 @@
     "validationRequired": "El nombre y el primer apellido son obligatorios.",
     "validationParent": "Elige al menos un padre/madre.",
     "validationPartner": "Elige la persona con la que forma pareja.",
-    "validationChild": "Elige de quién es padre/madre."
+    "validationChild": "Elige de quién es padre/madre.",
+    "validationDuplicatePerson": "Has elegido a la misma persona en más de un papel — elige personas distintas para cada relación."
   },
   "linkPeople": {
     "title": "Crear relación entre dos personas",
@@ -220,6 +227,13 @@
     "confirmDelete": "¿Seguro que quieres eliminar a <1>{{name}}</1>? Pasará a la papelera — podrás restaurarla más tarde si te equivocas.",
     "confirmYes": "Sí, eliminar",
     "deleting": "Eliminando…"
+  },
+  "relationshipWarning": {
+    "self": "Una persona no puede ser su propio padre/madre o hijo/a.",
+    "cycle": "Esa relación crearía un bucle imposible: esta persona ya es antepasado o descendiente de quien intentas vincular.",
+    "spouseTitle": "{{a}} y {{b}} ya son cónyuges/pareja",
+    "spouseBody": "¿Seguro que también quieres registrarlos como padre/madre e hijo/a? Puede ser un error de selección.",
+    "confirmAnyway": "Sí, vincular de todas formas"
   },
   "trash": {
     "title": "Papelera",

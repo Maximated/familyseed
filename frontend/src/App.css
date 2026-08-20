@@ -1793,6 +1793,15 @@ body {
   gap: 0.2rem;
 }
 
+/* A checkbox reads better as one inline row (box, then its own label text)
+   than stacked the way every other field in this fieldset is — overrides
+   the column layout just above for this one row. */
+.modal-panel fieldset:last-of-type > label.unknown-person-toggle {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.5rem;
+}
+
 .modal-panel input:not([type="radio"]):not([type="checkbox"]):not([type="file"]),
 .modal-panel select,
 .modal-panel textarea {

@@ -1500,12 +1500,18 @@ function App() {
             up later. */}
       </div>
       {showAddForm && (
-        <AddPersonForm treeId={treeId} onCreated={handlePersonCreated} onClose={() => setShowAddForm(false)} />
+        <AddPersonForm
+          treeId={treeId}
+          people={treeData}
+          onCreated={handlePersonCreated}
+          onClose={() => setShowAddForm(false)}
+        />
       )}
       {editingPersonId && (
         <EditPersonForm
           treeId={treeId}
           personId={editingPersonId}
+          people={treeData}
           onSaved={handlePersonSaved}
           onDeleted={handlePersonDeleted}
           onClose={() => setEditingPersonId(null)}

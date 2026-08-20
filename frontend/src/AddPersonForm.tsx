@@ -1,12 +1,15 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
+  addParent,
+  createFamily,
   createIndividual,
   uploadPersonPhoto,
   type DatePrecision,
   type Individual,
   type Relationship,
   type Sex,
+  type TreePerson,
   type UnionStatus,
   type UnionType,
 } from "./api";
@@ -16,11 +19,24 @@ import PhotoCropModal from "./PhotoCropModal";
 import PhotoDropzone from "./PhotoDropzone";
 import PersonPicker from "./PersonPicker";
 import IOSToggle from "./IOSToggle";
+import { unknownGivenNameFor } from "./unknownPerson";
+import { checkParentChildWarning } from "./relationshipGuards";
 
-type RelationshipKind = "NONE" | "CHILD_OF_PARENTS" | "PARTNER" | "PARENT_OF";
+// Independently combinable now (a new person is very often a child *and*
+// a spouse *and* a parent all at once) — only "no relation known" stays
+// mutually exclusive with the rest, since it specifically means none of
+// them apply yet.
+type RelationshipKind = "CHILD_OF_PARENTS" | "PARTNER" | "PARENT_OF";
 
 type Props = {
   treeId: string;
+  // The whole tree's people — the new person doesn't exist in the graph
+  // yet, so most of relationshipGuards' checks don't apply to them
+  // directly, but picking both "child of X" and "parent of Y" at once
+  // (now that relations are combinable — see RelationshipKind) can still
+  // create a cycle if Y already sits above X, so that one combination is
+  // still worth checking against the existing graph.
+  people: TreePerson[];
   onCreated: (newPersonId: string) => void;
   onClose: () => void;
 };
@@ -31,9 +47,10 @@ function personLabel(person: Individual) {
   return `${person.givenNames} ${surname}${year}`;
 }
 
-export default function AddPersonForm({ treeId, onCreated, onClose }: Props) {
+export default function AddPersonForm({ treeId, people, onCreated, onClose }: Props) {
   const { t } = useTranslation();
-  const [relationshipKind, setRelationshipKind] = useState<RelationshipKind>("CHILD_OF_PARENTS");
+  const [selectedKinds, setSelectedKinds] = useState<Set<RelationshipKind>>(new Set(["CHILD_OF_PARENTS"]));
+  const [noRelationKnown, setNoRelationKnown] = useState(false);
   const [parent1, setParent1] = useState<Individual | null>(null);
   const [parent2, setParent2] = useState<Individual | null>(null);
   const [partner, setPartner] = useState<Individual | null>(null);
@@ -43,12 +60,30 @@ export default function AddPersonForm({ treeId, onCreated, onClose }: Props) {
   const [unionPlace, setUnionPlace] = useState("");
   const [child, setChild] = useState<Individual | null>(null);
 
+  function toggleKind(kind: RelationshipKind) {
+    setNoRelationKnown(false);
+    setSelectedKinds((prev) => {
+      const next = new Set(prev);
+      if (next.has(kind)) next.delete(kind);
+      else next.add(kind);
+      return next;
+    });
+  }
+
+  function selectNoRelation() {
+    setNoRelationKnown(true);
+    setSelectedKinds(new Set());
+  }
+
   const [givenNames, setGivenNames] = useState("");
   const [surname1, setSurname1] = useState("");
   const [surname2, setSurname2] = useState("");
   const [surname1BirthName, setSurname1BirthName] = useState("");
   const [alias, setAlias] = useState("");
   const [sex, setSex] = useState<Sex>("UNKNOWN");
+  // Same auto-filled, sex-aware placeholder identity as EditPersonForm —
+  // see unknownGivenNameFor.
+  const [isUnknownPerson, setIsUnknownPerson] = useState(false);
   const [birthDateText, setBirthDateText] = useState("");
   const [birthDateValue, setBirthDateValue] = useState("");
   const [birthDatePrecision, setBirthDatePrecision] = useState<DatePrecision>("EXACT");
@@ -66,6 +101,12 @@ export default function AddPersonForm({ treeId, onCreated, onClose }: Props) {
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!isUnknownPerson) return;
+    setGivenNames(unknownGivenNameFor(t, sex));
+    setSurname1(t("personFields.unknownSurname"));
+  }, [isUnknownPerson, sex, t]);
 
   async function handlePhotoFile(file: File) {
     setConvertingPhoto(true);
@@ -85,15 +126,15 @@ export default function AddPersonForm({ treeId, onCreated, onClose }: Props) {
     setCropSource(null);
   }
 
-  function buildRelationship(): Relationship | undefined {
-    if (relationshipKind === "CHILD_OF_PARENTS") {
+  function buildRelationshipFor(kind: RelationshipKind): Relationship | undefined {
+    if (kind === "CHILD_OF_PARENTS") {
       return {
         kind: "CHILD_OF_PARENTS",
         parent1Id: parent1?.id ?? "",
         parent2Id: parent2?.id || undefined,
       };
     }
-    if (relationshipKind === "PARTNER") {
+    if (kind === "PARTNER") {
       return {
         kind: "PARTNER",
         partnerId: partner?.id ?? "",
@@ -103,25 +144,55 @@ export default function AddPersonForm({ treeId, onCreated, onClose }: Props) {
         unionPlace: unionPlace || undefined,
       };
     }
-    if (relationshipKind === "PARENT_OF") {
-      return { kind: "PARENT_OF", childId: child?.id ?? "" };
+    return { kind: "PARENT_OF", childId: child?.id ?? "" };
+  }
+
+  // Only the ids belonging to a currently-*selected* kind — a picker's
+  // leftover value from before its own checkbox was unchecked shouldn't
+  // count toward the duplicate-person check below.
+  function selectedPersonIds(): string[] {
+    const ids: string[] = [];
+    if (selectedKinds.has("CHILD_OF_PARENTS")) {
+      if (parent1) ids.push(parent1.id);
+      if (parent2) ids.push(parent2.id);
     }
-    return undefined;
+    if (selectedKinds.has("PARTNER") && partner) ids.push(partner.id);
+    if (selectedKinds.has("PARENT_OF") && child) ids.push(child.id);
+    return ids;
   }
 
   function validate(): string | null {
     if (!givenNames.trim() || !surname1.trim()) {
       return t("addPerson.validationRequired");
     }
-    if (relationshipKind === "CHILD_OF_PARENTS" && !parent1) {
+    if (selectedKinds.has("CHILD_OF_PARENTS") && !parent1) {
       return t("addPerson.validationParent");
     }
-    if (relationshipKind === "PARTNER" && !partner) {
+    if (selectedKinds.has("PARTNER") && !partner) {
       return t("addPerson.validationPartner");
     }
-    if (relationshipKind === "PARENT_OF" && !child) {
+    if (selectedKinds.has("PARENT_OF") && !child) {
       return t("addPerson.validationChild");
     }
+
+    const ids = selectedPersonIds();
+    if (new Set(ids).size !== ids.length) {
+      return t("addPerson.validationDuplicatePerson");
+    }
+
+    // Picking both "child of X" and "parent of Y" inserts the new person
+    // between X and Y — a cycle if Y already sits above X in the existing
+    // graph (relationshipGuards can't see the new person yet, but this is
+    // exactly what it'd flag as a CYCLE once X becomes their parent, so
+    // checking that hypothetical edge directly catches it early).
+    if (selectedKinds.has("CHILD_OF_PARENTS") && selectedKinds.has("PARENT_OF") && child) {
+      for (const parent of [parent1, parent2]) {
+        if (parent && checkParentChildWarning(people, parent.id, child.id) === "CYCLE") {
+          return t("relationshipWarning.cycle");
+        }
+      }
+    }
+
     return null;
   }
 
@@ -136,6 +207,13 @@ export default function AddPersonForm({ treeId, onCreated, onClose }: Props) {
     setSubmitting(true);
     setError(null);
     try {
+      const kinds = [...selectedKinds];
+      // CHILD_OF_PARENTS goes first when present — createIndividual's own
+      // `relationship` field can express both parents in a single call,
+      // unlike the follow-up endpoints used below for anything selected
+      // alongside it.
+      const anchorKind = kinds.includes("CHILD_OF_PARENTS") ? "CHILD_OF_PARENTS" : kinds[0];
+
       const { individual } = await createIndividual(treeId, {
         individual: {
           givenNames: givenNames.trim(),
@@ -155,8 +233,30 @@ export default function AddPersonForm({ treeId, onCreated, onClose }: Props) {
           notes: notes.trim() || undefined,
           biography: biography.trim() || undefined,
         },
-        relationship: buildRelationship(),
+        relationship: anchorKind ? buildRelationshipFor(anchorKind) : undefined,
       });
+
+      // Anything else selected alongside the anchor relation is attached
+      // right after creation, via the same endpoints EditPersonForm uses
+      // to add a relation to an already-existing person.
+      for (const kind of kinds) {
+        if (kind === anchorKind) continue;
+        if (kind === "CHILD_OF_PARENTS") {
+          if (parent1) await addParent(treeId, individual.id, parent1.id);
+          if (parent2) await addParent(treeId, individual.id, parent2.id);
+        } else if (kind === "PARTNER" && partner) {
+          await createFamily(treeId, {
+            partner1Id: individual.id,
+            partner2Id: partner.id,
+            unionType,
+            unionStatus,
+            unionDateText: unionDateText || undefined,
+            unionPlace: unionPlace || undefined,
+          });
+        } else if (kind === "PARENT_OF" && child) {
+          await addParent(treeId, child.id, individual.id);
+        }
+      }
 
       if (photoFile) {
         const resized = await resizeImage(photoFile, 500, 0.85);
@@ -187,11 +287,12 @@ export default function AddPersonForm({ treeId, onCreated, onClose }: Props) {
         <fieldset>
           <legend>{t("addPerson.relationshipLegend")}</legend>
           <IOSToggle
-            checked={relationshipKind === "CHILD_OF_PARENTS"}
-            onChange={() => setRelationshipKind("CHILD_OF_PARENTS")}
+            multi
+            checked={selectedKinds.has("CHILD_OF_PARENTS")}
+            onChange={() => toggleKind("CHILD_OF_PARENTS")}
             label={t("addPerson.childOf")}
           />
-          {relationshipKind === "CHILD_OF_PARENTS" && (
+          {selectedKinds.has("CHILD_OF_PARENTS") && (
             <div className="indent">
               <PersonPicker
                 treeId={treeId}
@@ -219,11 +320,12 @@ export default function AddPersonForm({ treeId, onCreated, onClose }: Props) {
           )}
 
           <IOSToggle
-            checked={relationshipKind === "PARTNER"}
-            onChange={() => setRelationshipKind("PARTNER")}
+            multi
+            checked={selectedKinds.has("PARTNER")}
+            onChange={() => toggleKind("PARTNER")}
             label={t("addPerson.partnerOf")}
           />
-          {relationshipKind === "PARTNER" && (
+          {selectedKinds.has("PARTNER") && (
             <div className="indent">
               <PersonPicker treeId={treeId} selectedName={partner ? personLabel(partner) : null} onSelect={setPartner} />
               <select value={unionType} onChange={(e) => setUnionType(e.target.value as UnionType)}>
@@ -255,21 +357,18 @@ export default function AddPersonForm({ treeId, onCreated, onClose }: Props) {
           )}
 
           <IOSToggle
-            checked={relationshipKind === "PARENT_OF"}
-            onChange={() => setRelationshipKind("PARENT_OF")}
+            multi
+            checked={selectedKinds.has("PARENT_OF")}
+            onChange={() => toggleKind("PARENT_OF")}
             label={t("addPerson.parentOf")}
           />
-          {relationshipKind === "PARENT_OF" && (
+          {selectedKinds.has("PARENT_OF") && (
             <div className="indent">
               <PersonPicker treeId={treeId} selectedName={child ? personLabel(child) : null} onSelect={setChild} />
             </div>
           )}
 
-          <IOSToggle
-            checked={relationshipKind === "NONE"}
-            onChange={() => setRelationshipKind("NONE")}
-            label={t("addPerson.noRelation")}
-          />
+          <IOSToggle checked={noRelationKnown} onChange={selectNoRelation} label={t("addPerson.noRelation")} />
         </fieldset>
 
         <fieldset>
@@ -279,13 +378,32 @@ export default function AddPersonForm({ treeId, onCreated, onClose }: Props) {
           </label>
           <PhotoDropzone onFile={handlePhotoFile} disabled={convertingPhoto} busyHint={t("personFields.convertingPhoto")} />
           {photoPreview && <img src={photoPreview} alt={t("personFields.photoPreviewAlt")} className="photo-preview" />}
+          <label className="unknown-person-toggle">
+            <input
+              type="checkbox"
+              checked={isUnknownPerson}
+              onChange={(e) => setIsUnknownPerson(e.target.checked)}
+            />
+            {t("personFields.unknownToggle")}
+          </label>
+          <p className="field-hint">{t("personFields.unknownHint")}</p>
           <label>
             {t("personFields.givenNames")}
-            <input value={givenNames} onChange={(e) => setGivenNames(e.target.value)} required />
+            <input
+              value={givenNames}
+              onChange={(e) => setGivenNames(e.target.value)}
+              disabled={isUnknownPerson}
+              required
+            />
           </label>
           <label>
             {t("personFields.surname1")}
-            <input value={surname1} onChange={(e) => setSurname1(e.target.value)} required />
+            <input
+              value={surname1}
+              onChange={(e) => setSurname1(e.target.value)}
+              disabled={isUnknownPerson}
+              required
+            />
           </label>
           <label>
             {t("personFields.surname2")}

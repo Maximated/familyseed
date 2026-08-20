@@ -27,6 +27,9 @@ import PersonPicker from "./PersonPicker";
 import PhotoCropModal from "./PhotoCropModal";
 import PhotoDropzone from "./PhotoDropzone";
 import { Trash2Icon } from "./Icons";
+import { checkParentChildWarning } from "./relationshipGuards";
+import { unknownGivenNameFor } from "./unknownPerson";
+import type { TreePerson } from "./api";
 
 // The backend stores full ISO timestamps (UTC midnight) for date-value
 // fields; `<input type="date">` needs just the `YYYY-MM-DD` prefix.
@@ -37,6 +40,9 @@ function toDateInputValue(iso: string | null): string {
 type Props = {
   treeId: string;
   personId: string;
+  // The whole tree's people — used only to check a proposed parent/child
+  // link for genealogical loops (see relationshipGuards) before it's sent.
+  people: TreePerson[];
   onSaved: (personId: string) => void;
   onDeleted: () => void;
   onClose: () => void;
@@ -46,7 +52,7 @@ type Props = {
   onRelationsChanged: () => void;
 };
 
-export default function EditPersonForm({ treeId, personId, onSaved, onDeleted, onClose, onRelationsChanged }: Props) {
+export default function EditPersonForm({ treeId, personId, people, onSaved, onDeleted, onClose, onRelationsChanged }: Props) {
   const { t } = useTranslation();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -58,6 +64,11 @@ export default function EditPersonForm({ treeId, personId, onSaved, onDeleted, o
   const [surname1BirthName, setSurname1BirthName] = useState("");
   const [alias, setAlias] = useState("");
   const [sex, setSex] = useState<Sex>("UNKNOWN");
+  // A consistent, auto-filled placeholder identity for someone real but
+  // unidentified (e.g. an ancestor whose name was never passed down) —
+  // instead of everyone hand-typing their own "Desconocido" and drifting
+  // out of sync with each other. See the effect below for the actual fill.
+  const [isUnknownPerson, setIsUnknownPerson] = useState(false);
   const [birthDateText, setBirthDateText] = useState("");
   const [birthDateValue, setBirthDateValue] = useState("");
   const [birthDatePrecision, setBirthDatePrecision] = useState<DatePrecision>("EXACT");
@@ -76,10 +87,16 @@ export default function EditPersonForm({ treeId, personId, onSaved, onDeleted, o
   const [parents, setParents] = useState<RelatedPerson[]>([]);
   const [addingParent, setAddingParent] = useState(false);
   const [parentError, setParentError] = useState<string | null>(null);
+  // Set only for the "SPOUSE" warning (see relationshipGuards) — SELF/CYCLE
+  // are hard-blocked outright since they're never genealogically valid, but
+  // marrying-and-parenting the same person, while unusual, isn't actually
+  // impossible, so this just asks for a second confirmation instead.
+  const [pendingParent, setPendingParent] = useState<Individual | null>(null);
 
   const [children, setChildren] = useState<RelatedPerson[]>([]);
   const [addingChild, setAddingChild] = useState(false);
   const [childError, setChildError] = useState<string | null>(null);
+  const [pendingChild, setPendingChild] = useState<Individual | null>(null);
 
   const [partnerships, setPartnerships] = useState<Partnership[]>([]);
   const [addingPartner, setAddingPartner] = useState(false);
@@ -128,6 +145,12 @@ export default function EditPersonForm({ treeId, personId, onSaved, onDeleted, o
       });
   }, [treeId, personId]);
 
+  useEffect(() => {
+    if (!isUnknownPerson) return;
+    setGivenNames(unknownGivenNameFor(t, sex));
+    setSurname1(t("personFields.unknownSurname"));
+  }, [isUnknownPerson, sex, t]);
+
   // Applied immediately (its own API call), not batched with the "Guardar"
   // submit below — surname-derived lineages are added automatically on
   // every save (see the backend's deriveLineagesFromSurnames), so a
@@ -163,8 +186,9 @@ export default function EditPersonForm({ treeId, personId, onSaved, onDeleted, o
     }
   }
 
-  async function handleAddParent(parent: Individual) {
+  async function performAddParent(parent: Individual) {
     setParentError(null);
+    setPendingParent(null);
     try {
       await addParent(treeId, personId, parent.id);
       const { parents: updatedParents } = await fetchIndividualRelations(treeId, personId);
@@ -176,11 +200,26 @@ export default function EditPersonForm({ treeId, personId, onSaved, onDeleted, o
     }
   }
 
+  function handleAddParent(parent: Individual) {
+    const warning = checkParentChildWarning(people, parent.id, personId);
+    if (warning === "SELF" || warning === "CYCLE") {
+      setParentError(t(`relationshipWarning.${warning === "SELF" ? "self" : "cycle"}`));
+      return;
+    }
+    if (warning === "SPOUSE") {
+      setParentError(null);
+      setPendingParent(parent);
+      return;
+    }
+    performAddParent(parent);
+  }
+
   // Same addParent endpoint as above, just with the roles reversed: this
   // person becomes the picked individual's parent, instead of the picked
   // individual becoming this person's parent.
-  async function handleAddChild(child: Individual) {
+  async function performAddChild(child: Individual) {
     setChildError(null);
+    setPendingChild(null);
     try {
       await addParent(treeId, child.id, personId);
       const { children: updatedChildren } = await fetchIndividualRelations(treeId, personId);
@@ -190,6 +229,20 @@ export default function EditPersonForm({ treeId, personId, onSaved, onDeleted, o
     } catch (err) {
       setChildError((err as Error).message);
     }
+  }
+
+  function handleAddChild(child: Individual) {
+    const warning = checkParentChildWarning(people, personId, child.id);
+    if (warning === "SELF" || warning === "CYCLE") {
+      setChildError(t(`relationshipWarning.${warning === "SELF" ? "self" : "cycle"}`));
+      return;
+    }
+    if (warning === "SPOUSE") {
+      setChildError(null);
+      setPendingChild(child);
+      return;
+    }
+    performAddChild(child);
   }
 
   // Defaults the new union to MARRIAGE, same as RelationshipWizard's own
@@ -357,13 +410,37 @@ export default function EditPersonForm({ treeId, personId, onSaved, onDeleted, o
               )}
               {parents.length < 2 &&
                 (addingParent ? (
-                  <PersonPicker treeId={treeId} selectedName={null} onSelect={handleAddParent} />
+                  <PersonPicker
+                    treeId={treeId}
+                    selectedName={null}
+                    onSelect={handleAddParent}
+                    excludeIds={[personId, ...parents.map((p) => p.id)]}
+                  />
                 ) : (
                   <button type="button" className="union-notes-edit-link" onClick={() => setAddingParent(true)}>
                     {t("editPerson.addParent")}
                   </button>
                 ))}
               {parentError && <p className="status status-error">{parentError}</p>}
+              {pendingParent && (
+                <div className="delete-confirm">
+                  <p>
+                    {t("relationshipWarning.spouseTitle", {
+                      a: `${pendingParent.givenNames} ${pendingParent.surname1}`,
+                      b: `${givenNames} ${surname1}`,
+                    })}
+                  </p>
+                  <p>{t("relationshipWarning.spouseBody")}</p>
+                  <div className="modal-actions">
+                    <button type="button" onClick={() => setPendingParent(null)}>
+                      {t("common.cancel")}
+                    </button>
+                    <button type="button" onClick={() => performAddParent(pendingParent)}>
+                      {t("relationshipWarning.confirmAnyway")}
+                    </button>
+                  </div>
+                </div>
+              )}
             </fieldset>
 
             <fieldset>
@@ -420,13 +497,37 @@ export default function EditPersonForm({ treeId, personId, onSaved, onDeleted, o
                 </ul>
               )}
               {addingChild ? (
-                <PersonPicker treeId={treeId} selectedName={null} onSelect={handleAddChild} />
+                <PersonPicker
+                  treeId={treeId}
+                  selectedName={null}
+                  onSelect={handleAddChild}
+                  excludeIds={[personId, ...children.map((c) => c.id)]}
+                />
               ) : (
                 <button type="button" className="union-notes-edit-link" onClick={() => setAddingChild(true)}>
                   {t("editPerson.addChild")}
                 </button>
               )}
               {childError && <p className="status status-error">{childError}</p>}
+              {pendingChild && (
+                <div className="delete-confirm">
+                  <p>
+                    {t("relationshipWarning.spouseTitle", {
+                      a: `${pendingChild.givenNames} ${pendingChild.surname1}`,
+                      b: `${givenNames} ${surname1}`,
+                    })}
+                  </p>
+                  <p>{t("relationshipWarning.spouseBody")}</p>
+                  <div className="modal-actions">
+                    <button type="button" onClick={() => setPendingChild(null)}>
+                      {t("common.cancel")}
+                    </button>
+                    <button type="button" onClick={() => performAddChild(pendingChild)}>
+                      {t("relationshipWarning.confirmAnyway")}
+                    </button>
+                  </div>
+                </div>
+              )}
             </fieldset>
 
             <fieldset>
@@ -481,13 +582,32 @@ export default function EditPersonForm({ treeId, personId, onSaved, onDeleted, o
               <label>{t("personFields.photo")}</label>
               <PhotoDropzone onFile={handlePhotoFile} disabled={convertingPhoto} busyHint={t("personFields.convertingPhoto")} />
               {photoPreview && <img src={photoPreview} alt={t("personFields.photoPreviewAlt")} className="photo-preview" />}
+              <label className="unknown-person-toggle">
+                <input
+                  type="checkbox"
+                  checked={isUnknownPerson}
+                  onChange={(e) => setIsUnknownPerson(e.target.checked)}
+                />
+                {t("personFields.unknownToggle")}
+              </label>
+              <p className="field-hint">{t("personFields.unknownHint")}</p>
               <label>
                 {t("personFields.givenNames")}
-                <input value={givenNames} onChange={(e) => setGivenNames(e.target.value)} required />
+                <input
+                  value={givenNames}
+                  onChange={(e) => setGivenNames(e.target.value)}
+                  disabled={isUnknownPerson}
+                  required
+                />
               </label>
               <label>
                 {t("personFields.surname1")}
-                <input value={surname1} onChange={(e) => setSurname1(e.target.value)} required />
+                <input
+                  value={surname1}
+                  onChange={(e) => setSurname1(e.target.value)}
+                  disabled={isUnknownPerson}
+                  required
+                />
               </label>
               <label>
                 {t("personFields.surname2")}
