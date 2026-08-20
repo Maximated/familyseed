@@ -204,15 +204,21 @@ function correctLinkTextTransform(
   const toTransform = (mid: number, rowDepth: number) =>
     orientation === "horizontal" ? `translate(${rowDepth}, ${mid})` : `translate(${mid}, ${rowDepth})`;
 
-  // Horizontal mode needs its own, bigger nudge here: the connecting line
-  // itself runs along the depth axis (screen-x) at this row, and the mark
-  // was still landing right on top of it — vertical mode's -3 was tuned
-  // for that orientation alone and never meant to double as horizontal's.
-  const depthNudge = orientation === "horizontal" ? -7 : -3;
+  // In horizontal mode, spouses stack in a vertical column sharing one
+  // connecting line straight down that column — and the mark is
+  // text-anchor:middle, so a *fixed* leftward nudge only clears that line
+  // for however wide one particular mark happens to be. A mark combining a
+  // union-order superscript with a status symbol (e.g. "⚭²⚮") is nearly
+  // 2.5x wider than a bare "⚭", so a constant tuned for the short case still
+  // left the long one straddling the line. Measuring this mark's own
+  // rendered width and shifting by half of it (plus a fixed margin) clears
+  // the line regardless of which symbols it's showing.
+  const textWidth = g.querySelector("text")?.getBBox().width ?? 20;
+  const depthNudge = orientation === "horizontal" ? -(textWidth / 2 + 12) : -3;
   // And, only in horizontal mode, dropped a few px along the spread axis
   // (screen-y there) so it clears the line vertically too, not just
   // sideways.
-  const spreadNudge = orientation === "horizontal" ? 6 : 0;
+  const spreadNudge = orientation === "horizontal" ? 10 : 0;
 
   const sp1Spread = spread(sp1);
   const sp2Spread = spread(sp2);
@@ -478,6 +484,7 @@ function App() {
   const linkTextCleanupRef = useRef<Array<() => void>>([]);
   const selectedLineageIdsRef = useRef<Set<string>>(new Set());
   const lineageMenuRef = useRef<HTMLDivElement>(null);
+  const exportMenuRef = useRef<HTMLDivElement>(null);
 
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -510,6 +517,7 @@ function App() {
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState("");
   const [showLineageMenu, setShowLineageMenu] = useState(false);
+  const [showExportMenu, setShowExportMenu] = useState(false);
   const [orientation, setOrientation] = useState<"vertical" | "horizontal">("vertical");
   // wireCardAndUnionClicks (below) is a long-lived useCallback that doesn't
   // list `orientation` as a dependency — correctLinkTextTransform's settle
@@ -520,7 +528,6 @@ function App() {
   useEffect(() => {
     orientationRef.current = orientation;
   }, [orientation]);
-  const [legendOpen, setLegendOpen] = useState(false);
   const [exportingImage, setExportingImage] = useState(false);
   const [hoverPreview, setHoverPreview] = useState<{ data: InfoPanelData; x: number; y: number; flip: boolean } | null>(
     null,
@@ -1005,6 +1012,20 @@ function App() {
     return () => document.removeEventListener("pointerdown", handlePointerDown);
   }, [showLineageMenu]);
 
+  useEffect(() => {
+    if (!showExportMenu) return;
+
+    function handlePointerDown(event: PointerEvent) {
+      const target = event.target as Node;
+      if (exportMenuRef.current && !exportMenuRef.current.contains(target)) {
+        setShowExportMenu(false);
+      }
+    }
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    return () => document.removeEventListener("pointerdown", handlePointerDown);
+  }, [showExportMenu]);
+
   function handleTitleClick() {
     setTitleDraft(treeName);
     setEditingTitle(true);
@@ -1082,11 +1103,16 @@ function App() {
   // whichever orientation is currently showing. Always fits the whole
   // tree in first, same as the header's own fit-view button, rather than
   // exporting whatever partial slice happened to be on screen.
-  async function handleExportTreeImage() {
+  // `transparent` skips both the flat page background and the faint tree
+  // watermark behind the canvas — meant for dropping the export into
+  // another document (InDesign, a scrapbook page, ...) where the caller's
+  // own background should show through instead of the app's own cream.
+  async function handleExportTreeImage(transparent: boolean) {
     const container = containerRef.current;
     if (!container || exportingImage) return;
     setExportingImage(true);
     setError(null);
+    setShowExportMenu(false);
     try {
       handleFitAll();
       // No settle-observer here (unlike correctLinkTextTransform) — this
@@ -1118,9 +1144,16 @@ function App() {
         t.style.fontWeight = "700";
       });
 
+      // The watermark is a decorative ::before pseudo-element, invisible to
+      // both querySelector and html-to-image's own clone — it can only be
+      // suppressed via a real class toggle on the container that owns it.
+      if (transparent) container.classList.add("tree-container-no-watermark");
+
       const { toPng } = await import("html-to-image");
       const dataUrl = await toPng(container, {
-        backgroundColor: getComputedStyle(document.documentElement).getPropertyValue("--color-bg").trim() || "#faf6ef",
+        backgroundColor: transparent
+          ? undefined
+          : getComputedStyle(document.documentElement).getPropertyValue("--color-bg").trim() || "#faf6ef",
         pixelRatio: 2,
       });
       const link = document.createElement("a");
@@ -1130,6 +1163,7 @@ function App() {
     } catch (err) {
       setError((err as Error).message);
     } finally {
+      container.classList.remove("tree-container-no-watermark");
       setExportingImage(false);
     }
   }
@@ -1398,16 +1432,29 @@ function App() {
             >
               <ArrowUpDownIcon />
             </button>
-            <button
-              type="button"
-              className="icon-button"
-              onClick={handleExportTreeImage}
-              disabled={exportingImage}
-              aria-label={exportingImage ? t("app.exportingTreeImage") : t("app.exportTreeImage")}
-              title={exportingImage ? t("app.exportingTreeImage") : t("app.exportTreeImage")}
-            >
-              <ImageIcon />
-            </button>
+            <div className="popover-anchor" ref={exportMenuRef}>
+              <button
+                type="button"
+                className="icon-button"
+                onClick={() => setShowExportMenu((v) => !v)}
+                disabled={exportingImage}
+                aria-expanded={showExportMenu}
+                aria-label={exportingImage ? t("app.exportingTreeImage") : t("app.exportTreeImage")}
+                title={exportingImage ? t("app.exportingTreeImage") : t("app.exportTreeImage")}
+              >
+                <ImageIcon />
+              </button>
+              {showExportMenu && (
+                <div className="popover export-image-popover">
+                  <button type="button" className="union-notes-edit-link" onClick={() => handleExportTreeImage(false)}>
+                    {t("app.exportTreeImageWithBg")}
+                  </button>
+                  <button type="button" className="union-notes-edit-link" onClick={() => handleExportTreeImage(true)}>
+                    {t("app.exportTreeImageTransparent")}
+                  </button>
+                </div>
+              )}
+            </div>
             <button
               type="button"
               className="icon-button"
@@ -1439,7 +1486,7 @@ function App() {
         <div className="tree-canvas-wrap">
           <div id="FamilyChart" ref={containerRef} className="f3 tree-container" />
           <svg ref={relateOverlayRef} className="relate-drag-overlay" aria-hidden="true" />
-          <Legend open={legendOpen} onToggle={() => setLegendOpen((v) => !v)} />
+          <Legend />
           {hoverPreview && (
             <HoverPreview data={hoverPreview.data} x={hoverPreview.x} y={hoverPreview.y} flip={hoverPreview.flip} />
           )}

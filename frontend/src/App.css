@@ -457,6 +457,21 @@ body {
   pointer-events: none;
 }
 
+/* Set on the container only for the duration of a transparent-background
+   export (see handleExportTreeImage) — the watermark is decorative chrome,
+   not tree data, so it shouldn't survive into an image meant to be
+   composited into someone else's own document/background. */
+.tree-container-no-watermark::before {
+  display: none;
+}
+
+.export-image-popover {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  min-width: 180px;
+}
+
 /* family-chart layers its HTML cards (#htmlSvg) on top of the SVG that
    draws the tree lines and union-icon text, at a higher z-index, covering
    the *entire* canvas — including the empty space between cards where a
@@ -602,8 +617,8 @@ body {
 /* Collapsed behind a small corner trigger by default — the legend used to
    permanently float over the canvas, which was fine in vertical mode's
    tall canvas but ate too much of an already-short horizontal-mode canvas.
-   Hover (desktop) or a tap that adds .legend-toggle-open (touch/PWA, see
-   Legend.tsx) reveals the actual panel anchored to the same corner. */
+   Hover (desktop) or a tap (touch/PWA — both toggle .legend-toggle-open,
+   see Legend.tsx) reveals the actual panel anchored to the same corner. */
 .legend-toggle {
   position: absolute;
   left: 16px;
@@ -620,7 +635,7 @@ body {
   padding: 0;
   border: 1px solid rgba(27, 67, 50, 0.12);
   border-radius: 999px;
-  background: rgba(116, 168, 146, 0.6);
+  background: rgba(116, 168, 146, 0.4);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   color: var(--color-forest);
@@ -656,7 +671,7 @@ body {
   max-width: min(420px, calc(100vw - 64px));
   padding: 0.6rem 1rem;
   border-radius: 10px;
-  background: rgba(116, 168, 146, 0.6);
+  background: rgba(116, 168, 146, 0.4);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   box-shadow: 0 4px 16px rgba(27, 67, 50, 0.1);
@@ -667,8 +682,9 @@ body {
   transition: opacity 150ms ease, transform 150ms ease;
 }
 
-.legend-toggle:hover .legend-panel,
-.legend-toggle:focus-within .legend-panel,
+/* Visibility is driven entirely by the JS-owned .legend-toggle-open class
+   now (see Legend.tsx) — a plain :hover rule here would fight a click that
+   closes it while the pointer is still resting on the trigger. */
 .legend-toggle-open .legend-panel {
   opacity: 1;
   transform: translateY(0);
@@ -741,7 +757,7 @@ body {
   max-width: calc(100vw - 32px);
   padding: 0.85rem 1rem;
   border-radius: 14px;
-  background: rgba(220, 203, 234, 0.6);
+  background: rgba(220, 203, 234, 0.4);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
   box-shadow: 0 12px 32px rgba(27, 67, 50, 0.22);

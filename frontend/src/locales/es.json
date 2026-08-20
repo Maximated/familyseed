@@ -28,6 +28,8 @@
     "report": "Informe PDF (sin árbol)",
     "exportTreeImage": "Exportar imagen del árbol",
     "exportingTreeImage": "Generando imagen…",
+    "exportTreeImageWithBg": "Con fondo",
+    "exportTreeImageTransparent": "Sin fondo (transparente)",
     "gedcom": "Importar/exportar",
     "search": "Buscar personas",
     "share": "Compartir árbol",
