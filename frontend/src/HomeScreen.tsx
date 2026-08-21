@@ -3,7 +3,6 @@ import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { createTree, fetchTrees, importCsv, importGedcom, mediaUrl, updateTreeName, type TreeSummary } from "./api";
 import { useAuth } from "./AuthContext";
-import LanguageSwitcher from "./LanguageSwitcher";
 import GedcomView from "./GedcomView";
 import RelationshipWizard from "./RelationshipWizard";
 import TreeReportModal from "./TreeReportModal";
@@ -149,7 +148,7 @@ function TreeRow({
 
 export default function HomeScreen() {
   const { t } = useTranslation();
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const navigate = useNavigate();
 
   const [owned, setOwned] = useState<TreeSummary[]>([]);
@@ -287,10 +286,6 @@ export default function HomeScreen() {
               )}
             </button>
           )}
-          <LanguageSwitcher />
-          <button type="button" onClick={() => logout()}>
-            {t("auth.logout")}
-          </button>
         </div>
       </header>
 

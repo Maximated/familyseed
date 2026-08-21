@@ -2534,15 +2534,6 @@ button.btn-outline:disabled {
   color: var(--color-forest);
 }
 
-.home-header-actions button {
-  padding: 0.4rem 0.8rem;
-  border: 1px solid rgba(27, 67, 50, 0.25);
-  border-radius: 6px;
-  background: var(--color-surface);
-  color: var(--color-forest);
-  cursor: pointer;
-}
-
 .home-tree-lists {
   display: flex;
   flex-direction: column;
@@ -2837,4 +2828,10 @@ button.btn-outline:disabled {
   color: var(--color-forest);
   font-family: var(--font-ui);
   font-size: 0.95rem;
+}
+
+.settings-logout-row {
+  display: flex;
+  justify-content: flex-start;
+  padding-top: 0.5rem;
 }

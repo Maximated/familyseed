@@ -23,7 +23,7 @@ const LANGUAGE_LABEL: Record<SupportedLanguage, string> = {
 export default function SettingsScreen() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { user, setUser } = useAuth();
+  const { user, setUser, logout } = useAuth();
 
   const [cropSource, setCropSource] = useState<File | null>(null);
   const [convertingPhoto, setConvertingPhoto] = useState(false);
@@ -171,6 +171,12 @@ export default function SettingsScreen() {
             label={t("settings.orientationHorizontal")}
           />
         </fieldset>
+
+        <div className="settings-logout-row">
+          <button type="button" className="delete-button" onClick={() => logout()}>
+            {t("auth.logout")}
+          </button>
+        </div>
       </div>
 
       {cropSource && <PhotoCropModal file={cropSource} onCropped={handleAvatarCropped} onCancel={() => setCropSource(null)} />}
