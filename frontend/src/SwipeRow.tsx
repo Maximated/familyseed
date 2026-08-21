@@ -1,5 +1,15 @@
 import { useRef, useState } from "react";
 
+// A mouse has no "swipe" gesture — dragging a row with one is an unusual
+// enough motion that a desktop user just clicks instead, which (with the
+// touch-only version below) did nothing at all: a real reported bug, not
+// just an awkward interaction. Checked once, not reactively — the input
+// method a session started with is what its interactions should match for
+// its whole lifetime, and a live media-query listener here would only add
+// complexity for the edge case of switching mid-session.
+const isHoverCapable =
+  typeof window !== "undefined" && window.matchMedia("(hover: hover) and (pointer: fine)").matches;
+
 // Wide enough for one or two icon buttons by default — the actions
 // revealed by the swipe render at exactly this width, so the drag
 // distance and the "past halfway, snap open" threshold both key off it.
@@ -13,11 +23,14 @@ type Props = {
   actionsWidth?: number;
 };
 
-// A list row you swipe left to reveal action buttons (edit/delete/restore)
-// underneath, instead of showing them permanently boxed next to the row —
-// used by IndividualsSearchView, TrashView, and LineagesManageView. Pointer
-// Events (not touch-specific) so this works with a mouse drag too, not just
-// on a touchscreen.
+// A list row that reveals action buttons (edit/delete/restore) instead of
+// showing them permanently boxed next to the row. On touch, swipe left to
+// reveal them underneath (Pointer Events, so a mouse drag works the same
+// way). On a hover-capable/fine-pointer device, a drag is an unfamiliar
+// motion — actions render in normal flow next to the content instead and
+// reveal on hover, no gesture involved, since the two mechanisms need
+// genuinely different layouts. Used by IndividualsSearchView, TrashView,
+// and LineagesManageView.
 export default function SwipeRow({ children, actions, actionsWidth = DEFAULT_ACTIONS_WIDTH }: Props) {
   const ACTIONS_WIDTH = actionsWidth;
   const [open, setOpen] = useState(false);
@@ -68,6 +81,15 @@ export default function SwipeRow({ children, actions, actionsWidth = DEFAULT_ACT
       e.stopPropagation();
       e.preventDefault();
     }
+  }
+
+  if (isHoverCapable) {
+    return (
+      <div className="swipe-row swipe-row-desktop">
+        <div className="swipe-row-content">{children}</div>
+        <div className="swipe-row-actions">{actions}</div>
+      </div>
+    );
   }
 
   return (

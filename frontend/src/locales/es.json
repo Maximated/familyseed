@@ -32,6 +32,10 @@
     "exportTreeImageTransparent": "Transparente",
     "exportFormatLabel": "Formato",
     "exportFormatSvgHint": "Vectorial: nunca se pixela al ampliar",
+    "exportScopeLabel": "Qué exportar",
+    "exportScopeCurrent": "Vista actual",
+    "exportScopeWhole": "Árbol completo",
+    "exportOrientationLabel": "Orientación",
     "exportBackgroundLabel": "Fondo",
     "exportQualityLabel": "Calidad",
     "exportQualityStandard": "Estándar",
@@ -301,8 +305,10 @@
     "confirmDelete": "¿Eliminar la rama \"{{name}}\"?",
     "manageLink": "Gestionar ramas…",
     "deriveLink": "Extraer ramas de los apellidos",
+    "deriveHint": "También fusiona automáticamente ramas que solo difieren en la terminación de género del apellido (ej. Jasiurkowski/Jasiurkowska).",
     "deriving": "Extrayendo…",
-    "deriveDone": "Hecho — {{count}} ramas en total."
+    "deriveDone": "Hecho — {{count}} ramas en total.",
+    "deriveDoneWithMerge": "Hecho — {{count}} ramas en total ({{merged}} fusionadas por variantes de género)."
   },
   "share": {
     "title": "Compartir árbol",

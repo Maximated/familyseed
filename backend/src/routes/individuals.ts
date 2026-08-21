@@ -170,8 +170,10 @@ const GENDERED_SURNAME_SUFFIXES: Array<[masculine: string, feminine: string]> = 
 // The key two differently-gendered spellings of the same surname collapse
 // to for lineage *matching* — never used as anything actually displayed
 // (a person's own surname field, and an existing lineage's name, are both
-// left exactly as spelled).
-function lineageMatchKey(name: string): string {
+// left exactly as spelled). Exported for lineages.ts's own /derive route,
+// which uses the same key to merge lineages that already split apart
+// before this fix existed.
+export function lineageMatchKey(name: string): string {
   for (const [masculine, feminine] of GENDERED_SURNAME_SUFFIXES) {
     if (name.endsWith(feminine)) return name.slice(0, -feminine.length) + masculine;
   }

@@ -427,7 +427,7 @@ export async function createLineage(treeId: string, name: string, color?: string
 // Re-runs the same surname-based auto-derivation every create/edit/import
 // already does per person — a manual fallback for data that predates it or
 // slipped through some import path that skipped it.
-export async function deriveLineages(treeId: string): Promise<Lineage[]> {
+export async function deriveLineages(treeId: string): Promise<{ lineages: Lineage[]; mergedCount: number }> {
   const res = await apiFetch(`/trees/${treeId}/lineages/derive`, { method: "POST" });
   return parseJsonOrThrow(res);
 }

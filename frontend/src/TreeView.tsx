@@ -25,6 +25,7 @@ import IndividualsSearchView from "./IndividualsSearchView";
 import LineageChips from "./LineageChips";
 import Legend from "./Legend";
 import HoverPreview from "./HoverPreview";
+import IOSToggle from "./IOSToggle";
 import InfoPanel, { type InfoPanelData, type InfoPanelSection } from "./InfoPanel";
 import {
   ArrowLeftIcon,
@@ -576,6 +577,11 @@ function App() {
   const [exportFormat, setExportFormat] = useState<"png" | "svg">("png");
   const [exportBackground, setExportBackground] = useState<"opaque" | "transparent">("opaque");
   const [exportQuality, setExportQuality] = useState<"standard" | "high">("high");
+  const [exportScope, setExportScope] = useState<"current" | "whole">("whole");
+  // Synced to the live `orientation` state whenever the export menu opens
+  // (see the trigger button below) — a reasonable default of "whatever
+  // you're currently looking at" without permanently coupling the two.
+  const [exportOrientation, setExportOrientation] = useState<"vertical" | "horizontal">("vertical");
   const [orientation, setOrientation] = useState<"vertical" | "horizontal">("vertical");
   // wireCardAndUnionClicks (below) is a long-lived useCallback that doesn't
   // list `orientation` as a dependency — correctLinkTextTransform's settle
@@ -1186,31 +1192,66 @@ function App() {
   // The PDF report (TreeReportModal, from the home screen) is a
   // generation-by-generation list with no visual diagram at all — this is
   // the "actually looks like the tree" export instead: a literal capture
-  // of the live canvas, cards/connecting lines/union marks and all, in
-  // whichever orientation is currently showing. Always fits the whole
-  // tree in first, same as the header's own fit-view button, rather than
-  // exporting whatever partial slice happened to be on screen.
+  // of the live canvas, cards/connecting lines/union marks and all.
   // `transparent` skips both the flat page background and the faint tree
   // watermark behind the canvas — meant for dropping the export into
   // another document (InDesign, a scrapbook page, ...) where the caller's
   // own background should show through instead of the app's own cream.
   // `format: "svg"` sidesteps the whole raster-quality question (it's
   // vector — never pixelates at any zoom); `pixelRatio` only matters for
-  // "png".
+  // "png". `scope: "whole"` re-centers and widens depth the same way the
+  // header's own fit-view button does, so the file shows everyone
+  // regardless of where the view happened to be; `"current"` exports
+  // exactly what's on screen right now — whoever's centered, whatever
+  // depth/pan/zoom is already set. `orientation` can differ from the
+  // live app's own current orientation — that's a temporary switch just
+  // for this capture, restored afterward, not a real navigation.
   async function handleExportTreeImage(options: {
     transparent: boolean;
     format: "png" | "svg";
     pixelRatio: number;
+    scope: "current" | "whole";
+    orientation: "vertical" | "horizontal";
   }) {
-    const { transparent, format, pixelRatio } = options;
+    const { transparent, format, pixelRatio, scope, orientation: wantOrientation } = options;
     const container = containerRef.current;
-    if (!container || exportingImage) return;
+    const chart = chartRef.current;
+    if (!container || !chart || exportingImage) return;
     setExportingImage(true);
     setError(null);
     setShowExportMenu(false);
     const exportDomRestores: Array<() => void> = [];
+    const originalOrientation = orientation;
+    const orientationChanged = wantOrientation !== originalOrientation;
     try {
-      handleFitAll();
+      if (orientationChanged) {
+        // Same jank-hiding as handleToggleOrientation's own live switch —
+        // marks visibly swim for the ~1s this transition takes otherwise,
+        // and that's just as true here since this runs against the real
+        // on-screen canvas, not an offscreen render.
+        container.querySelectorAll<SVGGElement>("g.link-text").forEach((g) => {
+          g.style.opacity = "0";
+        });
+        if (wantOrientation === "horizontal") chart.setOrientationHorizontal();
+        else chart.setOrientationVertical();
+        setOrientation(wantOrientation);
+        // wireCardAndUnionClicks's settle logic reads this ref (not the
+        // state above) to sidestep its own stale-closure problem — set
+        // directly rather than waiting for the state update's effect to
+        // run, so the very first settle after this switch already uses
+        // the right axis instead of racing that effect.
+        orientationRef.current = wantOrientation;
+      }
+      if (scope === "whole") {
+        handleFitAll();
+      } else if (orientationChanged) {
+        // A plain re-fit, not handleFitAll's own wider re-centering —
+        // switching orientation reflows the whole tree's shape (what was
+        // tall is now wide), so the current pan/zoom needs to catch up,
+        // but "current" scope means keeping whoever's actually centered
+        // and however deep the view already goes.
+        chart.updateTree({ tree_position: "fit" });
+      }
       // A fixed wait here used to race the fit transition + its own
       // union-mark settle-correction: on a fast run the capture could grab
       // a g.link-text mid-transition (an intermediate, wrong transform),
@@ -1354,6 +1395,19 @@ function App() {
       container.style.background = "";
       container.style.removeProperty("--color-bg");
       exportDomRestores.forEach((restore) => restore());
+      // The orientation switch above was only ever for this one capture —
+      // switch back to whatever the live app was actually showing before
+      // it, the same way handleToggleOrientation itself would.
+      if (orientationChanged) {
+        container.querySelectorAll<SVGGElement>("g.link-text").forEach((g) => {
+          g.style.opacity = "0";
+        });
+        if (originalOrientation === "horizontal") chart.setOrientationHorizontal();
+        else chart.setOrientationVertical();
+        setOrientation(originalOrientation);
+        orientationRef.current = originalOrientation;
+        chart.updateTree({ tree_position: "fit" });
+      }
       setExportingImage(false);
     }
   }
@@ -1412,9 +1466,13 @@ function App() {
     setDerivingLineages(true);
     setDeriveLineagesMessage(null);
     try {
-      const updated = await deriveLineages(treeId);
+      const { lineages: updated, mergedCount } = await deriveLineages(treeId);
       setLineages(updated);
-      setDeriveLineagesMessage(t("lineagesManage.deriveDone", { count: updated.length }));
+      setDeriveLineagesMessage(
+        mergedCount > 0
+          ? t("lineagesManage.deriveDoneWithMerge", { count: updated.length, merged: mergedCount })
+          : t("lineagesManage.deriveDone", { count: updated.length }),
+      );
     } catch (err) {
       setDeriveLineagesMessage((err as Error).message);
     } finally {
@@ -1556,6 +1614,7 @@ function App() {
                     className="union-notes-edit-link"
                     onClick={handleDeriveLineages}
                     disabled={derivingLineages}
+                    title={t("lineagesManage.deriveHint")}
                   >
                     {derivingLineages ? t("lineagesManage.deriving") : t("lineagesManage.deriveLink")}
                   </button>
@@ -1626,7 +1685,13 @@ function App() {
               <button
                 type="button"
                 className="icon-button"
-                onClick={() => setShowExportMenu((v) => !v)}
+                onClick={() => {
+                  // Defaults the orientation choice to whatever's actually
+                  // on screen right now each time the menu opens, rather
+                  // than whatever was last picked in a previous export.
+                  setExportOrientation(orientation);
+                  setShowExportMenu((v) => !v);
+                }}
                 disabled={exportingImage}
                 aria-expanded={showExportMenu}
                 aria-label={exportingImage ? t("app.exportingTreeImage") : t("app.exportTreeImage")}
@@ -1638,64 +1703,66 @@ function App() {
                 <div className="popover export-image-popover">
                   <div className="export-option-group">
                     <span className="export-option-label">{t("app.exportFormatLabel")}</span>
-                    <div className="export-option-buttons">
-                      <button
-                        type="button"
-                        className={`export-option-btn${exportFormat === "png" ? " export-option-btn-active" : ""}`}
-                        onClick={() => setExportFormat("png")}
-                      >
-                        PNG
-                      </button>
-                      <button
-                        type="button"
-                        className={`export-option-btn${exportFormat === "svg" ? " export-option-btn-active" : ""}`}
-                        onClick={() => setExportFormat("svg")}
-                      >
-                        SVG
-                      </button>
-                    </div>
+                    <IOSToggle checked={exportFormat === "png"} onChange={() => setExportFormat("png")} label="PNG" />
+                    <IOSToggle checked={exportFormat === "svg"} onChange={() => setExportFormat("svg")} label="SVG" />
                     {exportFormat === "svg" && <p className="field-hint">{t("app.exportFormatSvgHint")}</p>}
                   </div>
 
                   <div className="export-option-group">
+                    <span className="export-option-label">{t("app.exportScopeLabel")}</span>
+                    <IOSToggle
+                      checked={exportScope === "current"}
+                      onChange={() => setExportScope("current")}
+                      label={t("app.exportScopeCurrent")}
+                    />
+                    <IOSToggle
+                      checked={exportScope === "whole"}
+                      onChange={() => setExportScope("whole")}
+                      label={t("app.exportScopeWhole")}
+                    />
+                  </div>
+
+                  <div className="export-option-group">
+                    <span className="export-option-label">{t("app.exportOrientationLabel")}</span>
+                    <IOSToggle
+                      checked={exportOrientation === "vertical"}
+                      onChange={() => setExportOrientation("vertical")}
+                      label={t("app.orientationVertical")}
+                    />
+                    <IOSToggle
+                      checked={exportOrientation === "horizontal"}
+                      onChange={() => setExportOrientation("horizontal")}
+                      label={t("app.orientationHorizontal")}
+                    />
+                  </div>
+
+                  <div className="export-option-group">
                     <span className="export-option-label">{t("app.exportBackgroundLabel")}</span>
-                    <div className="export-option-buttons">
-                      <button
-                        type="button"
-                        className={`export-option-btn${exportBackground === "opaque" ? " export-option-btn-active" : ""}`}
-                        onClick={() => setExportBackground("opaque")}
-                      >
-                        {t("app.exportTreeImageWithBg")}
-                      </button>
-                      <button
-                        type="button"
-                        className={`export-option-btn${exportBackground === "transparent" ? " export-option-btn-active" : ""}`}
-                        onClick={() => setExportBackground("transparent")}
-                      >
-                        {t("app.exportTreeImageTransparent")}
-                      </button>
-                    </div>
+                    <IOSToggle
+                      checked={exportBackground === "opaque"}
+                      onChange={() => setExportBackground("opaque")}
+                      label={t("app.exportTreeImageWithBg")}
+                    />
+                    <IOSToggle
+                      checked={exportBackground === "transparent"}
+                      onChange={() => setExportBackground("transparent")}
+                      label={t("app.exportTreeImageTransparent")}
+                    />
                   </div>
 
                   {exportFormat === "png" && (
                     <div className="export-option-group">
                       <span className="export-option-label">{t("app.exportQualityLabel")}</span>
-                      <div className="export-option-buttons">
-                        <button
-                          type="button"
-                          className={`export-option-btn${exportQuality === "standard" ? " export-option-btn-active" : ""}`}
-                          onClick={() => setExportQuality("standard")}
-                        >
-                          {t("app.exportQualityStandard")}
-                        </button>
-                        <button
-                          type="button"
-                          className={`export-option-btn${exportQuality === "high" ? " export-option-btn-active" : ""}`}
-                          onClick={() => setExportQuality("high")}
-                        >
-                          {t("app.exportQualityHigh")}
-                        </button>
-                      </div>
+                      <IOSToggle
+                        checked={exportQuality === "standard"}
+                        onChange={() => setExportQuality("standard")}
+                        label={t("app.exportQualityStandard")}
+                      />
+                      <IOSToggle
+                        checked={exportQuality === "high"}
+                        onChange={() => setExportQuality("high")}
+                        label={t("app.exportQualityHigh")}
+                      />
                     </div>
                   )}
 
@@ -1708,6 +1775,8 @@ function App() {
                         transparent: exportBackground === "transparent",
                         format: exportFormat,
                         pixelRatio: exportQuality === "high" ? 4 : 2,
+                        scope: exportScope,
+                        orientation: exportOrientation,
                       })
                     }
                   >

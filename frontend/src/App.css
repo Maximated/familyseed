@@ -468,48 +468,34 @@ body {
 .export-image-popover {
   display: flex;
   flex-direction: column;
-  gap: 0.7rem;
-  min-width: 220px;
+  gap: 0.6rem;
+  min-width: 260px;
 }
 
+/* Each pair of IOSToggle rows below is a mutually-exclusive choice (see
+   IOSToggle.tsx's own "radio, not independent checkbox" semantics) —
+   picking one toggles the other off, same pattern AddPersonForm's own
+   relationship choice already uses. Deliberately not the pill-button-row
+   layout tried first: every button there sized itself to its own label,
+   so the row of options visibly jumped around between groups — a fixed
+   switch shape reads as one consistent control regardless of label length. */
 .export-option-group {
   display: flex;
   flex-direction: column;
-  gap: 0.3rem;
+  border-bottom: 1px solid rgba(27, 67, 50, 0.1);
+  padding-bottom: 0.4rem;
+}
+
+.export-option-group:last-of-type {
+  border-bottom: none;
+  padding-bottom: 0;
 }
 
 .export-option-label {
   font-size: 0.75rem;
   font-weight: 700;
   color: var(--color-text-secondary);
-}
-
-.export-option-buttons {
-  display: flex;
-  gap: 0.4rem;
-}
-
-.export-option-btn {
-  flex: 1;
-  font-size: 0.85rem;
-  font-weight: 700;
-  padding: 0.4rem 0.6rem;
-  border-radius: 999px;
-  border: 1.5px solid #ccc;
-  background: #fff;
-  color: var(--color-forest);
-  cursor: pointer;
-  transition: background 150ms ease, border-color 150ms ease, color 150ms ease;
-}
-
-.export-option-btn:hover {
-  border-color: var(--color-forest-light);
-}
-
-.export-option-btn-active {
-  background: var(--color-forest-light);
-  border-color: var(--color-forest-light);
-  color: #fff;
+  margin: 0.2rem 0 0.1rem;
 }
 
 .export-option-submit {
@@ -2240,6 +2226,37 @@ button.btn-outline:disabled {
 
 .swipe-row-actions .icon-button {
   color: var(--color-forest);
+}
+
+/* The swipe-to-reveal gesture above has no desktop equivalent — a mouse
+   drag is unfamiliar enough that people just click, which used to do
+   nothing at all. Actions sit in normal flow next to the content here
+   instead of stacked underneath it, revealed by hover rather than a
+   drag — a real layout change, not just a different trigger, so this
+   overrides the base rules above rather than layering on top of them. */
+.swipe-row-desktop {
+  display: flex;
+  align-items: stretch;
+  overflow: visible;
+}
+
+.swipe-row-desktop .swipe-row-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.swipe-row-desktop .swipe-row-actions {
+  position: static;
+  padding-right: 0;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 150ms ease;
+}
+
+.swipe-row-desktop:hover .swipe-row-actions,
+.swipe-row-desktop:focus-within .swipe-row-actions {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .auth-page {
