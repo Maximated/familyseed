@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
-import { createTree, fetchTrees, importCsv, importGedcom, updateTreeName, type TreeSummary } from "./api";
+import { createTree, fetchTrees, importCsv, importGedcom, mediaUrl, updateTreeName, type TreeSummary } from "./api";
 import { useAuth } from "./AuthContext";
 import LanguageSwitcher from "./LanguageSwitcher";
 import GedcomView from "./GedcomView";
@@ -9,7 +9,7 @@ import RelationshipWizard from "./RelationshipWizard";
 import TreeReportModal from "./TreeReportModal";
 import ShareTreeModal from "./ShareTreeModal";
 import DeleteTreeModal from "./DeleteTreeModal";
-import { ArrowUpDownIcon, FileTextIcon, PencilIcon, ShareIcon, Trash2Icon } from "./Icons";
+import { ArrowUpDownIcon, FileTextIcon, PencilIcon, ShareIcon, Trash2Icon, UserIcon } from "./Icons";
 import { APP_COMMIT, checkForUpdate } from "./version";
 
 function TreeRow({
@@ -270,7 +270,23 @@ export default function HomeScreen() {
           </div>
         </div>
         <div className="home-header-actions">
-          {user && <span className="home-user-name">{user.name ?? user.email}</span>}
+          {user && (
+            <button
+              type="button"
+              className="home-avatar-button"
+              onClick={() => navigate("/settings")}
+              aria-label={t("settings.title")}
+              title={user.name ?? user.email ?? t("settings.title")}
+            >
+              {user.avatarUrl ? (
+                <img src={mediaUrl(user.avatarUrl)} alt="" className="home-avatar-img" />
+              ) : (
+                <span className="home-avatar-img home-avatar-placeholder">
+                  <UserIcon size={20} />
+                </span>
+              )}
+            </button>
+          )}
           <LanguageSwitcher />
           <button type="button" onClick={() => logout()}>
             {t("auth.logout")}

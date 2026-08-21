@@ -480,5 +480,18 @@
     "createTreeCancel": "Cancelar",
     "version": "Versión {{commit}}",
     "updateAvailable": "Hay una actualización disponible"
+  },
+  "settings": {
+    "title": "Ajustes",
+    "avatarLegend": "Foto de perfil",
+    "uploadingAvatar": "Subiendo foto…",
+    "nameLegend": "Nombre",
+    "languageLegend": "Idioma",
+    "themeLegend": "Apariencia",
+    "themeLight": "Claro",
+    "themeDark": "Oscuro",
+    "orientationLegend": "Orientación por defecto del árbol",
+    "orientationVertical": "Vista vertical",
+    "orientationHorizontal": "Vista horizontal"
   }
 }

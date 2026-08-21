@@ -4,6 +4,7 @@ import RequireAuth from "./RequireAuth";
 import Login from "./Login";
 import Register from "./Register";
 import HomeScreen from "./HomeScreen";
+import SettingsScreen from "./SettingsScreen";
 import TreeView from "./TreeView";
 import InviteRedeem from "./InviteRedeem";
 
@@ -19,6 +20,14 @@ export default function App() {
           element={
             <RequireAuth>
               <HomeScreen />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/settings"
+          element={
+            <RequireAuth>
+              <SettingsScreen />
             </RequireAuth>
           }
         />

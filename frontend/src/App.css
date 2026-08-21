@@ -5,6 +5,7 @@
   --font-timeline: "Bebas Neue", sans-serif;
 
   --color-bg: #faf6ef;
+  --color-surface: #ffffff;
   --color-forest: #1b4332;
   --color-forest-light: #74a892;
   --color-male: #c7dce4;
@@ -14,6 +15,26 @@
   --color-text-secondary: #374151;
   --color-tree-black: #1c1c1c;
   --timeline-width: 132px;
+  color-scheme: light;
+}
+
+/* Dark mode is a toggle in Settings (see ThemeSwitcher.tsx), not a
+   prefers-color-scheme media query — it writes data-theme onto <html> via
+   theme.ts, and this is the only block that reacts to it. Deliberately
+   narrow in scope: a graphite (not black) page background, legible text,
+   and an inverted watermark, while every accent color (amber, the
+   male/female/other card-ring pastels, forest-light) stays exactly as-is —
+   they already read fine against a dark ground, the same way iOS keeps its
+   system accent colors unchanged between light and dark. --color-forest
+   itself has to lighten here since it doubles as this app's primary text
+   color (see `body` below), not just an accent. */
+:root[data-theme="dark"] {
+  --color-bg: #2b2e2c;
+  --color-surface: #383c3a;
+  --color-forest: #cfe3d8;
+  --color-text-secondary: #a3b3ac;
+  --color-tree-black: #e7e7e2;
+  color-scheme: dark;
 }
 
 body {
@@ -191,7 +212,6 @@ body {
   border-radius: 8px;
   background: none;
   color: var(--color-forest);
-  color-scheme: light;
   cursor: pointer;
   transition: box-shadow 150ms ease, transform 150ms ease, color 150ms ease;
 }
@@ -455,6 +475,15 @@ body {
   background-size: min(75vmin, 820px);
   opacity: 0.07;
   pointer-events: none;
+}
+
+/* The SVG's own fill is a near-black forest green, meant to sit as a
+   near-invisible tint over the light cream background — on dark graphite
+   that same dark green would nearly disappear instead of read as a
+   watermark, so dark mode inverts it (alpha is untouched by invert(),
+   only the RGB channels) rather than shipping a second asset. */
+:root[data-theme="dark"] .tree-container::before {
+  filter: invert(1);
 }
 
 /* Set on the container only for the duration of a transparent-background
@@ -1805,9 +1834,8 @@ body {
 }
 
 .modal-panel {
-  background: #fff;
+  background: var(--color-surface);
   color: var(--color-forest);
-  color-scheme: light;
   border-radius: 8px;
   padding: 1.25rem 1.5rem;
   width: 480px;
@@ -2072,7 +2100,7 @@ body {
   border-radius: 999px;
   border: 1.5px solid #ccc;
   cursor: pointer;
-  background: #fff;
+  background: var(--color-surface);
   color: var(--color-forest);
   transition: background 150ms ease, border-color 150ms ease, color 150ms ease, box-shadow 150ms ease;
 }
@@ -2109,7 +2137,7 @@ button.btn-primary:active:not(:disabled) {
 }
 
 button.btn-outline {
-  background: #fff;
+  background: var(--color-surface);
   border-color: var(--color-forest-light);
   color: var(--color-forest);
 }
@@ -2145,7 +2173,7 @@ button.btn-outline:disabled {
   padding: 0.5rem 1.25rem;
   border-radius: 999px;
   border: 1.5px solid #b00020;
-  background: #fff;
+  background: var(--color-surface);
   color: #b00020;
   cursor: pointer;
   transition: background 150ms ease, box-shadow 150ms ease;
@@ -2200,7 +2228,7 @@ button.btn-outline:disabled {
   padding: 0.3rem 0.7rem;
   border-radius: 6px;
   border: 1px solid #ccc;
-  background: #fff;
+  background: var(--color-surface);
   color: var(--color-forest);
   cursor: pointer;
 }
@@ -2226,7 +2254,7 @@ button.btn-outline:disabled {
   justify-content: space-between;
   gap: 0.75rem;
   padding: 0.6rem 0.75rem;
-  background: #fff;
+  background: var(--color-surface);
   touch-action: pan-y;
   transition: transform 200ms ease;
   cursor: pointer;
@@ -2291,7 +2319,7 @@ button.btn-outline:disabled {
   display: flex;
   flex-direction: column;
   gap: 0.9rem;
-  background: #fff;
+  background: var(--color-surface);
   border-radius: 10px;
   padding: 2rem 2.25rem;
   width: 360px;
@@ -2385,7 +2413,7 @@ button.btn-outline:disabled {
   padding: 0.55rem;
   border: 1px solid #ccc;
   border-radius: 6px;
-  background: #fff;
+  background: var(--color-surface);
   color: #3c4043;
   font-size: 0.9rem;
   text-decoration: none;
@@ -2426,6 +2454,10 @@ button.btn-outline:disabled {
   background-size: min(40vmin, 440px);
   opacity: 0.07;
   pointer-events: none;
+}
+
+:root[data-theme="dark"] .home-screen::before {
+  filter: invert(1);
 }
 
 .home-header {
@@ -2469,16 +2501,44 @@ button.btn-outline:disabled {
   gap: 0.75rem;
 }
 
-.home-user-name {
-  font-size: 0.9rem;
-  color: var(--color-text-secondary);
+/* Same ring-and-icon treatment as a tree card's own avatar placeholder
+   (.card-avatar-placeholder) — reads as "this is a person" the same way
+   everywhere else in the app already does. Clicking it opens Settings. */
+.home-avatar-button {
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+  border-radius: 50%;
+  transition: transform 150ms ease;
+}
+
+.home-avatar-button:hover {
+  transform: translateY(-1px);
+}
+
+.home-avatar-img {
+  display: block;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid var(--color-forest-light);
+}
+
+.home-avatar-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(27, 67, 50, 0.08);
+  color: var(--color-forest);
 }
 
 .home-header-actions button {
   padding: 0.4rem 0.8rem;
   border: 1px solid rgba(27, 67, 50, 0.25);
   border-radius: 6px;
-  background: #fff;
+  background: var(--color-surface);
   color: var(--color-forest);
   cursor: pointer;
 }
@@ -2511,7 +2571,7 @@ button.btn-outline:disabled {
   justify-content: space-between;
   gap: 1rem;
   padding: 0.75rem 1rem;
-  background: #fff;
+  background: var(--color-surface);
   border-radius: 8px;
   border: 1px solid rgba(27, 67, 50, 0.12);
   transition: box-shadow 150ms ease, transform 150ms ease;
@@ -2571,7 +2631,7 @@ button.btn-outline:disabled {
   padding: 0.55rem 1.3rem;
   border: 1.5px solid var(--color-forest-light);
   border-radius: 999px;
-  background: #fff;
+  background: var(--color-surface);
   color: var(--color-forest);
   font-weight: 700;
   cursor: pointer;
@@ -2667,7 +2727,7 @@ button.btn-outline:disabled {
   overflow-y: auto;
   border: 1px solid #eee;
   border-radius: 6px;
-  background: #fff;
+  background: var(--color-surface);
 }
 
 .person-picker-results button {
@@ -2707,4 +2767,74 @@ button.btn-outline:disabled {
   font-size: 0.8rem;
   text-decoration: underline;
   padding: 0;
+}
+
+/* ---------------------------------------------------------------------
+   Settings screen
+   --------------------------------------------------------------------- */
+
+.settings-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  max-width: 480px;
+}
+
+.settings-section {
+  border: 1px solid rgba(27, 67, 50, 0.15);
+  border-radius: 10px;
+  padding: 1rem 1.25rem 1.25rem;
+  background: var(--color-surface);
+}
+
+.settings-section legend {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--color-text-secondary);
+  padding: 0 0.4rem;
+}
+
+.settings-avatar-row {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+}
+
+.settings-avatar-preview {
+  flex: none;
+  width: 84px;
+  height: 84px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 3px solid var(--color-forest-light);
+}
+
+.settings-avatar-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(27, 67, 50, 0.08);
+  color: var(--color-forest);
+}
+
+.settings-avatar-dropzone {
+  flex: 1;
+  min-width: 0;
+}
+
+.settings-name-form {
+  display: flex;
+  gap: 0.6rem;
+}
+
+.settings-name-form input {
+  flex: 1;
+  min-width: 0;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  background: var(--color-surface);
+  color: var(--color-forest);
+  font-family: var(--font-ui);
+  font-size: 0.95rem;
 }

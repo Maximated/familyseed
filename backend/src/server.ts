@@ -20,6 +20,7 @@ import copyRoutes from "./routes/copy.js";
 import inviteLinkRoutes from "./routes/invite-links.js";
 import inviteRedeemRoutes from "./routes/invite-redeem.js";
 import uploadsRoutes from "./routes/uploads.js";
+import userUploadsRoutes from "./routes/user-uploads.js";
 import authRoutes, { requireAuth } from "./routes/auth.js";
 import googleOAuthRoutes from "./routes/google-oauth.js";
 import { requireTreeMembership } from "./tree-membership.js";
@@ -57,6 +58,11 @@ await app.register(rateLimit, { global: false });
 await app.register(authRoutes, { prefix: "/auth" });
 await app.register(googleOAuthRoutes, { prefix: "/auth" });
 await app.register(uploadsRoutes, { prefix: "/uploads" });
+// A second plugin under the same /uploads prefix — its own literal /users/
+// segment doesn't conflict with uploadsRoutes' :treeId/:individualId/
+// shape, and it needs a different auth hook (plain requireAuth, not
+// requireTreeMembership — there's no tree involved in an account avatar).
+await app.register(userUploadsRoutes, { prefix: "/uploads" });
 await app.register(treesRoutes, { prefix: "/trees" });
 // Top-level (not nested under /trees/:treeId) — copying spans a source and
 // a destination tree at once, so it does its own dual-membership check.

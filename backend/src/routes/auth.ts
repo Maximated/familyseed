@@ -3,6 +3,7 @@ import { prisma } from "../db.js";
 import { hashPassword, verifyPassword } from "../auth.js";
 import { googleOAuthEnabled } from "./google-oauth.js";
 import { endSession, requireAuth, startSession } from "../session.js";
+import { saveUserUpload } from "../uploads.js";
 
 // Re-exported so every other route file's `import { requireAuth } from
 // "./auth.js"` keeps working — the actual session logic (and the
@@ -31,9 +32,20 @@ const loginBodySchema = {
   additionalProperties: false,
 };
 
-function publicUser(user: { id: string; email: string | null; name: string | null }) {
-  return { id: user.id, email: user.email, name: user.name };
+function publicUser(user: { id: string; email: string | null; name: string | null; avatarUrl: string | null }) {
+  return { id: user.id, email: user.email, name: user.name, avatarUrl: user.avatarUrl };
 }
+
+const updateProfileBodySchema = {
+  type: "object",
+  required: ["name"],
+  properties: {
+    // Empty string is a deliberate valid value (clears the name back to
+    // showing the email instead) — the frontend trims/decides what to send.
+    name: { type: "string", maxLength: 200 },
+  },
+  additionalProperties: false,
+};
 
 export default async function authRoutes(fastify: FastifyInstance) {
   // Lets the frontend decide whether to render "Sign in with Google" at
@@ -89,5 +101,35 @@ export default async function authRoutes(fastify: FastifyInstance) {
       return reply.code(401).send({ error: "No has iniciado sesión" });
     }
     return publicUser(user);
+  });
+
+  fastify.patch(
+    "/me",
+    { preHandler: requireAuth, schema: { body: updateProfileBodySchema } },
+    async (request, reply) => {
+      const { name } = request.body as { name: string };
+      const trimmed = name.trim();
+      const updated = await prisma.user.update({
+        where: { id: request.userId },
+        data: { name: trimmed || null },
+      });
+      return publicUser(updated);
+    },
+  );
+
+  fastify.post("/me/avatar", { preHandler: requireAuth }, async (request, reply) => {
+    const file = await request.file();
+    if (!file) {
+      return reply.code(400).send({ error: "No se recibió ningún archivo" });
+    }
+    if (!file.mimetype.startsWith("image/")) {
+      return reply.code(400).send({ error: "El archivo debe ser una imagen" });
+    }
+
+    const buffer = await file.toBuffer();
+    const { url } = await saveUserUpload(request.userId!, file.filename, buffer);
+
+    const updated = await prisma.user.update({ where: { id: request.userId }, data: { avatarUrl: url } });
+    return publicUser(updated);
   });
 }

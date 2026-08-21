@@ -177,7 +177,7 @@ async function throwIfNotOk(res: Response): Promise<void> {
 // Auth
 // ---------------------------------------------------------------------
 
-export type AuthUser = { id: string; email: string | null; name: string | null };
+export type AuthUser = { id: string; email: string | null; name: string | null; avatarUrl: string | null };
 
 export async function login(email: string, password: string): Promise<AuthUser> {
   const res = await apiFetch("/auth/login", {
@@ -207,6 +207,22 @@ export async function logout(): Promise<void> {
 export async function fetchCurrentUser(): Promise<AuthUser | null> {
   const res = await apiFetch("/auth/me");
   if (res.status === 401) return null;
+  return parseJsonOrThrow(res);
+}
+
+export async function updateProfile(name: string): Promise<AuthUser> {
+  const res = await apiFetch("/auth/me", {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name }),
+  });
+  return parseJsonOrThrow(res);
+}
+
+export async function uploadUserAvatar(file: File | Blob, filename?: string): Promise<AuthUser> {
+  const formData = new FormData();
+  formData.append("file", file, filename ?? (file instanceof File ? file.name : "avatar.jpg"));
+  const res = await apiFetch("/auth/me/avatar", { method: "POST", body: formData });
   return parseJsonOrThrow(res);
 }
 

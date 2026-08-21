@@ -53,6 +53,7 @@ import LineagesManageView from "./LineagesManageView";
 import PhotoLightbox from "./PhotoLightbox";
 import GedcomView from "./GedcomView";
 import RelationshipWizard from "./RelationshipWizard";
+import { getDefaultOrientation } from "./preferences";
 
 // Generous enough that a realistic family tree's every reachable ancestor/
 // descendant renders — family-chart has no separate "show every person"
@@ -582,7 +583,7 @@ function App() {
   // (see the trigger button below) — a reasonable default of "whatever
   // you're currently looking at" without permanently coupling the two.
   const [exportOrientation, setExportOrientation] = useState<"vertical" | "horizontal">("vertical");
-  const [orientation, setOrientation] = useState<"vertical" | "horizontal">("vertical");
+  const [orientation, setOrientation] = useState<"vertical" | "horizontal">(getDefaultOrientation);
   // wireCardAndUnionClicks (below) is a long-lived useCallback that doesn't
   // list `orientation` as a dependency — correctLinkTextTransform's settle
   // timer can still be pending from before an orientation toggle, so it

@@ -76,10 +76,11 @@ enum TreeRole {
 // Both modes use the exact same schema/rows — only how a User row gets
 // created and how a request resolves "the current user" differs.
 model User {
-  id       String  @id @default(cuid())
-  email    String? @unique
-  name     String?
-  googleId String? @unique @map("google_id")
+  id        String  @id @default(cuid())
+  email     String? @unique
+  name      String?
+  googleId  String? @unique @map("google_id")
+  avatarUrl String? @map("avatar_url")
 
   // Set on registration for local email/password accounts; stays null for
   // accounts that only ever sign in via `googleId` once hosted-mode OAuth

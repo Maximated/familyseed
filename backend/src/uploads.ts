@@ -29,6 +29,18 @@ export async function saveUpload(
   return { url: `/uploads/${treeId}/${individualId}/${storedFilename}` };
 }
 
+// Account-level uploads (avatars) aren't scoped to any tree — stored under
+// their own uploads/users/<userId>/ subtree instead, served by a separate
+// route gated by plain requireAuth (see routes/user-uploads.ts), not
+// requireTreeMembership.
+export async function saveUserUpload(userId: string, filename: string, buffer: Buffer): Promise<{ url: string }> {
+  const dir = path.join(UPLOADS_ROOT, "users", userId);
+  await mkdir(dir, { recursive: true });
+  const storedFilename = `${randomUUID()}-${sanitizeFilename(filename)}`;
+  await writeFile(path.join(dir, storedFilename), buffer);
+  return { url: `/uploads/users/${userId}/${storedFilename}` };
+}
+
 export async function deleteUploadByUrl(url: string): Promise<void> {
   const relative = url.replace(/^\/uploads\//, "");
   const filePath = path.join(UPLOADS_ROOT, relative);
