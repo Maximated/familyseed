@@ -719,6 +719,27 @@ export async function addFamilyChild(treeId: string, familyId: string, individua
   await throwIfNotOk(res);
 }
 
+export type SpouseChildCandidate = { id: string; givenNames: string; surname1: string };
+
+// Children already linked to just one of this union's partners through a
+// separate single-parent Family row (added before the second parent was
+// ever recorded) — candidates for copySpouseChildren below, not this
+// union's own children.
+export async function getSpouseChildCandidates(treeId: string, familyId: string): Promise<SpouseChildCandidate[]> {
+  const res = await apiFetch(`/trees/${treeId}/families/${familyId}/spouse-children`);
+  await throwIfNotOk(res);
+  return res.json();
+}
+
+// Moves every such candidate into this union in one action instead of
+// re-picking each one through the same PersonPicker "vincular hijo
+// existente" uses.
+export async function copySpouseChildren(treeId: string, familyId: string): Promise<SpouseChildCandidate[]> {
+  const res = await apiFetch(`/trees/${treeId}/families/${familyId}/copy-spouse-children`, { method: "POST" });
+  await throwIfNotOk(res);
+  return res.json();
+}
+
 export type CopyMode = "single" | "lineage";
 
 export type CopyIndividualPayload = {

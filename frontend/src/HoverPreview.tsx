@@ -1,3 +1,4 @@
+import { createPortal } from "react-dom";
 import type { InfoPanelData } from "./InfoPanel";
 
 type Props = {
@@ -13,8 +14,18 @@ type Props = {
 // own expand button), which has tabs, edit controls, and a close button
 // this one deliberately skips. It disappears the moment the pointer leaves
 // the card, so it never needs any of that.
+//
+// Portaled to document.body (position: fixed, x/y already in viewport
+// coordinates — see wireCardAndUnionClicks in TreeView.tsx) instead of
+// rendering inline inside the tree canvas: family-chart's own pan/zoom
+// transform promotes the canvas to its own GPU compositing layer, and
+// backdrop-filter can't blur across that layer boundary in Chromium-based
+// browsers with stricter compositing (confirmed in Brave — the exact same
+// CSS blurs correctly the moment the element is moved outside that
+// subtree). The export popover never showed this bug only because it never
+// sits over the canvas in the first place.
 export default function HoverPreview({ data, x, y, flip }: Props) {
-  return (
+  return createPortal(
     <div
       className={`hover-preview${flip ? " hover-preview-below" : ""}`}
       style={{ left: x, top: y }}
@@ -42,6 +53,7 @@ export default function HoverPreview({ data, x, y, flip }: Props) {
           </div>
         ))}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

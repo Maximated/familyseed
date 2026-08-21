@@ -697,11 +697,16 @@ body {
 
 /* Anchored to the same corner the trigger sits in, growing up and to the
    right from there — bigger symbols (the whole point of the legend),
-   smaller labels, same floating-card treatment the trigger itself has. */
+   smaller labels, same floating-card treatment the trigger itself has.
+
+   position: fixed (not absolute) because this is portaled to document.body
+   — see Legend.tsx for why: backdrop-filter can't blur across the GPU
+   compositing layer boundary family-chart's own pan/zoom transform
+   creates, so the element has to live outside that subtree entirely for
+   the blur to actually render. left/bottom come from the trigger's own
+   measured rect via inline style, not this stylesheet. */
 .legend-panel {
-  position: absolute;
-  left: 0;
-  bottom: calc(100% + 8px);
+  position: fixed;
   z-index: 5;
   display: flex;
   flex-wrap: wrap;
@@ -721,10 +726,13 @@ body {
   transition: opacity 150ms ease, transform 150ms ease;
 }
 
-/* Visibility is driven entirely by the JS-owned .legend-toggle-open class
+/* Visibility is driven entirely by the JS-owned .legend-panel-open class
    now (see Legend.tsx) — a plain :hover rule here would fight a click that
-   closes it while the pointer is still resting on the trigger. */
-.legend-toggle-open .legend-panel {
+   closes it while the pointer is still resting on the trigger. Not a
+   descendant selector off .legend-toggle-open any more: the panel is
+   portaled out of that wrapper (see above), so it's its own top-level
+   class instead of relying on DOM nesting. */
+.legend-panel-open {
   opacity: 1;
   transform: translateY(0);
   pointer-events: auto;
@@ -789,9 +797,15 @@ body {
    translucency + blur treatment as the legend (see its own comment on
    why that alpha is what it is), but in --color-other (lavender) rather
    than the forest/amber/beige already carrying every other meaning in
-   the app. */
+   the app.
+
+   position: fixed (not absolute) because this is portaled to document.body
+   — see HoverPreview.tsx for why: backdrop-filter can't blur across the
+   GPU compositing layer boundary family-chart's own pan/zoom transform
+   creates, so the element has to live outside that subtree entirely for
+   the blur to actually render. x/y are already viewport coordinates. */
 .hover-preview {
-  position: absolute;
+  position: fixed;
   z-index: 8;
   width: 280px;
   max-width: calc(100vw - 32px);

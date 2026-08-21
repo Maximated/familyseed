@@ -313,4 +313,107 @@ export default async function familyRoutes(fastify: FastifyInstance) {
 
     return reply.code(204).send();
   });
+
+  // A child added before the second parent was ever linked ends up as the
+  // sole child of a "single-parent" Family row (partner2Id null) instead of
+  // this — the real, both-parents — union. Deliberately scoped to
+  // single-parent families only (the other partner slot genuinely empty):
+  // a family with a real second partner is a separate relationship, and its
+  // children are never implied to belong to this union too.
+  async function findSpouseChildCandidates(
+    treeId: string,
+    family: { id: string; partner1Id: string | null; partner2Id: string | null },
+  ) {
+    const partnerIds = [family.partner1Id, family.partner2Id].filter((pid): pid is string => pid !== null);
+    if (partnerIds.length === 0) return [];
+
+    const existing = await prisma.familyChild.findMany({
+      where: { familyId: family.id },
+      select: { individualId: true },
+    });
+    const existingIds = new Set(existing.map((c) => c.individualId));
+
+    const soloFamilies = await prisma.family.findMany({
+      where: {
+        treeId,
+        id: { not: family.id },
+        OR: partnerIds.flatMap((pid) => [
+          { partner1Id: pid, partner2Id: null },
+          { partner2Id: pid, partner1Id: null },
+        ]),
+      },
+      include: { children: { include: { individual: true } } },
+    });
+
+    const candidates = new Map<
+      string,
+      { id: string; givenNames: string; surname1: string; sourceFamilyId: string }
+    >();
+    for (const fam of soloFamilies) {
+      for (const fc of fam.children) {
+        if (
+          !existingIds.has(fc.individualId) &&
+          !partnerIds.includes(fc.individualId) &&
+          fc.individual.deletedAt === null
+        ) {
+          candidates.set(fc.individualId, {
+            id: fc.individual.id,
+            givenNames: fc.individual.givenNames,
+            surname1: fc.individual.surname1,
+            sourceFamilyId: fam.id,
+          });
+        }
+      }
+    }
+    return [...candidates.values()];
+  }
+
+  fastify.get("/:id/spouse-children", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const treeId = request.treeId!;
+    const family = await prisma.family.findFirst({ where: { id, treeId } });
+    if (!family) {
+      return reply.code(404).send({ error: `No existe la unión ${id}` });
+    }
+    const candidates = await findSpouseChildCandidates(treeId, family);
+    return candidates.map(({ id, givenNames, surname1 }) => ({ id, givenNames, surname1 }));
+  });
+
+  fastify.post("/:id/copy-spouse-children", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const treeId = request.treeId!;
+    const family = await prisma.family.findFirst({ where: { id, treeId } });
+    if (!family) {
+      return reply.code(404).send({ error: `No existe la unión ${id}` });
+    }
+
+    const candidates = await findSpouseChildCandidates(treeId, family);
+    if (candidates.length === 0) {
+      return reply.send([]);
+    }
+
+    await prisma.$transaction(async (tx) => {
+      for (const candidate of candidates) {
+        await tx.familyChild.deleteMany({
+          where: { familyId: candidate.sourceFamilyId, individualId: candidate.id },
+        });
+        await tx.familyChild.upsert({
+          where: { familyId_individualId: { familyId: id, individualId: candidate.id } },
+          create: { familyId: id, individualId: candidate.id, relationType: "BIOLOGICAL" },
+          update: {},
+        });
+      }
+    });
+
+    await logChange({
+      treeId,
+      userId: request.userId ?? null,
+      action: "family.copySpouseChildren",
+      entityType: "Family",
+      entityId: id,
+      summary: `${candidates.length} hijo(s) copiados de una unión incompleta`,
+    });
+
+    return candidates.map(({ id, givenNames, surname1 }) => ({ id, givenNames, surname1 }));
+  });
 }

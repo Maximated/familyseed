@@ -732,8 +732,10 @@ function App() {
           const relativeTop = cardRect.top - containerRect.top;
           setHoverPreview({
             data: buildPersonInfoPanel(person),
-            x: cardRect.left + cardRect.width / 2 - containerRect.left,
-            y: relativeTop,
+            // Viewport-absolute, not container-relative — see HoverPreview.tsx:
+            // it's portaled to document.body and positioned with `fixed`.
+            x: cardRect.left + cardRect.width / 2,
+            y: cardRect.top,
             // Not enough room above the card to grow upward without
             // clipping out of view — anchor below it instead.
             flip: relativeTop < 220,
@@ -881,8 +883,9 @@ function App() {
               const relativeTop = markRect.top - containerRect.top;
               setHoverPreview({
                 data: buildUnionInfoPanel(union, treeDataRef.current),
-                x: markRect.left + markRect.width / 2 - containerRect.left,
-                y: relativeTop,
+                // Viewport-absolute — see the person-hover setHoverPreview above.
+                x: markRect.left + markRect.width / 2,
+                y: markRect.top,
                 flip: relativeTop < 220,
               });
             }, 1000);
