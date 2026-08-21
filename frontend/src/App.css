@@ -657,15 +657,16 @@ body {
   z-index: 5;
 }
 
-/* This alpha is a deliberate compromise, not a first guess: a browser
-   privacy shield (confirmed with Brave — its per-site anti-fingerprinting
-   protection silently no-ops backdrop-filter's actual rendering without
-   making the property invalid, so @supports can't detect it and a
-   feature-query fallback was a dead end) can leave this panel with no
-   blur at all, in which case the background alpha is the *only* thing
-   determining legibility. Low enough to read as glass when the blur does
-   render, high enough to still look intentional — not a broken, near-
-   invisible smear — when it doesn't. */
+/* Do NOT add a manual -webkit-backdrop-filter line next to this — the
+   production build's CSS minifier (unlike dev's unminified output) treats
+   an explicit vendor-prefixed declaration as "already handled" and drops
+   the real, unprefixed backdrop-filter from the shipped CSS entirely,
+   leaving nothing for the browser to apply (confirmed by diffing the built
+   .css: rules that had both lines shipped with only -webkit-backdrop-filter,
+   computing to backdrop-filter: none in the browser; .popover, which never
+   had a manual webkit line, shipped correctly with both — the build's own
+   autoprefixer generates it fine on its own). Leaving this one line is the
+   fix; the build adds the prefixed fallback automatically. */
 .legend-trigger {
   display: flex;
   align-items: center;
@@ -677,7 +678,6 @@ body {
   border-radius: 999px;
   background: rgba(116, 168, 146, 0.35);
   backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
   color: var(--color-forest);
   box-shadow: 0 4px 16px rgba(27, 67, 50, 0.1);
   cursor: pointer;
@@ -704,7 +704,11 @@ body {
    compositing layer boundary family-chart's own pan/zoom transform
    creates, so the element has to live outside that subtree entirely for
    the blur to actually render. left/bottom come from the trigger's own
-   measured rect via inline style, not this stylesheet. */
+   measured rect via inline style, not this stylesheet.
+
+   No manual -webkit-backdrop-filter line here on purpose — see the comment
+   on .legend-trigger above for why adding one silently kills this in the
+   production build. */
 .legend-panel {
   position: fixed;
   z-index: 5;
@@ -718,7 +722,6 @@ body {
   border-radius: 10px;
   background: rgba(116, 168, 146, 0.35);
   backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
   box-shadow: 0 4px 16px rgba(27, 67, 50, 0.1);
   opacity: 0;
   transform: translateY(6px);
@@ -803,7 +806,11 @@ body {
    — see HoverPreview.tsx for why: backdrop-filter can't blur across the
    GPU compositing layer boundary family-chart's own pan/zoom transform
    creates, so the element has to live outside that subtree entirely for
-   the blur to actually render. x/y are already viewport coordinates. */
+   the blur to actually render. x/y are already viewport coordinates.
+
+   No manual -webkit-backdrop-filter line here on purpose — see the comment
+   on .legend-trigger for why adding one silently kills this in the
+   production build. */
 .hover-preview {
   position: fixed;
   z-index: 8;
@@ -813,7 +820,6 @@ body {
   border-radius: 14px;
   background: rgba(220, 203, 234, 0.35);
   backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
   box-shadow: 0 12px 32px rgba(27, 67, 50, 0.22);
   pointer-events: none;
   transform: translate(-50%, calc(-100% - 16px));
