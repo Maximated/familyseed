@@ -197,6 +197,75 @@ body {
   }
 }
 
+/* The row-of-icons reveal above works fine on desktop (plenty of width, a
+   real hover state), but on a phone-width viewport that same row — a
+   dozen icons wide — mostly renders off-screen to the left of the trigger
+   instead of anywhere reachable. Below this width it becomes a vertical
+   dropdown under the trigger instead: narrow enough to always fit, with
+   each icon's own existing `title` (already there for the desktop
+   tooltip) surfaced as a visible label via content: attr(title) — a
+   column of bare icons would be unreadable with no hover state to
+   identify them by on a touch screen. */
+@media (max-width: 640px) {
+  .header-menu-items {
+    top: calc(100% + 0.4rem);
+    right: 0;
+    left: auto;
+    bottom: auto;
+    transform: none;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.15rem;
+    width: min(260px, 80vw);
+    max-height: calc(100vh - 4rem);
+    overflow-y: auto;
+    background: var(--color-surface);
+    border-radius: 10px;
+    box-shadow: 0 8px 24px rgba(27, 67, 50, 0.2);
+    padding: 0.4rem;
+  }
+
+  .header-menu-items .icon-button,
+  .header-menu-items .popover-anchor > .icon-button {
+    display: flex;
+    width: 100%;
+    justify-content: flex-start;
+    gap: 0.7rem;
+    padding: 0.55rem 0.7rem;
+    border-radius: 6px;
+  }
+
+  .header-menu-items .icon-button:hover {
+    background: rgba(27, 67, 50, 0.06);
+  }
+
+  /* flex-shrink: 0 on the icon — without it, a label long enough to
+     overflow the row (e.g. "Crear relación entre dos personas") shrinks
+     its *sibling* svg down to 0 width to make room instead, since the svg
+     has no natural min-content size of its own to resist with. The label
+     itself gets the ellipsis treatment as the actual overflow escape
+     valve instead. */
+  .header-menu-items .icon-button svg {
+    flex-shrink: 0;
+  }
+
+  .header-menu-items .icon-button::after {
+    content: attr(title);
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-family: var(--font-ui);
+    font-size: 0.9rem;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+
+  .header-menu-items .popover-anchor {
+    width: 100%;
+  }
+}
+
 /* Bare icon, no circular stroke/background — a soft shadow + slight lift on
    hover instead, the same idea as the person-card hover effect (see
    family-chart's own `.f3 div.card:hover .card-inner` rule) scaled down for
