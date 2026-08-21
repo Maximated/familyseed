@@ -119,6 +119,18 @@ body {
   padding: 0.15rem 0.5rem;
 }
 
+/* Both the title and its editable form use a literal rgba(forest, 0.85)
+   rather than var(--color-forest) — dark mode's lightened --color-forest
+   never reaches them, so on the graphite background they stayed exactly
+   as dark as in light mode instead of getting legible. Matches the home
+   screen's own title exactly (plain var(--color-forest), no opacity —
+   that's the "light color" being matched here) rather than trying to find
+   a dark-mode equivalent of the 0.85 tint. */
+:root[data-theme="dark"] .tree-title,
+:root[data-theme="dark"] .tree-title-input {
+  color: var(--color-forest);
+}
+
 .header-actions {
   display: flex;
   align-items: center;
@@ -1059,6 +1071,18 @@ body {
 
 .card-genderless .card-avatar-placeholder {
   background: color-mix(in srgb, var(--color-other) 35%, white);
+}
+
+/* All three of the above mix their ring color with a literal white, on
+   purpose — that pastel-on-white ring is the same regardless of theme, per
+   the same "accent colors stay put" rule the rest of dark mode follows.
+   But the icon itself is `color: inherit`, which does follow the theme —
+   it picks up dark mode's lightened --color-forest, landing a light
+   stroke on a ring that's still light too. Dark mode gets the icon's own
+   color pinned back to the light-mode --color-forest value here so it
+   keeps reading against a ring that never got dark to match it. */
+:root[data-theme="dark"] .card-avatar-placeholder {
+  color: #1b4332;
 }
 
 .card-avatar-placeholder svg {
