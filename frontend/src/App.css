@@ -2643,7 +2643,7 @@ button.btn-outline:disabled {
      list instead of fighting the list rows for the same area. Lifted off
      the true bottom edge (not flush, let alone bleeding past it) so it
      doesn't collide with the version/attribution footer text down there. */
-  background-position: bottom 72px center;
+  background-position: bottom 85px center;
   background-size: min(55vmin, 560px);
   opacity: 0.07;
   pointer-events: none;
