@@ -15,8 +15,6 @@ import {
   type TreePerson,
   type TreeRole,
   type UnionInfo,
-  type UnionStatus,
-  type UnionType,
 } from "./api";
 import AddPersonForm from "./AddPersonForm";
 import EditPersonForm from "./EditPersonForm";
@@ -27,6 +25,7 @@ import Legend from "./Legend";
 import HoverPreview from "./HoverPreview";
 import IOSToggle from "./IOSToggle";
 import InfoPanel, { type InfoPanelData, type InfoPanelSection } from "./InfoPanel";
+import { unionMarkMarkup, UnionMarkIcon } from "./unionMarkIcons";
 import {
   ArrowLeftIcon,
   ArrowUpDownIcon,
@@ -207,15 +206,16 @@ function correctLinkTextTransform(
     orientation === "horizontal" ? `translate(${rowDepth}, ${mid})` : `translate(${mid}, ${rowDepth})`;
 
   // In horizontal mode, spouses stack in a vertical column sharing one
-  // connecting line straight down that column — and the mark is
-  // text-anchor:middle, so a *fixed* leftward nudge only clears that line
+  // connecting line straight down that column — and the mark is centered
+  // on the same point, so a *fixed* leftward nudge only clears that line
   // for however wide one particular mark happens to be. A mark combining a
-  // union-order superscript with a status symbol (e.g. "⚭²⚮") is nearly
-  // 2.5x wider than a bare "⚭", so a constant tuned for the short case still
-  // left the long one straddling the line. Measuring this mark's own
-  // rendered width and shifting by half of it (plus a fixed margin) clears
-  // the line regardless of which symbols it's showing.
-  const textWidth = g.querySelector("text")?.getBBox().width ?? 20;
+  // status icon beside the type icon is close to 2x wider than a single
+  // icon alone, so a constant tuned for the short case still left the long
+  // one straddling the line. Measuring this mark's own rendered width (the
+  // icon group, not family-chart's own now-hidden <text>) and shifting by
+  // half of it (plus a fixed margin) clears the line regardless of how
+  // many icons it's showing.
+  const textWidth = g.querySelector<SVGGElement>(".union-mark-icons")?.getBBox().width ?? 20;
   const depthNudge = orientation === "horizontal" ? -(textWidth / 2 + 18) : -3;
   // And, only in horizontal mode, dropped a few px along the spread axis
   // (screen-y there) so it clears the line vertically too, not just
@@ -286,48 +286,6 @@ function waitForLinkTextSettle(container: HTMLElement, quietMs = 200, maxWaitMs 
     quietTimer = window.setTimeout(done, quietMs);
     hardCap = window.setTimeout(done, maxWaitMs);
   });
-}
-
-// Standard genealogical marks (⚭ marriage, ⚮ divorce, ⚯ unmarried
-// partnership) plus a couple of homemade ones where no standard symbol
-// exists — kept in the legend below the lineage chips since most people
-// won't recognize them on sight.
-// UNKNOWN gets its own mark rather than an empty string — it's a common,
-// permanent state (every family attachParent auto-creates when linking a
-// parent to a child defaults to it, since there's no union info to record
-// at that point), not a rare edge case. An empty string here previously
-// made those unions render with no mark at all, i.e. invisible on the
-// canvas even though the relationship is real — see the "ya existe esa
-// relación" bug report.
-const UNION_TYPE_SYMBOL: Record<UnionType, string> = {
-  MARRIAGE: "⚭",
-  PARTNERSHIP: "⚯",
-  EXTRAMARITAL: "※",
-  UNKNOWN: "○",
-};
-
-const UNION_STATUS_SYMBOL: Record<UnionStatus, string> = {
-  ONGOING: "",
-  ENDED_BY_DEATH: "✝",
-  DIVORCED: "⚮",
-  SEPARATED: "⚮",
-  ANNULLED: "⚮",
-};
-
-const SUPERSCRIPT_DIGITS = ["⁰", "¹", "²", "³", "⁴", "⁵", "⁶", "⁷", "⁸", "⁹"];
-
-function toSuperscript(n: number): string {
-  return String(n)
-    .split("")
-    .map((digit) => SUPERSCRIPT_DIGITS[Number(digit)])
-    .join("");
-}
-
-function unionIcon(union: UnionInfo): string {
-  const type = UNION_TYPE_SYMBOL[union.unionType] ?? "";
-  const order = union.order >= 2 ? toSuperscript(union.order) : "";
-  const status = UNION_STATUS_SYMBOL[union.unionStatus] ?? "";
-  return `${type}${order}${status}`;
 }
 
 function escapeHtml(value: string): string {
@@ -506,7 +464,7 @@ function buildUnionInfoPanel(union: UnionInfo, people: TreePerson[]): InfoPanelD
   }
 
   return {
-    icon: <span className="info-panel-union-symbol">{unionIcon(union)}</span>,
+    icon: <UnionMarkIcon unionType={union.unionType} unionStatus={union.unionStatus} />,
     iconClassName: "info-panel-icon-union",
     title: `${name(partner1)} & ${name(partner2)}`,
     subtitle: union.order >= 2 ? i18n.t("infoPanel.unionOrder", { order: union.order }) : undefined,
@@ -861,6 +819,23 @@ function App() {
       }
       g.style.display = "";
       const union = datum && unionsByPairKeyRef.current.get(pairKey(datum.nodes[0].data.id, datum.nodes[1].data.id));
+
+      // family-chart's own <text> (set via setLinkSpouseText, always empty
+      // now — see the call site) stays in the DOM but hidden; the real mark
+      // is this icon group, rebuilt fresh on every render since which icons
+      // apply can change. A dedicated SVG-namespaced <g> (not innerHTML on
+      // g.link-text itself) keeps it separate from family-chart's own text
+      // node and easy to find again next render.
+      const originalText = g.querySelector<SVGTextElement>(":scope > text");
+      if (originalText) originalText.style.display = "none";
+      let markGroup = g.querySelector<SVGGElement>(".union-mark-icons");
+      if (!markGroup) {
+        markGroup = document.createElementNS("http://www.w3.org/2000/svg", "g");
+        markGroup.setAttribute("class", "union-mark-icons");
+        g.appendChild(markGroup);
+      }
+      markGroup.innerHTML = union ? unionMarkMarkup(union) : "";
+
       g.style.cursor = union ? "pointer" : "default";
       g.onclick = union
         ? (e) => {
@@ -976,13 +951,13 @@ function App() {
         // form, so the placeholder is pure confusion; disable it entirely.
         chart.setSingleParentEmptyCard(false);
 
-        // Marriage/divorce/etc. marks on the spouse link — looked up by pair
-        // of ids from a ref so this stays fresh across data reloads without
-        // re-registering the callback (family-chart only reads it once).
-        chart.setLinkSpouseText((sp1, sp2) => {
-          const union = unionsByPairKeyRef.current.get(pairKey(sp1.data.id, sp2.data.id));
-          return union ? unionIcon(union) : "";
-        });
+        // family-chart always creates a <text> here regardless of what this
+        // returns (it only ever calls .text() on it) — the actual marriage/
+        // divorce/etc. mark is real icons injected onto this same <g> in
+        // wireCardAndUnionClicks below, which hides this text and builds
+        // the icons from the same union lookup. Nothing here needs to
+        // render, so there's nothing useful to return.
+        chart.setLinkSpouseText(() => "");
 
         // Clicking a card, or navigating via the timeline, re-centers the
         // tree (chart.updateMainId internally). Track that in our own stack
@@ -1273,10 +1248,10 @@ function App() {
       // instead (white-on-cream, effectively invisible). Setting the actual
       // values here works around that without changing anything on screen —
       // path.link has no competing inline style, so a plain attribute is
-      // enough, but g.link-text's <text> already carries an inline
-      // `style="fill:...;font-size:...` from family-chart itself, which
-      // beats a presentation attribute — that one has to be overridden via
-      // .style, the same place it's already declared, to actually win.
+      // enough; .union-mark-icons has none either (nothing but the CSS rule
+      // below ever sets its color), but since that rule is !important, this
+      // inline override is invisible on screen regardless of whether it's
+      // ever restored — same as the connecting-line stroke just above.
       // Black rather than the on-screen forest green, by request — reads
       // better dropped onto someone else's own document/print layout than
       // the app's own accent color would. Covers both the connecting lines
@@ -1284,10 +1259,8 @@ function App() {
       container.querySelectorAll<SVGPathElement>("path.link").forEach((p) => {
         p.setAttribute("stroke", "#000000");
       });
-      container.querySelectorAll<SVGTextElement>("g.link-text text").forEach((t) => {
-        t.style.fill = "#000000";
-        t.style.fontSize = "28px";
-        t.style.fontWeight = "700";
+      container.querySelectorAll<SVGGElement>("g.link-text .union-mark-icons").forEach((el) => {
+        el.style.color = "#000000";
       });
 
       // html-to-image's own cloning (see clone-node.js's cloneCSSStyle)
@@ -1297,28 +1270,40 @@ function App() {
       // positions it (an SVG *attribute*, not a CSS property family-chart
       // ever sets). That computed-transform round-trip comes out wrong for
       // a <g> nested inside the pan/zoomed "view" group specifically — the
-      // export was landing marks far from their on-screen position. Since
-      // a translate(a, b) on a <g> with a single <text> child is exactly
-      // equivalent to that text carrying its own x="a" y="b", moving the
-      // position there sidesteps the whole transform round-trip: nothing
-      // conflicts with html-to-image's clone regardless of what it does to
-      // `transform`. This is a pure reparameterization (same rendered
-      // position either way), so it's safe to apply directly to the live
-      // elements — restored once the capture is done.
+      // export was landing marks far from their on-screen position. A
+      // nested <svg> (each icon) or <text> (the order badge) supports x/y
+      // positioning the same way a bare <text> does, so the fix is the
+      // same: fold the <g>'s own translate(a, b) into each child's existing
+      // x/y (they're already positioned relative to the group's own
+      // center, so this is addition, not a flat overwrite) and neutralize
+      // the <g>'s transform — sidesteps the whole round-trip regardless of
+      // what html-to-image does with `transform`. Restored once the
+      // capture is done, since — unlike the color override above — nothing
+      // makes this one invisible on screen while it's in effect.
       container.querySelectorAll<SVGGElement>("g.link-text").forEach((g) => {
-        const text = g.querySelector("text");
         const match = g.getAttribute("transform")?.match(/translate\(\s*(-?[\d.]+)\s*,\s*(-?[\d.]+)\s*\)/);
-        if (!text || !match) return;
-        const [, x, y] = match;
-        text.setAttribute("x", x);
-        text.setAttribute("y", y);
+        const shiftable = g.querySelectorAll<SVGElement>(".union-mark-icons > svg, .union-mark-icons > text");
+        if (!match || shiftable.length === 0) return;
+        const [, txStr, tyStr] = match;
+        const tx = Number(txStr);
+        const ty = Number(tyStr);
+        const restores: Array<() => void> = [];
+        shiftable.forEach((el) => {
+          const origX = Number(el.getAttribute("x") ?? "0");
+          const origY = Number(el.getAttribute("y") ?? "0");
+          el.setAttribute("x", String(origX + tx));
+          el.setAttribute("y", String(origY + ty));
+          restores.push(() => {
+            el.setAttribute("x", String(origX));
+            el.setAttribute("y", String(origY));
+          });
+        });
         // A style override (not touching the `transform` attribute itself)
         // so the settle MutationObserver — which only watches that
         // attribute — doesn't wake up and fight this.
         g.style.transform = "none";
         exportDomRestores.push(() => {
-          text.removeAttribute("x");
-          text.removeAttribute("y");
+          restores.forEach((restore) => restore());
           g.style.transform = "";
         });
       });

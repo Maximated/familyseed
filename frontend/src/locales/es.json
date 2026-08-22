@@ -81,14 +81,7 @@
     "AFTER": "Después de"
   },
   "legend": {
-    "marriage": "Matrimonio",
-    "marriage2": "2º matrimonio (o más)",
-    "partnership": "Pareja de hecho",
-    "extramarital": "Relación extramatrimonial",
-    "extramarital2": "2ª relación extramatrimonial (o más)",
-    "endedByDivorce": "Divorcio/separación",
-    "endedByDeath": "Unión finalizada por fallecimiento",
-    "unknown": "Tipo de unión sin especificar",
+    "orderHint": "Un número junto al icono indica la 2ª unión (o posterior) con esa misma persona.",
     "hint": "Pulsa un icono de unión, o el de una tarjeta, para ver el detalle",
     "toggleReveal": "Mostrar/ocultar la leyenda"
   },

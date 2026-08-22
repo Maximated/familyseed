@@ -2,6 +2,17 @@ import { useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 import { DiagonalArrowIcon } from "./Icons";
+import { UNION_STATUS_ICON_PATHS, UNION_TYPE_ICON_PATHS, UnionIconSvg } from "./unionMarkIcons";
+import type { UnionStatus, UnionType } from "./api";
+
+// Reuses unionType.*/unionStatus.* (the same labels InfoPanel shows for a
+// union's own type/status) rather than a separate, parallel set of legend
+// strings — one one-word difference between the two would've been a
+// silent inconsistency, not a deliberate one.
+const UNION_TYPES: UnionType[] = ["MARRIAGE", "PARTNERSHIP", "EXTRAMARITAL", "UNKNOWN"];
+// ONGOING has no icon of its own (see unionMarkIcons.tsx) — the four
+// statuses that do are exactly the ones worth explaining here.
+const UNION_STATUSES: UnionStatus[] = ["ENDED_BY_DEATH", "DIVORCED", "SEPARATED", "ANNULLED"];
 
 // A small always-visible trigger in the canvas's bottom-left corner,
 // revealing the actual legend on hover (desktop) or tap (touch/PWA)
@@ -84,38 +95,23 @@ export default function Legend() {
           onMouseEnter={reveal}
           onMouseLeave={scheduleHide}
         >
-          <span className="legend-item">
-            <span className="legend-icon">⚭</span>
-            <span className="legend-label">{t("legend.marriage")}</span>
-          </span>
-          <span className="legend-item">
-            <span className="legend-icon">⚭²</span>
-            <span className="legend-label">{t("legend.marriage2")}</span>
-          </span>
-          <span className="legend-item">
-            <span className="legend-icon">⚯</span>
-            <span className="legend-label">{t("legend.partnership")}</span>
-          </span>
-          <span className="legend-item">
-            <span className="legend-icon">※</span>
-            <span className="legend-label">{t("legend.extramarital")}</span>
-          </span>
-          <span className="legend-item">
-            <span className="legend-icon">※²</span>
-            <span className="legend-label">{t("legend.extramarital2")}</span>
-          </span>
-          <span className="legend-item">
-            <span className="legend-icon">⚮</span>
-            <span className="legend-label">{t("legend.endedByDivorce")}</span>
-          </span>
-          <span className="legend-item">
-            <span className="legend-icon">✝</span>
-            <span className="legend-label">{t("legend.endedByDeath")}</span>
-          </span>
-          <span className="legend-item">
-            <span className="legend-icon">○</span>
-            <span className="legend-label">{t("legend.unknown")}</span>
-          </span>
+          {UNION_TYPES.map((type) => (
+            <span className="legend-item" key={type}>
+              <span className="legend-icon">
+                <UnionIconSvg paths={UNION_TYPE_ICON_PATHS[type]} size={17} />
+              </span>
+              <span className="legend-label">{t(`unionType.${type}`)}</span>
+            </span>
+          ))}
+          {UNION_STATUSES.map((status) => (
+            <span className="legend-item" key={status}>
+              <span className="legend-icon">
+                <UnionIconSvg paths={UNION_STATUS_ICON_PATHS[status]!} size={17} />
+              </span>
+              <span className="legend-label">{t(`unionStatus.${status}`)}</span>
+            </span>
+          ))}
+          <span className="legend-hint">{t("legend.orderHint")}</span>
           <span className="legend-hint">{t("legend.hint")}</span>
         </div>,
         document.body,

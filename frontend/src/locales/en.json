@@ -81,14 +81,7 @@
     "AFTER": "After"
   },
   "legend": {
-    "marriage": "Marriage",
-    "marriage2": "2nd marriage (or more)",
-    "partnership": "Civil partnership",
-    "extramarital": "Extramarital relationship",
-    "extramarital2": "2nd extramarital relationship (or more)",
-    "endedByDivorce": "Divorce/Separation",
-    "endedByDeath": "Union ended by death",
-    "unknown": "Unspecified union type",
+    "orderHint": "A number beside the icon means the 2nd (or later) union with that same person.",
     "hint": "Click a union icon or a person card to view details",
     "toggleReveal": "Show/hide legend"
   },

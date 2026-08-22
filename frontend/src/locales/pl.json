@@ -81,14 +81,7 @@
     "AFTER": "Po"
   },
   "legend": {
-    "marriage": "Małżeństwo",
-    "marriage2": "2. małżeństwo (lub kolejne)",
-    "partnership": "Związek partnerski",
-    "extramarital": "Związek pozamałżeński",
-    "extramarital2": "2. związek pozamałżeński (lub kolejny)",
-    "endedByDivorce": "Rozwód / Separacja",
-    "endedByDeath": "Związek zakończony śmiercią",
-    "unknown": "Nieokreślony typ związku",
+    "orderHint": "Liczba obok ikony oznacza 2. (lub kolejny) związek z tą samą osobą.",
     "hint": "Kliknij ikonę związku lub kartę osoby, aby zobaczyć szczegóły",
     "toggleReveal": "Pokaż/ukryj legendę"
   },

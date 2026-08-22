@@ -658,18 +658,27 @@ body {
   outline: none;
 }
 
-/* The connecting lines and the marriage/divorce/etc. mark on them are set
-   with inline SVG attributes/styles by the library — a plain CSS rule
-   beats a presentation attribute, and `!important` is needed to beat an
-   actual inline `style`. */
+/* The connecting lines are set with an inline SVG attribute by the
+   library — a plain CSS rule beats a presentation attribute, and
+   `!important` is needed to beat an actual inline `style`. */
 .f3 path.link {
   stroke: var(--color-forest);
 }
 
-.f3 g.link-text text {
-  fill: var(--color-forest) !important;
-  font-size: 28px !important;
-  font-weight: 700 !important;
+/* The marriage/divorce/etc. mark itself (.union-mark-icons, injected in
+   wireCardAndUnionClicks) is real icons now, not family-chart's own
+   <text> — its icons read this via stroke="currentColor", and the
+   order-number badge via its own fill. !important isn't needed for
+   correctness here (nothing else ever sets this element's color), but
+   keeping it means handleExportTreeImage's temporary black override for
+   the PNG/SVG capture stays invisible on screen without needing its own
+   restore, the same way path.link's export override already is. */
+.f3 g.link-text .union-mark-icons {
+  color: var(--color-forest) !important;
+}
+
+.f3 g.link-text .union-mark-order {
+  fill: currentColor;
 }
 
 /* Fades back in once correctLinkTextTransform re-corrects its position
@@ -885,7 +894,8 @@ body {
 }
 
 .legend-icon {
-  font-size: 1.15rem;
+  display: inline-flex;
+  align-items: center;
   color: var(--color-forest);
   line-height: 1;
 }
@@ -1378,8 +1388,12 @@ body {
   cursor: zoom-in;
 }
 
-.info-panel-union-symbol {
-  font-size: 1.175rem;
+/* Two icons (union type + status) side by side when there's a status to
+   show, one alone otherwise — see UnionMarkIcon. */
+.union-mark-icon-group {
+  display: flex;
+  align-items: center;
+  gap: 0.2rem;
 }
 
 .info-panel-heading {
