@@ -739,16 +739,58 @@ body {
   cursor: pointer;
 }
 
-/* The marriage/divorce/etc. mark itself (.union-mark-icons) only ever
-   exists in the DOM during handleExportTreeImage's own snapshot now — no
-   longer part of the live canvas (see wireCardAndUnionClicks) — but still
-   needs real icon colors for that capture. !important isn't needed for
-   correctness here (nothing else ever sets this element's color), but
-   keeping it means handleExportTreeImage's temporary black override for
-   the PNG/SVG capture stays invisible on screen without needing its own
-   restore, the same way path.link's export override already is. */
+/* The marriage/divorce/etc. mark itself (.union-mark-icons) — positioned
+   live again (see wireCardAndUnionClicks) at the same fixed spot the old
+   permanent version used to sit, but hidden until the connecting line is
+   hovered, when it bubbles in — the line stays the actual click/hover
+   target, this is purely the visual payoff for hovering it. !important on
+   the color isn't needed for correctness on screen (nothing else sets
+   it), but keeps handleExportTreeImage's temporary black override for the
+   PNG/SVG capture invisible on screen without needing its own restore,
+   the same way path.link's export override already is. */
 .f3 g.link-text .union-mark-icons {
   color: var(--color-forest) !important;
+  opacity: 0;
+  transform: scale(0.4);
+  transform-origin: 0 0;
+  pointer-events: none;
+  transition: opacity 150ms ease, transform 150ms ease;
+}
+
+.f3 g.link-text .union-mark-icons.union-mark-visible {
+  animation: union-mark-bubble-in 420ms cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+/* Bounces past its own final size before settling — same spirit as the
+   header menu's jelly-pop reveal — and settles bigger (1.3x) than the
+   icons ever rendered before this, by request. */
+@keyframes union-mark-bubble-in {
+  0% {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+  55% {
+    opacity: 1;
+    transform: scale(1.55);
+  }
+  75% {
+    transform: scale(1.2);
+  }
+  90% {
+    transform: scale(1.4);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1.3);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .f3 g.link-text .union-mark-icons.union-mark-visible {
+    animation: none;
+    opacity: 1;
+    transform: scale(1.3);
+  }
 }
 
 .f3 g.link-text .union-mark-order {
@@ -2038,6 +2080,21 @@ body {
   max-width: calc(100vw - 2rem);
   max-height: calc(100vh - 2rem);
   overflow-y: auto;
+}
+
+/* A union's own full panel (see InfoPanel.tsx), opened by clicking/tapping
+   the connecting line — same translucent, blurred look as the hover-
+   preview it grew out of, kept as its own modifier rather than changing
+   .modal-panel itself so a person's own panel stays the plain opaque
+   surface it's always been. Still a real modal underneath (the dimmed
+   .modal-backdrop, the same close/edit/delete affordances) — only the
+   surface treatment changes. No manual -webkit-backdrop-filter line here
+   — see .legend-trigger's own comment on why that silently kills this in
+   the production build. */
+.info-panel-union {
+  background: rgba(220, 203, 234, 0.35);
+  backdrop-filter: blur(14px);
+  box-shadow: 0 12px 32px rgba(27, 67, 50, 0.22);
 }
 
 .modal-panel h2 {

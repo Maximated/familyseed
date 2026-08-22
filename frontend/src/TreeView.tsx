@@ -193,15 +193,15 @@ const SAME_ROW_TOLERANCE = 20;
 // wrong spot (or on top of another card) — this is orientation-aware so
 // both modes use whichever axis actually is "spread" for them.
 //
-// Only ever called from handleExportTreeImage now — the live canvas hangs
-// its union interaction off the connecting line itself instead (see
-// wireCardAndUnionClicks), which sidesteps this whole positioning problem
-// rather than solving it. A static export has no line-hover to fall back
-// on, so it still needs the mark placed somewhere real; a card's own
-// silhouette being covered doesn't matter there the way it did live —
-// nothing to click in a picture — so this stays tuned to just clear the
-// connecting line, the same distance as before the live canvas ever needed
-// to also dodge a card's own click target.
+// Called from both wireCardAndUnionClicks (the live, hover-revealed icon)
+// and handleExportTreeImage (the static snapshot, which has no hover to
+// reveal anything with, so it needs the icon visible outright). Only
+// clears the connecting line itself, not a spouse's own card silhouette
+// the way an earlier version of the live icon had to — the icon isn't the
+// click/hover target on the live canvas any more (the line is, see
+// wireCardAndUnionClicks), so a card covering part of it while it's
+// bubbling in is a passing cosmetic overlap, not a blocked click the way
+// it was when the icon itself had to be aimed at.
 function correctLinkTextTransform(
   g: SVGGElement,
   allNodes: LinkTextNode[],
@@ -887,16 +887,72 @@ function App() {
       p.style.display = orphaned ? "none" : "";
     });
 
-    // The connecting line itself is the interactive surface for a union —
-    // no more floating icon on the live canvas at all (see unionMarkIcons.tsx
-    // and correctLinkTextTransform's own comment for the collision problems
-    // that used to cause across both orientations: overlapping the line in
-    // vertical mode, landing inside a spouse's own card in horizontal mode).
-    // A larger, clearer icon now only ever appears in the hover-preview
-    // below, which already has its own dedicated space off to the side —
-    // correctLinkTextTransform/unionMarkMarkup still exist, used only by
-    // handleExportTreeImage's static snapshot, which has no such preview to
-    // fall back on.
+    // The union's own icon(s) live at the same fixed spot the old
+    // permanent mark used to sit (see correctLinkTextTransform), but stay
+    // hidden — see the .union-mark-icons CSS — until the connecting line
+    // itself is hovered (wired below), when they bubble in. The line
+    // stays the actual interactive surface throughout (click/hover both
+    // live there), this block only positions and builds the markup;
+    // markGroupByPairKey is how the line-hover handlers below find the
+    // right icon group to reveal.
+    const linkTextEls = container.querySelectorAll<SVGGElement>("g.link-text");
+    const allLinkTextNodes = [...linkTextEls].flatMap((g) => {
+      const datum = (g as unknown as { __data__?: LinkTextDatum }).__data__;
+      return datum ? datum.nodes : [];
+    });
+    const markGroupByPairKey = new Map<string, SVGGElement>();
+    linkTextEls.forEach((g) => {
+      const datum = (g as unknown as { __data__?: LinkTextDatum }).__data__;
+      const union =
+        datum && unionsByPairKeyRef.current.get(pairKey(datum.nodes[0].data.id, datum.nodes[1].data.id));
+      if (!union) return;
+
+      const originalText = g.querySelector<SVGTextElement>(":scope > text");
+      if (originalText) originalText.style.display = "none";
+      let markGroup = g.querySelector<SVGGElement>(".union-mark-icons");
+      if (!markGroup) {
+        markGroup = document.createElementNS("http://www.w3.org/2000/svg", "g");
+        markGroup.setAttribute("class", "union-mark-icons");
+        g.appendChild(markGroup);
+      }
+      markGroup.innerHTML = unionMarkMarkup(union);
+      markGroupByPairKey.set(pairKey(union.partner1Id, union.partner2Id), markGroup);
+
+      // Same settle problem as the union-line's own `d` below — family-
+      // chart keeps nudging this element's transform via its own d3
+      // transition, so a one-time apply here would just get overwritten
+      // mid-animation. `lastApplied` guards against reacting to this same
+      // code's own writes.
+      let lastApplied: string | null = null;
+      const apply = () => {
+        const transform = correctLinkTextTransform(g, allLinkTextNodes, orientationRef.current);
+        if (!transform) return;
+        lastApplied = transform;
+        g.setAttribute("transform", transform);
+      };
+      apply();
+      let settleTimer: number | undefined;
+      const scheduleApply = () => {
+        window.clearTimeout(settleTimer);
+        settleTimer = window.setTimeout(apply, 120);
+      };
+      const observer = new MutationObserver(() => {
+        if (g.getAttribute("transform") !== lastApplied) scheduleApply();
+      });
+      observer.observe(g, { attributes: true, attributeFilter: ["transform"] });
+      linkTextCleanupRef.current.push(() => {
+        window.clearTimeout(settleTimer);
+        observer.disconnect();
+      });
+    });
+
+    // The connecting line itself is still the actual click/hover surface
+    // — hovering it now also reveals the icon(s) above (immediately, via
+    // markGroupByPairKey — no delay, unlike the person-card hover-preview
+    // below, so the bubble is visible well before that timer would ever
+    // fire), and clicking it opens the full InfoPanel, restyled to match
+    // the translucent/blurred hover-preview look for a union specifically
+    // (see InfoPanel's own info-panel-union class).
     //
     // family-chart binds a plain object (source[s]/target) onto each
     // path.link — a spouse-to-spouse line has a single (non-array) source,
@@ -1076,29 +1132,15 @@ function App() {
         e.stopPropagation();
         setInfoPanel(buildUnionInfoPanel(union, treeDataRef.current));
       };
-      // Same 1-second hover-preview a card gets — this is now the only
-      // place the union's own icon(s) render at all on the live canvas, at
-      // a size worth actually seeing rather than a few px on the line.
+      // No delay, no timer — unlike the person-card hover-preview below,
+      // this is meant to be seen bubbling in immediately, well before a
+      // 1s-style delay would ever fire (by request).
+      const markGroup = markGroupByPairKey.get(pairKey(union.partner1Id, union.partner2Id));
       const handleEnter = () => {
-        window.clearTimeout(hoverTimerRef.current);
-        hoverTimerRef.current = window.setTimeout(() => {
-          const containerEl = containerRef.current;
-          if (!containerEl) return;
-          const rect = hit!.getBoundingClientRect();
-          const containerRect = containerEl.getBoundingClientRect();
-          const relativeTop = rect.top - containerRect.top;
-          setHoverPreview({
-            data: buildUnionInfoPanel(union, treeDataRef.current),
-            // Viewport-absolute — see the person-hover setHoverPreview above.
-            x: rect.left + rect.width / 2,
-            y: rect.top + rect.height / 2,
-            flip: relativeTop < 220,
-          });
-        }, 1000);
+        markGroup?.classList.add("union-mark-visible");
       };
       const handleLeave = () => {
-        window.clearTimeout(hoverTimerRef.current);
-        setHoverPreview(null);
+        markGroup?.classList.remove("union-mark-visible");
       };
       hit.onclick = handleClick;
       hit.onmouseenter = handleEnter;
@@ -1492,33 +1534,20 @@ function App() {
       // duration) removes the race outright.
       await waitForLinkTextSettle(container);
 
-      // The live canvas has no permanent union-mark icon at all any more
-      // (see wireCardAndUnionClicks) — a static export can't hover, so it
-      // still needs one drawn in for the capture. Built fresh here rather
-      // than kept sitting in the DOM the rest of the time, and torn back
-      // down in the `finally` below along with every other export-only
-      // change.
-      const linkTextEls = container.querySelectorAll<SVGGElement>("g.link-text");
-      const allLinkTextNodes = [...linkTextEls].flatMap((g) => {
-        const datum = (g as unknown as { __data__?: LinkTextDatum }).__data__;
-        return datum ? datum.nodes : [];
-      });
-      linkTextEls.forEach((g) => {
-        const datum = (g as unknown as { __data__?: LinkTextDatum }).__data__;
-        const union =
-          datum && unionsByPairKeyRef.current.get(pairKey(datum.nodes[0].data.id, datum.nodes[1].data.id));
-        if (!union) return;
-        const markGroup = document.createElementNS("http://www.w3.org/2000/svg", "g");
-        markGroup.setAttribute("class", "union-mark-icons");
-        markGroup.innerHTML = unionMarkMarkup(union);
-        g.appendChild(markGroup);
-        const originalTransform = g.getAttribute("transform");
-        const corrected = correctLinkTextTransform(g, allLinkTextNodes, wantOrientation);
-        if (corrected) g.setAttribute("transform", corrected);
+      // wireCardAndUnionClicks already keeps one of these built and
+      // correctly positioned per union at all times, just hidden (see its
+      // own comment and the .union-mark-icons CSS) until the connecting
+      // line is hovered — a static export can't hover, so this reuses
+      // that same element and forces it visible for the capture instead
+      // of building a second one from scratch.
+      container.querySelectorAll<SVGGElement>("g.link-text .union-mark-icons").forEach((markGroup) => {
+        const prevOpacity = markGroup.style.opacity;
+        const prevTransform = markGroup.style.transform;
+        markGroup.style.opacity = "1";
+        markGroup.style.transform = "scale(1)";
         exportDomRestores.push(() => {
-          markGroup.remove();
-          if (originalTransform === null) g.removeAttribute("transform");
-          else g.setAttribute("transform", originalTransform);
+          markGroup.style.opacity = prevOpacity;
+          markGroup.style.transform = prevTransform;
         });
       });
 

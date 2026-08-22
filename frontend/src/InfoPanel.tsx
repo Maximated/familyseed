@@ -75,7 +75,10 @@ export default function InfoPanel({ treeId, data, onClose, onNavigateToPerson, o
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal-panel info-panel" onClick={(e) => e.stopPropagation()}>
+      <div
+        className={`modal-panel info-panel${data.familyId ? " info-panel-union" : ""}`}
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="info-panel-header">
           {data.photoUrl ? (
             <img
