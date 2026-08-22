@@ -576,6 +576,8 @@ function App() {
   const selectedLineageIdsRef = useRef<Set<string>>(new Set());
   const lineageMenuRef = useRef<HTMLDivElement>(null);
   const exportMenuRef = useRef<HTMLDivElement>(null);
+  const headerMenuRef = useRef<HTMLDivElement>(null);
+  const headerMenuCloseTimerRef = useRef<number | undefined>(undefined);
 
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -608,6 +610,7 @@ function App() {
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState("");
   const [showLineageMenu, setShowLineageMenu] = useState(false);
+  const [headerMenuOpen, setHeaderMenuOpen] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [exportFormat, setExportFormat] = useState<"png" | "svg">("png");
   const [exportBackground, setExportBackground] = useState<"opaque" | "transparent">("opaque");
@@ -1197,6 +1200,20 @@ function App() {
   }, [showLineageMenu]);
 
   useEffect(() => {
+    if (!headerMenuOpen) return;
+
+    function handlePointerDown(event: PointerEvent) {
+      const target = event.target as Node;
+      if (headerMenuRef.current && !headerMenuRef.current.contains(target)) {
+        setHeaderMenuOpen(false);
+      }
+    }
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    return () => document.removeEventListener("pointerdown", handlePointerDown);
+  }, [headerMenuOpen]);
+
+  useEffect(() => {
     if (!showExportMenu) return;
 
     function handlePointerDown(event: PointerEvent) {
@@ -1559,6 +1576,31 @@ function App() {
     setWizardIds(unrelatedIds);
   }
 
+  // The header menu used to reveal purely via CSS :hover/:focus-within — a
+  // real mouse crossing the gap between the trigger and the revealed row
+  // (or from the row onto the nested lineages popover) could leave the
+  // hover region for an instant and collapse the whole thing, reported as
+  // "closes again as soon as I try to reach lineages" and specific to one
+  // external monitor's exact scaled resolution in Safari, suggesting the
+  // browser's own :hover matching was the flaky part, not the DOM
+  // structure. Same JS-owned open state + grace-delay pattern as the
+  // Legend panel (see its own comment for the full reasoning) sidesteps
+  // that CSS pseudo-class path entirely — real mouseenter/mouseleave
+  // events instead, with a short delay bridging the moment the pointer
+  // crosses from the trigger onto the row.
+  function revealHeaderMenu() {
+    window.clearTimeout(headerMenuCloseTimerRef.current);
+    setHeaderMenuOpen(true);
+  }
+  function scheduleHideHeaderMenu() {
+    window.clearTimeout(headerMenuCloseTimerRef.current);
+    headerMenuCloseTimerRef.current = window.setTimeout(() => setHeaderMenuOpen(false), 150);
+  }
+  function toggleHeaderMenu() {
+    window.clearTimeout(headerMenuCloseTimerRef.current);
+    setHeaderMenuOpen((v) => !v);
+  }
+
   // Manual fallback for the auto-derivation every create/edit/import
   // already does on its own — for data that predates that feature, or an
   // older import that ran before this codebase's own gap was fixed.
@@ -1666,16 +1708,21 @@ function App() {
           </h1>
         )}
 
-        <div className="header-menu">
+        <div className={`header-menu${headerMenuOpen ? " header-menu-open" : ""}`} ref={headerMenuRef}>
           <button
             type="button"
             className="icon-button header-menu-trigger"
+            onClick={toggleHeaderMenu}
+            onMouseEnter={revealHeaderMenu}
+            onMouseLeave={scheduleHideHeaderMenu}
+            onFocus={revealHeaderMenu}
             aria-label={t("app.moreActions")}
+            aria-expanded={headerMenuOpen}
             title={t("app.moreActions")}
           >
             <MenuIcon />
           </button>
-          <div className="header-menu-items">
+          <div className="header-menu-items" onMouseEnter={revealHeaderMenu} onMouseLeave={scheduleHideHeaderMenu}>
             <button
               type="button"
               className="icon-button"
