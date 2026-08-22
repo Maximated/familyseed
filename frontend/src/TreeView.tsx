@@ -951,22 +951,23 @@ function App() {
     // line) sitting between them, rather than routing around it. The two
     // lines then physically overlap along that shared stretch, so hovering
     // anywhere in it always resolved to whichever one happened to sit on
-    // top in DOM order, regardless of which line the pointer was actually
-    // over — reported as one relationship's hover always winning no matter
-    // which line you point at. Detecting that overlap and bumping the
-    // longer (non-adjacent) line out to its own parallel lane — a small
-    // perpendicular jog in and back out, not a straight shift, so it still
-    // touches both cards' exact real positions at each end — gives every
-    // union its own real, unshared pixels to hover. The step has to clear
-    // more than just the *visible* dotted lines — each one's actual hit
-    // area (union-line-hitarea) is a much fatter invisible stroke, and two
-    // lines only 8 units apart still had their fat hit-strokes overlapping
-    // even once the thin visible lines themselves looked clearly separate
-    // (confirmed the hard way: clicking the visibly-separate lower line
-    // kept resolving to the upper one). The bumped line's own hit-stroke is
-    // also narrowed below, so the step only needs to clear a normal-width
-    // and a narrowed one, not two full-width ones.
-    const OVERLAP_STEP = 18;
+    // top in DOM order, regardless of which one the pointer was actually
+    // over.
+    //
+    // A parallel offset lane was tried here first and worked, but doesn't
+    // scale — a third or fourth marriage would need a third and fourth
+    // lane, and a user would have to visually track which of several
+    // close, similar-looking lines belongs to which relationship, which
+    // isn't really usable. What actually generalizes: each union only
+    // needs to *own* the stretch of the row that no shorter (closer, more
+    // "normal") union has already claimed — one continuous line overall,
+    // just cut at each spouse's position and handed to whichever
+    // relationship that particular stretch actually falls under, the way
+    // it'd read on the page. The shortest, most common case (an adjacent
+    // spouse) keeps its full real span untouched; anything longer only
+    // picks up the *new* stretch beyond whatever's already spoken for. This
+    // holds regardless of how many marriages share the row — it's just
+    // more cuts along the same one line, never more lines.
     const rowGroups = new Map<string, UnionLineEntry[]>();
     unionLineEntries.forEach((entry) => {
       const key = `${entry.axis}:${Math.round(entry.axis === "y" ? entry.y1 : entry.x1)}`;
@@ -974,64 +975,73 @@ function App() {
       if (group) group.push(entry);
       else rowGroups.set(key, [entry]);
     });
-    const overlapLevelByEntry = new Map<UnionLineEntry, number>();
+    // Each union's [lo, hi] span along the row's own spread axis, after
+    // trimming off whatever a shorter union in the same row already
+    // claimed — untouched ([lo, hi] as family-chart laid it out) unless it
+    // overlaps something shorter.
+    const zoneByEntry = new Map<UnionLineEntry, { lo: number; hi: number }>();
     rowGroups.forEach((group) => {
-      if (group.length < 2) return;
-      const ranges = group
-        .map((entry) => {
-          const a = entry.axis === "y" ? entry.x1 : entry.y1;
-          const b = entry.axis === "y" ? entry.x2 : entry.y2;
-          return { entry, lo: Math.min(a, b), hi: Math.max(a, b) };
-        })
-        // Shortest (almost always the common, adjacent-spouse case) first,
-        // so it's the one left at level 0 — untouched, in its usual spot —
-        // and only the rarer, longer, non-adjacent line(s) get bumped.
-        .sort((a, b) => a.hi - a.lo - (b.hi - b.lo));
-      const placed: { lo: number; hi: number; level: number }[] = [];
-      ranges.forEach(({ entry, lo, hi }) => {
-        let level = 0;
-        for (const existing of placed) {
-          if (lo < existing.hi && existing.lo < hi) level = Math.max(level, existing.level + 1);
-        }
-        placed.push({ lo, hi, level });
-        if (level > 0) overlapLevelByEntry.set(entry, level);
+      const ranges = group.map((entry) => {
+        const a = entry.axis === "y" ? entry.x1 : entry.y1;
+        const b = entry.axis === "y" ? entry.x2 : entry.y2;
+        return { entry, lo: Math.min(a, b), hi: Math.max(a, b) };
       });
+      if (ranges.length < 2) {
+        ranges.forEach(({ entry, lo, hi }) => zoneByEntry.set(entry, { lo, hi }));
+        return;
+      }
+      // Shortest (almost always the common, adjacent-spouse case) first —
+      // it's the one every longer union in this row yields to.
+      const claimed: { lo: number; hi: number }[] = [];
+      ranges
+        .sort((a, b) => a.hi - a.lo - (b.hi - b.lo))
+        .forEach(({ entry, lo, hi }) => {
+          let pieces: { lo: number; hi: number }[] = [{ lo, hi }];
+          for (const claim of claimed) {
+            pieces = pieces.flatMap(({ lo: pLo, hi: pHi }) => {
+              if (claim.hi <= pLo || claim.lo >= pHi) return [{ lo: pLo, hi: pHi }];
+              const rest: { lo: number; hi: number }[] = [];
+              if (pLo < claim.lo) rest.push({ lo: pLo, hi: claim.lo });
+              if (claim.hi < pHi) rest.push({ lo: claim.hi, hi: pHi });
+              return rest;
+            });
+          }
+          // A gap sandwiched between two shorter, already-claimed unions
+          // on either side is the rare case this can't cleanly represent
+          // as one contiguous zone — keeping the single largest leftover
+          // piece is a reasonable fallback rather than adding a second hit
+          // path for what should be a one-in-a-thousand layout.
+          const zone = pieces.length
+            ? pieces.reduce((biggest, piece) => (piece.hi - piece.lo > biggest.hi - biggest.lo ? piece : biggest))
+            : { lo, hi };
+          zoneByEntry.set(entry, zone);
+          claimed.push({ lo, hi });
+        });
     });
 
     unionLineEntries.forEach((entry) => {
-      const { p, union, x1, y1, x2, y2, axis } = entry;
-      const overlapLevel = overlapLevelByEntry.get(entry) ?? 0;
-      const bump = overlapLevel * OVERLAP_STEP;
+      const { p, union, x1, y1, axis } = entry;
+      const zone = zoneByEntry.get(entry)!;
       const computeD = () =>
-        bump === 0
-          ? `M${x1},${y1}L${x2},${y2}`
-          : axis === "y"
-            ? `M${x1},${y1}L${x1},${y1 + bump}L${x2},${y2 + bump}L${x2},${y2}`
-            : `M${x1},${y1}L${x1 + bump},${y1}L${x2 + bump},${y2}L${x2},${y2}`;
+        axis === "y" ? `M${zone.lo},${y1}L${zone.hi},${y1}` : `M${x1},${zone.lo}L${x1},${zone.hi}`;
 
       p.classList.add("union-line");
       const nextEl = p.nextElementSibling;
       let hit = nextEl?.classList.contains("union-line-hitarea") ? (nextEl as SVGPathElement) : null;
       // A separate, much-wider transparent stroke rather than widening
       // path.link's own visible stroke — same idea as the old icon's own
-      // padded hit rect, just along a line instead of around a shape. A
-      // bumped line gets a narrower one than the default 22px (set in CSS)
-      // — see the OVERLAP_STEP comment above for why: it's what actually
-      // lets the step above stay small enough not to crowd a tight
-      // vertical-mode row, while still keeping every union's hit area
-      // comfortably its own.
+      // padded hit rect, just along a line instead of around a shape.
       if (!hit) {
         hit = document.createElementNS("http://www.w3.org/2000/svg", "path");
         hit.setAttribute("class", "union-line-hitarea");
         p.insertAdjacentElement("afterend", hit);
       }
-      hit.style.strokeWidth = overlapLevel > 0 ? "10px" : "";
 
       // The endpoints above (from the datum, not from reading p's own `d`
       // back out) are already this render's real, settled answer — no need
       // to wait on anything to compute them. What still needs a settle
       // step is applying them: family-chart's own d3 transition keeps
-      // interpolating `d` toward its own (unbumped) target for as long as
+      // interpolating `d` toward its own (untrimmed) target for as long as
       // the transition runs, fighting a one-time overwrite here. Re-
       // applying once things go quiet — the same approach
       // correctLinkTextTransform used to need for the old floating mark —

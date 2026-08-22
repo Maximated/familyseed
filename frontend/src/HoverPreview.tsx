@@ -1,3 +1,4 @@
+import { useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { InfoPanelData } from "./InfoPanel";
 
@@ -25,9 +26,45 @@ type Props = {
 // subtree). The export popover never showed this bug only because it never
 // sits over the canvas in the first place.
 export default function HoverPreview({ data, x, y, flip }: Props) {
+  const elRef = useRef<HTMLDivElement>(null);
+  // `flip` from the caller is only a cheap pre-render guess (card distance
+  // from the *container's* top, not this popup's own real height — see
+  // wireCardAndUnionClicks) — good enough to avoid a visible flip on the
+  // common case, but a popup with a lot of content (many relations, a long
+  // bio) can be taller than that guess accounted for and still clip off the
+  // top of the actual viewport. Measuring the real rendered box after
+  // mount and correcting once, before paint, catches that regardless of
+  // content length — the guess is just what the very first layout starts
+  // from.
+  const [below, setBelow] = useState(flip);
+  // Guards against ever correcting more than once per mount — without it,
+  // a popup tall enough to clip in *both* directions (taller than the
+  // viewport itself) would flip back and forth forever instead of just
+  // picking a side and settling.
+  const correctedRef = useRef(false);
+  useLayoutEffect(() => {
+    setBelow(flip);
+    correctedRef.current = false;
+  }, [flip, data]);
+  useLayoutEffect(() => {
+    if (correctedRef.current) return;
+    const el = elRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const margin = 12;
+    if (!below && rect.top < margin) {
+      correctedRef.current = true;
+      setBelow(true);
+    } else if (below && rect.bottom > window.innerHeight - margin) {
+      correctedRef.current = true;
+      setBelow(false);
+    }
+  }, [below]);
+
   return createPortal(
     <div
-      className={`hover-preview${flip ? " hover-preview-below" : ""}`}
+      ref={elRef}
+      className={`hover-preview${below ? " hover-preview-below" : ""}`}
       style={{ left: x, top: y }}
     >
       <div className="info-panel-header">
