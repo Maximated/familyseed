@@ -683,32 +683,16 @@ body {
 /* A union's own line needs to visibly read as different from every other
    connecting line — dashes that slowly travel along it (a real ants-march
    effect: stroke-dashoffset ticking down forever) in the same color as
-   every other line, plus a pulsing neon-violet glow (the actual color
-   cue, not the line's own color) — together reading as "this one's
-   alive" rather than just a different, static line style. Round dots
-   (the first version of this) read as too subtle a difference on their
-   own; a moving dash is unmistakable without needing size or color to do
-   all the work. `filter: drop-shadow` rather than `box-shadow` because
-   this is an SVG stroke, not a box. */
+   every other line. Round dots (the first version of this) read as too
+   subtle a difference on their own; a moving dash is unmistakable without
+   needing color to do all the work too. */
 .f3 path.link.union-line {
   stroke: var(--color-forest);
   stroke-width: 2.5px;
   stroke-linecap: round;
   stroke-linejoin: round;
   stroke-dasharray: 6 5;
-  animation:
-    union-line-glow 2.4s ease-in-out infinite,
-    union-line-flow 1.4s linear infinite;
-}
-
-@keyframes union-line-glow {
-  0%,
-  100% {
-    filter: drop-shadow(0 0 0 transparent);
-  }
-  50% {
-    filter: drop-shadow(0 0 2px var(--color-union-highlight)) drop-shadow(0 0 6px var(--color-union-highlight));
-  }
+  animation: union-line-flow 1.4s linear infinite;
 }
 
 /* One full dash-plus-gap cycle (6 + 5 = 11 local units) — an exact loop,
@@ -725,8 +709,20 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .f3 path.link.union-line {
     animation: none;
-    filter: drop-shadow(0 0 3px var(--color-union-highlight));
   }
+}
+
+/* The neon-violet glow only shows up on hover now — by request, a glow
+   that's always on stopped reading as a hover cue at all. path.link comes
+   *before* its own hitarea sibling in the DOM (painted underneath it, on
+   purpose — see that rule's own comment), so reacting to the hitarea's
+   hover state means reaching forward with :has() rather than the more
+   common "hover a wrapper, style a later child" pattern. Native :hover,
+   not a JS-driven class — genuinely zero-delay, so the glow appears before
+   the separate 1s hover-preview timer (see wireCardAndUnionClicks) even
+   starts counting down. */
+.f3 path.link.union-line:has(+ .union-line-hitarea:hover) {
+  filter: drop-shadow(0 0 2px var(--color-union-highlight)) drop-shadow(0 0 6px var(--color-union-highlight));
 }
 
 /* A union's own line is the click/hover target on the live canvas (see

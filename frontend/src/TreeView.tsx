@@ -1157,6 +1157,23 @@ function App() {
         // form, so the placeholder is pure confusion; disable it entirely.
         chart.setSingleParentEmptyCard(false);
 
+        // A little extra room specifically on the screen-vertical axis —
+        // by request, to keep a card's own name/lifespan text (which hangs
+        // below the avatar) from crowding the union line running through
+        // the row underneath it, and to give the tree some breathing room
+        // generally. family-chart swaps which of its two spacing knobs
+        // (node_separation/level_separation) maps to which screen axis
+        // when the tree is horizontal (see correctLinkTextTransform's own
+        // comment on that swap) — level_separation is what ends up
+        // governing the vertical screen axis in *both* orientations
+        // (confirmed empirically: it's generation depth in vertical mode,
+        // but the spouse-stacking axis in horizontal mode, and both render
+        // vertically on screen), so this one call is enough for both
+        // rather than needing an orientation-specific branch. Left the
+        // horizontal screen axis (card_x_spacing) at its default — only
+        // asked for more room vertically.
+        chart.setCardYSpacing(165);
+
         // family-chart always creates a <text> here regardless of what this
         // returns (it only ever calls .text() on it) — the actual marriage/
         // divorce/etc. mark is real icons injected onto this same <g> in
@@ -1252,6 +1269,21 @@ function App() {
     function handleResize() {
       window.clearTimeout(resizeTimer);
       resizeTimer = window.setTimeout(() => {
+        // A mobile on-screen keyboard opening (or closing) also fires
+        // `resize` — window.innerHeight shrinks to match the now-smaller
+        // visible area, same as it would for an actual smaller window —
+        // so editing a form field was re-fitting (visibly re-zooming) the
+        // tree underneath, then doing it again the other way once the
+        // keyboard closed, reported as forcing you to back out just to
+        // get the view back. Skipping while a form field is actively
+        // focused covers that without having to track every modal's own
+        // open state individually — a real window/monitor resize
+        // essentially never happens to land exactly mid-keystroke.
+        const active = document.activeElement;
+        const isEditingField =
+          active instanceof HTMLElement &&
+          (active.tagName === "INPUT" || active.tagName === "TEXTAREA" || active.tagName === "SELECT");
+        if (isEditingField) return;
         chartRef.current?.updateTree({ tree_position: "fit" });
       }, 200);
     }
@@ -1792,9 +1824,17 @@ function App() {
     loadTree(newPersonId).catch((err: Error) => setError(err.message));
   }
 
-  function handlePersonSaved(personId: string) {
+  // The saved person's id comes in via EditPersonForm's onSaved contract
+  // but is deliberately unused here — see the comment below.
+  function handlePersonSaved(_personId: string) {
     setEditingPersonId(null);
-    loadTree(personId).catch((err: Error) => setError(err.message));
+    // Not passed as loadTree's own recenterOnId — editing someone
+    // shouldn't select them, only clicking their card should (reported:
+    // editing person Z while person X was centered silently swapped the
+    // selection over to Z). handlePersonCreated below is the one case
+    // that *should* recenter, since jumping to a just-created relative is
+    // the actual point of that flow.
+    loadTree().catch((err: Error) => setError(err.message));
     // Editing can create a new lineage inline — refresh the filter chips so
     // it shows up without leaving/reentering the tree.
     if (treeId) fetchLineages(treeId).then(setLineages).catch(() => {});
