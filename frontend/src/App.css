@@ -12,6 +12,14 @@
   --color-female: #f0cbb3;
   --color-other: #dccbea;
   --color-amber: #e07a29;
+  /* A punchier, more saturated version of --color-other's own violet hue —
+     that pastel lavender reads fine as a soft card-ring tint, but washes
+     out as a "neon" glow. Same hue family, not a new color introduced from
+     nowhere. Unlike the accents above, this one's only ever used for the
+     union-line highlight below, so it doesn't need its own dark-mode
+     reasoning — same logic as amber/male/female/other already not
+     changing between themes. */
+  --color-union-highlight: #a34de0;
   --color-text-secondary: #374151;
   --color-tree-black: #1c1c1c;
   --timeline-width: 132px;
@@ -670,6 +678,21 @@ body {
    `!important` is needed to beat an actual inline `style`. */
 .f3 path.link {
   stroke: var(--color-forest);
+}
+
+/* A union's own line needs to visibly read as different from every other
+   connecting line — small round dots instead of a solid stroke (a short
+   dash + round linecap draws as a dot, not a dash), plus a neon-style glow
+   stacking a tight and a soft drop-shadow at the same color. Without this
+   the fact that this one specific line is clickable/hoverable had no
+   visual cue at all. `filter: drop-shadow` rather than `box-shadow`
+   because this is an SVG stroke, not a box. */
+.f3 path.link.union-line {
+  stroke: var(--color-union-highlight);
+  stroke-width: 2.5px;
+  stroke-linecap: round;
+  stroke-dasharray: 0 8;
+  filter: drop-shadow(0 0 2px var(--color-union-highlight)) drop-shadow(0 0 6px var(--color-union-highlight));
 }
 
 /* A union's own line is the click/hover target on the live canvas (see
@@ -1395,9 +1418,12 @@ body {
   background: var(--color-female);
 }
 
+/* No colored square behind a union's own icon(s) — unlike the male/female
+   avatar squares above, there's no single "gender" color that means
+   anything here, so the frame just read as an unexplained box. The icons
+   read fine directly against the panel's own background. */
 .info-panel-icon-union {
-  background: var(--color-bg);
-  border: 1px solid rgba(27, 67, 50, 0.2);
+  background: transparent;
 }
 
 .info-panel-photo {

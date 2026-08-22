@@ -913,11 +913,18 @@ function App() {
 
       if (!union) {
         hit?.remove();
+        p.classList.remove("union-line");
         p.onclick = null;
         p.onmouseenter = null;
         p.onmouseleave = null;
         return;
       }
+
+      // Visibly distinct from every other connecting line — small dots
+      // instead of a solid stroke, plus a neon-style glow — so a union
+      // being clickable/hoverable actually reads as an affordance instead
+      // of looking exactly like the rest of the tree's plain lines.
+      p.classList.add("union-line");
 
       // A separate, much-wider transparent stroke rather than widening
       // path.link's own visible stroke — same idea as the old icon's own
@@ -1378,17 +1385,39 @@ function App() {
       // rules, serialize with family-chart's own raw placeholder values
       // instead (white-on-cream, effectively invisible). Setting the actual
       // values here works around that without changing anything on screen —
-      // path.link has no competing inline style, so a plain attribute is
-      // enough; .union-mark-icons has none either (nothing but the CSS rule
-      // below ever sets its color), but since that rule is !important, this
-      // inline override is invisible on screen regardless of whether it's
-      // ever restored — same as the connecting-line stroke just above.
+      // .union-mark-icons has no competing rule of its own (nothing but the
+      // CSS below ever sets its color), but since that rule is !important,
+      // this inline override is invisible on screen regardless of whether
+      // it's ever restored — same as the connecting-line stroke just below.
       // Black rather than the on-screen forest green, by request — reads
       // better dropped onto someone else's own document/print layout than
       // the app's own accent color would. Covers both the connecting lines
       // and the marriage/divorce/etc. marks on them.
+      //
+      // A union's own line additionally carries the .union-line class (see
+      // wireCardAndUnionClicks) for its on-screen violet dotted glow — a
+      // real CSS rule, which beats a plain presentation attribute
+      // regardless of specificity, so a plain `setAttribute("stroke", ...)`
+      // here wouldn't actually override it the way it does for every other
+      // line. An inline *style* wins over that rule instead (nothing on it
+      // is !important); the dash/glow are neutralized the same way and
+      // restored after, since — unlike the color, which nothing makes
+      // visible on screen while overridden — a highlighted line snapping to
+      // plain black mid-interaction would be a visible flash if left in
+      // place.
       container.querySelectorAll<SVGPathElement>("path.link").forEach((p) => {
-        p.setAttribute("stroke", "#000000");
+        p.style.stroke = "#000000";
+        if (p.classList.contains("union-line")) {
+          p.style.strokeDasharray = "none";
+          p.style.filter = "none";
+          exportDomRestores.push(() => {
+            p.style.strokeDasharray = "";
+            p.style.filter = "";
+          });
+        }
+        exportDomRestores.push(() => {
+          p.style.stroke = "";
+        });
       });
       container.querySelectorAll<SVGGElement>("g.link-text .union-mark-icons").forEach((el) => {
         el.style.color = "#000000";
