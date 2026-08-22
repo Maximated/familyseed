@@ -672,10 +672,24 @@ body {
   stroke: var(--color-forest);
 }
 
-/* The marriage/divorce/etc. mark itself (.union-mark-icons, injected in
-   wireCardAndUnionClicks) is real icons now, not family-chart's own
-   <text> — its icons read this via stroke="currentColor", and the
-   order-number badge via its own fill. !important isn't needed for
+/* A union's own line is the click/hover target on the live canvas (see
+   wireCardAndUnionClicks) — this sibling path, same `d` as the visible
+   line but a much fatter transparent stroke, is the actual hit area. Kept
+   as a separate element (rather than widening path.link's own stroke)
+   so the line stays visually thin while still being comfortable to aim
+   at; `stroke: transparent` (not `none`) so SVG's default
+   visiblePainted hit-testing still picks it up. */
+.union-line-hitarea {
+  fill: none;
+  stroke: transparent;
+  stroke-width: 22px;
+  cursor: pointer;
+}
+
+/* The marriage/divorce/etc. mark itself (.union-mark-icons) only ever
+   exists in the DOM during handleExportTreeImage's own snapshot now — no
+   longer part of the live canvas (see wireCardAndUnionClicks) — but still
+   needs real icon colors for that capture. !important isn't needed for
    correctness here (nothing else ever sets this element's color), but
    keeping it means handleExportTreeImage's temporary black override for
    the PNG/SVG capture stays invisible on screen without needing its own
@@ -978,10 +992,7 @@ body {
    what paints outside the box, not the box's own dimensions, so the
    layout math never sees a difference. Long names still truncate with an
    ellipsis — each text line clips itself individually (see .card-name
-   etc.), it never depended on this box's own overflow. Also hand-kept in
-   sync with correctLinkTextTransform's own CARD_WIDTH constant in
-   TreeView.tsx, which needs this same width to keep a union mark clear of
-   a card's silhouette in horizontal mode. */
+   etc.), it never depended on this box's own overflow. */
 .f3 .card-inner {
   width: 170px;
   height: 128px;

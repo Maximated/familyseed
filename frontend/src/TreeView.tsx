@@ -190,6 +190,16 @@ const SAME_ROW_TOLERANCE = 20;
 // searching for gaps along the wrong axis too, landing the mark on the
 // wrong spot (or on top of another card) — this is orientation-aware so
 // both modes use whichever axis actually is "spread" for them.
+//
+// Only ever called from handleExportTreeImage now — the live canvas hangs
+// its union interaction off the connecting line itself instead (see
+// wireCardAndUnionClicks), which sidesteps this whole positioning problem
+// rather than solving it. A static export has no line-hover to fall back
+// on, so it still needs the mark placed somewhere real; a card's own
+// silhouette being covered doesn't matter there the way it did live —
+// nothing to click in a picture — so this stays tuned to just clear the
+// connecting line, the same distance as before the live canvas ever needed
+// to also dodge a card's own click target.
 function correctLinkTextTransform(
   g: SVGGElement,
   allNodes: LinkTextNode[],
@@ -204,13 +214,6 @@ function correctLinkTextTransform(
   const depth = (n: { x: number; y: number }) => (orientation === "horizontal" ? n.x : n.y);
   const toTransform = (mid: number, rowDepth: number) =>
     orientation === "horizontal" ? `translate(${rowDepth}, ${mid})` : `translate(${mid}, ${rowDepth})`;
-
-  // family-chart's own card box — kept in sync by hand with `.f3
-  // .card-inner`'s width/height in App.css (that's the actual source of
-  // truth; not readable from here, since this runs against family-chart's
-  // layout datum, not rendered card elements). Needed below to clear a
-  // card's own silhouette, not just the thin connecting line.
-  const CARD_WIDTH = 170;
 
   const markGroup = g.querySelector<SVGGElement>(".union-mark-icons");
   const markBox = markGroup?.getBBox();
@@ -230,17 +233,12 @@ function correctLinkTextTransform(
   // clear space further away than this reaches.
   //
   // Horizontal mode: spouses stack in a vertical column sharing one
-  // connecting line straight down that column, and — unlike vertical mode —
-  // the depth axis here (screen-x) is also where each spouse's *own card*
-  // sits, at that same depth. A nudge only wide enough to clear the line
-  // itself left the mark landing inside one spouse's own card silhouette,
-  // stealing that card's hover/click (reported as the mark sitting right
-  // against a card's edge with no way to click or hover it). Clearing the
-  // card's own half-width first, then the mark's own half-width plus a
-  // margin, lands it in the real gap before the next generation's cards —
-  // 250 units of depth spacing there, comfortable room to spare.
-  const depthNudge =
-    orientation === "horizontal" ? -(CARD_WIDTH / 2 + markWidth / 2 + 18) : -(markHeight / 2 + 4);
+  // connecting line straight down that column, and the mark is centered on
+  // the same point, so a nudge only wide enough to clear the line itself
+  // would leave it straddling one spouse's own card in the export image —
+  // by request, left as-is here (see this function's own header comment
+  // for why that's fine for a static picture, unlike the live canvas).
+  const depthNudge = orientation === "horizontal" ? -(markWidth / 2 + 18) : -(markHeight / 2 + 4);
   // And, only in horizontal mode, dropped a few px along the spread axis
   // (screen-y there) so it clears the line vertically too, not just
   // sideways.
@@ -887,131 +885,105 @@ function App() {
       p.style.display = orphaned ? "none" : "";
     });
 
-    const linkTextEls = container.querySelectorAll<SVGGElement>("g.link-text");
-    // Every card that has a spouse shows up as a node on at least one
-    // link-text's datum, so this doubles as "every card position in the
-    // current render" for the collision check in correctLinkTextTransform.
-    const allNodes = [...linkTextEls].flatMap((g) => {
-      const datum = (g as unknown as { __data__?: LinkTextDatum }).__data__;
-      return datum ? datum.nodes : [];
-    });
+    // The connecting line itself is the interactive surface for a union —
+    // no more floating icon on the live canvas at all (see unionMarkIcons.tsx
+    // and correctLinkTextTransform's own comment for the collision problems
+    // that used to cause across both orientations: overlapping the line in
+    // vertical mode, landing inside a spouse's own card in horizontal mode).
+    // A larger, clearer icon now only ever appears in the hover-preview
+    // below, which already has its own dedicated space off to the side —
+    // correctLinkTextTransform/unionMarkMarkup still exist, used only by
+    // handleExportTreeImage's static snapshot, which has no such preview to
+    // fall back on.
+    //
+    // family-chart binds a plain object (source[s]/target) onto each
+    // path.link — a spouse-to-spouse line has a single (non-array) source,
+    // unlike a child's link to two parents, which is exactly the shape that
+    // distinguishes the union lines worth wiring up here from everything
+    // else this same selector matches.
+    container.querySelectorAll<SVGPathElement>("path.link").forEach((p) => {
+      const datum = (p as unknown as { __data__?: PathLinkDatum }).__data__;
+      const union =
+        datum && !Array.isArray(datum.source) && datum.source.data?.id && datum.target.data?.id
+          ? unionsByPairKeyRef.current.get(pairKey(datum.source.data.id, datum.target.data.id))
+          : undefined;
 
-    linkTextEls.forEach((g) => {
-      // family-chart binds its d3 data straight onto the DOM node — no
-      // extra plumbing needed to recover which two people this link joins.
-      const datum = (g as unknown as { __data__?: LinkTextDatum }).__data__;
-      if (datum && (!cardIds.has(datum.nodes[0].data.id) || !cardIds.has(datum.nodes[1].data.id))) {
-        g.style.display = "none";
-        g.onclick = null;
+      const nextEl = p.nextElementSibling;
+      let hit = nextEl?.classList.contains("union-line-hitarea") ? (nextEl as SVGPathElement) : null;
+
+      if (!union) {
+        hit?.remove();
+        p.onclick = null;
+        p.onmouseenter = null;
+        p.onmouseleave = null;
         return;
       }
-      g.style.display = "";
-      const union = datum && unionsByPairKeyRef.current.get(pairKey(datum.nodes[0].data.id, datum.nodes[1].data.id));
 
-      // family-chart's own <text> (set via setLinkSpouseText, always empty
-      // now — see the call site) stays in the DOM but hidden; the real mark
-      // is this icon group, rebuilt fresh on every render since which icons
-      // apply can change. A dedicated SVG-namespaced <g> (not innerHTML on
-      // g.link-text itself) keeps it separate from family-chart's own text
-      // node and easy to find again next render.
-      const originalText = g.querySelector<SVGTextElement>(":scope > text");
-      if (originalText) originalText.style.display = "none";
-      let markGroup = g.querySelector<SVGGElement>(".union-mark-icons");
-      if (!markGroup) {
-        markGroup = document.createElementNS("http://www.w3.org/2000/svg", "g");
-        markGroup.setAttribute("class", "union-mark-icons");
-        g.appendChild(markGroup);
+      // A separate, much-wider transparent stroke rather than widening
+      // path.link's own visible stroke — same idea as the old icon's own
+      // padded hit rect, just along a line instead of around a shape. Kept
+      // in sync with the visible line's own `d` on every render since
+      // family-chart redraws it as the tree reflows.
+      if (!hit) {
+        hit = document.createElementNS("http://www.w3.org/2000/svg", "path");
+        hit.setAttribute("class", "union-line-hitarea");
+        p.insertAdjacentElement("afterend", hit);
       }
-      markGroup.innerHTML = union ? unionMarkMarkup(union) : "";
+      const syncD = () => hit!.setAttribute("d", p.getAttribute("d") ?? "");
+      syncD();
 
-      // The icons themselves have `fill="none"` (a hollow ring, a plain
-      // stroke) — SVG only hit-tests painted pixels by default, so without
-      // this, only the drawn line itself was clickable/hoverable, not the
-      // visual icon as a whole (reported as needing to hit a thin line that
-      // only got easier at a zoom level nobody actually uses). A padded
-      // transparent rect sized off the icons' own rendered bbox — not part
-      // of `.union-mark-icons` itself, so it doesn't inflate the width/
-      // height correctLinkTextTransform measures for clearance — gives it a
-      // real touch-sized target instead.
-      let hitArea = g.querySelector<SVGRectElement>(".union-mark-hitarea");
-      if (union) {
-        if (!hitArea) {
-          hitArea = document.createElementNS("http://www.w3.org/2000/svg", "rect");
-          hitArea.setAttribute("class", "union-mark-hitarea");
-          hitArea.setAttribute("fill", "transparent");
-          g.insertBefore(hitArea, g.firstChild);
-        }
-        const box = markGroup.getBBox();
-        const HIT_PADDING = 12;
-        hitArea.setAttribute("x", String(box.x - HIT_PADDING));
-        hitArea.setAttribute("y", String(box.y - HIT_PADDING));
-        hitArea.setAttribute("width", String(box.width + HIT_PADDING * 2));
-        hitArea.setAttribute("height", String(box.height + HIT_PADDING * 2));
-      } else {
-        hitArea?.remove();
-      }
-
-      g.style.cursor = union ? "pointer" : "default";
-      g.onclick = union
-        ? (e) => {
-            e.stopPropagation();
-            setInfoPanel(buildUnionInfoPanel(union, treeDataRef.current));
-          }
-        : null;
-
-      // Same 1-second hover-preview as a card gets (see above) — a union
-      // mark opens the exact same InfoPanel on click, so it gets the same
-      // quick-peek on hover too, sharing the one timer since only one
-      // preview is ever open at a time.
-      g.onmouseenter = union
-        ? () => {
-            window.clearTimeout(hoverTimerRef.current);
-            hoverTimerRef.current = window.setTimeout(() => {
-              const containerEl = containerRef.current;
-              if (!containerEl) return;
-              const markRect = g.getBoundingClientRect();
-              const containerRect = containerEl.getBoundingClientRect();
-              const relativeTop = markRect.top - containerRect.top;
-              setHoverPreview({
-                data: buildUnionInfoPanel(union, treeDataRef.current),
-                // Viewport-absolute — see the person-hover setHoverPreview above.
-                x: markRect.left + markRect.width / 2,
-                y: markRect.top,
-                flip: relativeTop < 220,
-              });
-            }, 1000);
-          }
-        : null;
-      g.onmouseleave = union
-        ? () => {
-            window.clearTimeout(hoverTimerRef.current);
-            setHoverPreview(null);
-          }
-        : null;
-
-      // family-chart re-sets this element's transform via its own d3
-      // transition on every update, so correcting it once here would just
-      // get overwritten mid-animation. Instead, wait for the transition to
-      // settle (no further transform mutations for 120ms) and correct it
-      // then — see correctLinkTextTransform for why it needs correcting.
-      let settleTimer: number | undefined;
-      const settle = () => {
-        window.clearTimeout(settleTimer);
-        settleTimer = window.setTimeout(() => {
-          const correct = correctLinkTextTransform(g, allNodes, orientationRef.current);
-          if (correct && g.getAttribute("transform") !== correct) {
-            g.setAttribute("transform", correct);
-          }
-          g.style.opacity = "";
-        }, 120);
+      // family-chart draws a spouse line in with its own d3 transition —
+      // animated by interpolating the `d` attribute itself, not a wrapping
+      // transform the way g.link-text's position is — so the copy just
+      // above, read the instant this render runs, is still mid-transition
+      // (a degenerate zero-length starting path in practice, since that's
+      // the transition's own from-state) far more often than not. Watching
+      // for `d` to actually stop changing and re-syncing then is the same
+      // settle approach correctLinkTextTransform used to need for the old
+      // floating mark, just aimed at this element's own attribute instead.
+      let dSettleTimer: number | undefined;
+      const scheduleSyncD = () => {
+        window.clearTimeout(dSettleTimer);
+        dSettleTimer = window.setTimeout(syncD, 120);
       };
-      settle();
-      const observer = new MutationObserver(settle);
-      observer.observe(g, { attributes: true, attributeFilter: ["transform"] });
+      const dObserver = new MutationObserver(scheduleSyncD);
+      dObserver.observe(p, { attributes: true, attributeFilter: ["d"] });
       linkTextCleanupRef.current.push(() => {
-        window.clearTimeout(settleTimer);
-        observer.disconnect();
+        window.clearTimeout(dSettleTimer);
+        dObserver.disconnect();
       });
+
+      const handleClick = (e: MouseEvent) => {
+        e.stopPropagation();
+        setInfoPanel(buildUnionInfoPanel(union, treeDataRef.current));
+      };
+      // Same 1-second hover-preview a card gets — this is now the only
+      // place the union's own icon(s) render at all on the live canvas, at
+      // a size worth actually seeing rather than a few px on the line.
+      const handleEnter = () => {
+        window.clearTimeout(hoverTimerRef.current);
+        hoverTimerRef.current = window.setTimeout(() => {
+          const containerEl = containerRef.current;
+          if (!containerEl) return;
+          const rect = hit!.getBoundingClientRect();
+          const containerRect = containerEl.getBoundingClientRect();
+          const relativeTop = rect.top - containerRect.top;
+          setHoverPreview({
+            data: buildUnionInfoPanel(union, treeDataRef.current),
+            // Viewport-absolute — see the person-hover setHoverPreview above.
+            x: rect.left + rect.width / 2,
+            y: rect.top + rect.height / 2,
+            flip: relativeTop < 220,
+          });
+        }, 1000);
+      };
+      const handleLeave = () => {
+        window.clearTimeout(hoverTimerRef.current);
+        setHoverPreview(null);
+      };
+      hit.onclick = handleClick;
+      hit.onmouseenter = handleEnter;
+      hit.onmouseleave = handleLeave;
     });
   }, [startRelateDrag]);
 
@@ -1369,6 +1341,36 @@ function App() {
       // duration) removes the race outright.
       await waitForLinkTextSettle(container);
 
+      // The live canvas has no permanent union-mark icon at all any more
+      // (see wireCardAndUnionClicks) — a static export can't hover, so it
+      // still needs one drawn in for the capture. Built fresh here rather
+      // than kept sitting in the DOM the rest of the time, and torn back
+      // down in the `finally` below along with every other export-only
+      // change.
+      const linkTextEls = container.querySelectorAll<SVGGElement>("g.link-text");
+      const allLinkTextNodes = [...linkTextEls].flatMap((g) => {
+        const datum = (g as unknown as { __data__?: LinkTextDatum }).__data__;
+        return datum ? datum.nodes : [];
+      });
+      linkTextEls.forEach((g) => {
+        const datum = (g as unknown as { __data__?: LinkTextDatum }).__data__;
+        const union =
+          datum && unionsByPairKeyRef.current.get(pairKey(datum.nodes[0].data.id, datum.nodes[1].data.id));
+        if (!union) return;
+        const markGroup = document.createElementNS("http://www.w3.org/2000/svg", "g");
+        markGroup.setAttribute("class", "union-mark-icons");
+        markGroup.innerHTML = unionMarkMarkup(union);
+        g.appendChild(markGroup);
+        const originalTransform = g.getAttribute("transform");
+        const corrected = correctLinkTextTransform(g, allLinkTextNodes, wantOrientation);
+        if (corrected) g.setAttribute("transform", corrected);
+        exportDomRestores.push(() => {
+          markGroup.remove();
+          if (originalTransform === null) g.removeAttribute("transform");
+          else g.setAttribute("transform", originalTransform);
+        });
+      });
+
       // html-to-image clones the DOM and inlines each *HTML* element's
       // computed style onto its clone, but never does that for SVG-namespace
       // elements — so the connecting lines and union marks, which only get
@@ -1427,9 +1429,9 @@ function App() {
             el.setAttribute("y", String(origY));
           });
         });
-        // A style override (not touching the `transform` attribute itself)
-        // so the settle MutationObserver — which only watches that
-        // attribute — doesn't wake up and fight this.
+        // A style override, not touching the `transform` attribute itself —
+        // that attribute is what correctLinkTextTransform's own value above
+        // still needs to be read back out of, on restore.
         g.style.transform = "none";
         exportDomRestores.push(() => {
           restores.forEach((restore) => restore());
