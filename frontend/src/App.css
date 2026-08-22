@@ -682,17 +682,35 @@ body {
 
 /* A union's own line needs to visibly read as different from every other
    connecting line — small round dots instead of a solid stroke (a short
-   dash + round linecap draws as a dot, not a dash), plus a neon-style glow
-   stacking a tight and a soft drop-shadow at the same color. Without this
-   the fact that this one specific line is clickable/hoverable had no
-   visual cue at all. `filter: drop-shadow` rather than `box-shadow`
-   because this is an SVG stroke, not a box. */
+   dash + round linecap draws as a dot, not a dash) in the same color as
+   every other line, plus a pulsing neon-violet glow (the actual color cue,
+   not the line itself) so it reads as "this one's alive" rather than just
+   a different, static line style. `filter: drop-shadow` rather than
+   `box-shadow` because this is an SVG stroke, not a box. */
 .f3 path.link.union-line {
-  stroke: var(--color-union-highlight);
+  stroke: var(--color-forest);
   stroke-width: 2.5px;
   stroke-linecap: round;
+  stroke-linejoin: round;
   stroke-dasharray: 0 8;
-  filter: drop-shadow(0 0 2px var(--color-union-highlight)) drop-shadow(0 0 6px var(--color-union-highlight));
+  animation: union-line-glow 2.4s ease-in-out infinite;
+}
+
+@keyframes union-line-glow {
+  0%,
+  100% {
+    filter: drop-shadow(0 0 0 transparent);
+  }
+  50% {
+    filter: drop-shadow(0 0 2px var(--color-union-highlight)) drop-shadow(0 0 6px var(--color-union-highlight));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .f3 path.link.union-line {
+    animation: none;
+    filter: drop-shadow(0 0 3px var(--color-union-highlight));
+  }
 }
 
 /* A union's own line is the click/hover target on the live canvas (see

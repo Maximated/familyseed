@@ -144,10 +144,12 @@ type LinkTextDatum = { nodes: [LinkTextNode, LinkTextNode] };
 // The datum d3 binds onto each `path.link` element — the actual connecting
 // line, as opposed to g.link-text's marriage/divorce mark on top of it.
 // `source` is an array for a child's link to its two parents, or a single
-// node for a spouse link.
+// node for a spouse link — only the single-node (spouse) case actually
+// carries `x`/`y` to any use here (see the overlapping-union-lines comment
+// below), so they're optional rather than a second, near-identical type.
 // A single-parent family (the other parent unknown) leaves that slot in
 // `source` empty rather than omitted, so it must be tolerated here too.
-type PathLinkNode = { data: { id: string } };
+type PathLinkNode = { data: { id: string }; x?: number; y?: number };
 type PathLinkDatum = { source: PathLinkNode | (PathLinkNode | null | undefined)[]; target: PathLinkNode };
 
 // How close two nodes' depth coordinate has to be to count as "the same
@@ -901,18 +903,28 @@ function App() {
     // unlike a child's link to two parents, which is exactly the shape that
     // distinguishes the union lines worth wiring up here from everything
     // else this same selector matches.
+    type UnionLineEntry = {
+      p: SVGPathElement;
+      union: UnionInfo;
+      x1: number;
+      y1: number;
+      x2: number;
+      y2: number;
+      axis: "x" | "y"; // whichever coordinate is constant along this row/column
+    };
+    const unionLineEntries: UnionLineEntry[] = [];
+
     container.querySelectorAll<SVGPathElement>("path.link").forEach((p) => {
       const datum = (p as unknown as { __data__?: PathLinkDatum }).__data__;
+      const source = datum && !Array.isArray(datum.source) ? datum.source : null;
       const union =
-        datum && !Array.isArray(datum.source) && datum.source.data?.id && datum.target.data?.id
-          ? unionsByPairKeyRef.current.get(pairKey(datum.source.data.id, datum.target.data.id))
+        source?.data?.id && datum!.target.data?.id
+          ? unionsByPairKeyRef.current.get(pairKey(source.data.id, datum!.target.data.id))
           : undefined;
 
-      const nextEl = p.nextElementSibling;
-      let hit = nextEl?.classList.contains("union-line-hitarea") ? (nextEl as SVGPathElement) : null;
-
-      if (!union) {
-        hit?.remove();
+      if (!union || typeof source!.x !== "number" || typeof source!.y !== "number") {
+        const nextEl = p.nextElementSibling;
+        if (nextEl?.classList.contains("union-line-hitarea")) nextEl.remove();
         p.classList.remove("union-line");
         p.onclick = null;
         p.onmouseenter = null;
@@ -920,44 +932,134 @@ function App() {
         return;
       }
 
-      // Visibly distinct from every other connecting line — small dots
-      // instead of a solid stroke, plus a neon-style glow — so a union
-      // being clickable/hoverable actually reads as an affordance instead
-      // of looking exactly like the rest of the tree's plain lines.
-      p.classList.add("union-line");
+      const target = datum!.target;
+      unionLineEntries.push({
+        p,
+        union,
+        x1: source!.x,
+        y1: source!.y,
+        x2: target.x ?? source!.x,
+        y2: target.y ?? source!.y,
+        axis: source!.y === target.y ? "y" : "x",
+      });
+    });
 
+    // family-chart draws a straight line from each spouse's own laid-out
+    // position to the other's — fine for the common case, but when someone
+    // has two-plus spouses in the same row, the line to a *non-adjacent*
+    // one is drawn straight through the card (and that card's own spouse
+    // line) sitting between them, rather than routing around it. The two
+    // lines then physically overlap along that shared stretch, so hovering
+    // anywhere in it always resolved to whichever one happened to sit on
+    // top in DOM order, regardless of which line the pointer was actually
+    // over — reported as one relationship's hover always winning no matter
+    // which line you point at. Detecting that overlap and bumping the
+    // longer (non-adjacent) line out to its own parallel lane — a small
+    // perpendicular jog in and back out, not a straight shift, so it still
+    // touches both cards' exact real positions at each end — gives every
+    // union its own real, unshared pixels to hover. The step has to clear
+    // more than just the *visible* dotted lines — each one's actual hit
+    // area (union-line-hitarea) is a much fatter invisible stroke, and two
+    // lines only 8 units apart still had their fat hit-strokes overlapping
+    // even once the thin visible lines themselves looked clearly separate
+    // (confirmed the hard way: clicking the visibly-separate lower line
+    // kept resolving to the upper one). The bumped line's own hit-stroke is
+    // also narrowed below, so the step only needs to clear a normal-width
+    // and a narrowed one, not two full-width ones.
+    const OVERLAP_STEP = 18;
+    const rowGroups = new Map<string, UnionLineEntry[]>();
+    unionLineEntries.forEach((entry) => {
+      const key = `${entry.axis}:${Math.round(entry.axis === "y" ? entry.y1 : entry.x1)}`;
+      const group = rowGroups.get(key);
+      if (group) group.push(entry);
+      else rowGroups.set(key, [entry]);
+    });
+    const overlapLevelByEntry = new Map<UnionLineEntry, number>();
+    rowGroups.forEach((group) => {
+      if (group.length < 2) return;
+      const ranges = group
+        .map((entry) => {
+          const a = entry.axis === "y" ? entry.x1 : entry.y1;
+          const b = entry.axis === "y" ? entry.x2 : entry.y2;
+          return { entry, lo: Math.min(a, b), hi: Math.max(a, b) };
+        })
+        // Shortest (almost always the common, adjacent-spouse case) first,
+        // so it's the one left at level 0 — untouched, in its usual spot —
+        // and only the rarer, longer, non-adjacent line(s) get bumped.
+        .sort((a, b) => a.hi - a.lo - (b.hi - b.lo));
+      const placed: { lo: number; hi: number; level: number }[] = [];
+      ranges.forEach(({ entry, lo, hi }) => {
+        let level = 0;
+        for (const existing of placed) {
+          if (lo < existing.hi && existing.lo < hi) level = Math.max(level, existing.level + 1);
+        }
+        placed.push({ lo, hi, level });
+        if (level > 0) overlapLevelByEntry.set(entry, level);
+      });
+    });
+
+    unionLineEntries.forEach((entry) => {
+      const { p, union, x1, y1, x2, y2, axis } = entry;
+      const overlapLevel = overlapLevelByEntry.get(entry) ?? 0;
+      const bump = overlapLevel * OVERLAP_STEP;
+      const computeD = () =>
+        bump === 0
+          ? `M${x1},${y1}L${x2},${y2}`
+          : axis === "y"
+            ? `M${x1},${y1}L${x1},${y1 + bump}L${x2},${y2 + bump}L${x2},${y2}`
+            : `M${x1},${y1}L${x1 + bump},${y1}L${x2 + bump},${y2}L${x2},${y2}`;
+
+      p.classList.add("union-line");
+      const nextEl = p.nextElementSibling;
+      let hit = nextEl?.classList.contains("union-line-hitarea") ? (nextEl as SVGPathElement) : null;
       // A separate, much-wider transparent stroke rather than widening
       // path.link's own visible stroke — same idea as the old icon's own
-      // padded hit rect, just along a line instead of around a shape. Kept
-      // in sync with the visible line's own `d` on every render since
-      // family-chart redraws it as the tree reflows.
+      // padded hit rect, just along a line instead of around a shape. A
+      // bumped line gets a narrower one than the default 22px (set in CSS)
+      // — see the OVERLAP_STEP comment above for why: it's what actually
+      // lets the step above stay small enough not to crowd a tight
+      // vertical-mode row, while still keeping every union's hit area
+      // comfortably its own.
       if (!hit) {
         hit = document.createElementNS("http://www.w3.org/2000/svg", "path");
         hit.setAttribute("class", "union-line-hitarea");
         p.insertAdjacentElement("afterend", hit);
       }
-      const syncD = () => hit!.setAttribute("d", p.getAttribute("d") ?? "");
-      syncD();
+      hit.style.strokeWidth = overlapLevel > 0 ? "10px" : "";
 
-      // family-chart draws a spouse line in with its own d3 transition —
-      // animated by interpolating the `d` attribute itself, not a wrapping
-      // transform the way g.link-text's position is — so the copy just
-      // above, read the instant this render runs, is still mid-transition
-      // (a degenerate zero-length starting path in practice, since that's
-      // the transition's own from-state) far more often than not. Watching
-      // for `d` to actually stop changing and re-syncing then is the same
-      // settle approach correctLinkTextTransform used to need for the old
-      // floating mark, just aimed at this element's own attribute instead.
-      let dSettleTimer: number | undefined;
-      const scheduleSyncD = () => {
-        window.clearTimeout(dSettleTimer);
-        dSettleTimer = window.setTimeout(syncD, 120);
+      // The endpoints above (from the datum, not from reading p's own `d`
+      // back out) are already this render's real, settled answer — no need
+      // to wait on anything to compute them. What still needs a settle
+      // step is applying them: family-chart's own d3 transition keeps
+      // interpolating `d` toward its own (unbumped) target for as long as
+      // the transition runs, fighting a one-time overwrite here. Re-
+      // applying once things go quiet — the same approach
+      // correctLinkTextTransform used to need for the old floating mark —
+      // lands it correctly once the tug-of-war ends, rather than trying to
+      // win every single animation frame. `lastApplied` guards against
+      // reacting to this same code's own writes, which would otherwise
+      // never let the observer settle.
+      let lastApplied: string | null = null;
+      const apply = () => {
+        const d = computeD();
+        lastApplied = d;
+        p.setAttribute("d", d);
+        hit!.setAttribute("d", d);
       };
-      const dObserver = new MutationObserver(scheduleSyncD);
-      dObserver.observe(p, { attributes: true, attributeFilter: ["d"] });
+      apply();
+
+      let settleTimer: number | undefined;
+      const scheduleApply = () => {
+        window.clearTimeout(settleTimer);
+        settleTimer = window.setTimeout(apply, 120);
+      };
+      const observer = new MutationObserver(() => {
+        if (p.getAttribute("d") !== lastApplied) scheduleApply();
+      });
+      observer.observe(p, { attributes: true, attributeFilter: ["d"] });
       linkTextCleanupRef.current.push(() => {
-        window.clearTimeout(dSettleTimer);
-        dObserver.disconnect();
+        window.clearTimeout(settleTimer);
+        observer.disconnect();
       });
 
       const handleClick = (e: MouseEvent) => {
@@ -1409,9 +1511,16 @@ function App() {
         p.style.stroke = "#000000";
         if (p.classList.contains("union-line")) {
           p.style.strokeDasharray = "none";
+          // The glow is a running CSS animation (see union-line-glow),
+          // which keeps overriding `filter` on every frame for as long as
+          // it's active — a plain inline `filter: none` alone would just
+          // lose to the next frame. Stopping the animation itself first is
+          // what actually lets the inline override stick.
+          p.style.animation = "none";
           p.style.filter = "none";
           exportDomRestores.push(() => {
             p.style.strokeDasharray = "";
+            p.style.animation = "";
             p.style.filter = "";
           });
         }
