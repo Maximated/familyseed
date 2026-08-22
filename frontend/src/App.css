@@ -681,19 +681,24 @@ body {
 }
 
 /* A union's own line needs to visibly read as different from every other
-   connecting line — small round dots instead of a solid stroke (a short
-   dash + round linecap draws as a dot, not a dash) in the same color as
-   every other line, plus a pulsing neon-violet glow (the actual color cue,
-   not the line itself) so it reads as "this one's alive" rather than just
-   a different, static line style. `filter: drop-shadow` rather than
-   `box-shadow` because this is an SVG stroke, not a box. */
+   connecting line — dashes that slowly travel along it (a real ants-march
+   effect: stroke-dashoffset ticking down forever) in the same color as
+   every other line, plus a pulsing neon-violet glow (the actual color
+   cue, not the line's own color) — together reading as "this one's
+   alive" rather than just a different, static line style. Round dots
+   (the first version of this) read as too subtle a difference on their
+   own; a moving dash is unmistakable without needing size or color to do
+   all the work. `filter: drop-shadow` rather than `box-shadow` because
+   this is an SVG stroke, not a box. */
 .f3 path.link.union-line {
   stroke: var(--color-forest);
   stroke-width: 2.5px;
   stroke-linecap: round;
   stroke-linejoin: round;
-  stroke-dasharray: 0 8;
-  animation: union-line-glow 2.4s ease-in-out infinite;
+  stroke-dasharray: 6 5;
+  animation:
+    union-line-glow 2.4s ease-in-out infinite,
+    union-line-flow 1.4s linear infinite;
 }
 
 @keyframes union-line-glow {
@@ -703,6 +708,17 @@ body {
   }
   50% {
     filter: drop-shadow(0 0 2px var(--color-union-highlight)) drop-shadow(0 0 6px var(--color-union-highlight));
+  }
+}
+
+/* One full dash-plus-gap cycle (6 + 5 = 11 local units) — an exact loop,
+   so it never visibly jumps or stutters at the seam. */
+@keyframes union-line-flow {
+  from {
+    stroke-dashoffset: 0;
+  }
+  to {
+    stroke-dashoffset: -11;
   }
 }
 
