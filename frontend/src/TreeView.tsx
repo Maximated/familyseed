@@ -285,6 +285,58 @@ function correctLinkTextTransform(
   return toTransform(bestMid + spreadNudge, rowDepth);
 }
 
+// Minimal shape of the d3-zoom behavior family-chart attaches to
+// `#f3Canvas` as a plain DOM property (`el.__zoomObj`, set by its own
+// internal setupZoom) — not part of family-chart's public API, but the
+// library exposes no other way to constrain how far the canvas can be
+// panned, and a bare property read/call like this is stable enough to
+// rely on (it isn't a private class field family-chart could rename
+// without also breaking its own zoom wiring).
+type ZoomBehaviorLike = { translateExtent: (extent: [[number, number], [number, number]]) => unknown };
+
+// Without this, the canvas pans infinitely in every direction — nothing
+// stops a stray scroll/drag from wandering the tree off into empty space
+// with no way back except re-fitting. Constrains panning to the tree's own
+// footprint (plus a card's worth of margin so the outermost cards aren't
+// flush against the edge), read straight from each rendered card's own
+// position rather than family-chart's internal layout math (see
+// correctLinkTextTransform's CARD_WIDTH comment for why: not exposed to
+// read from here either way, and this reads what's actually on screen,
+// which stays correct across orientations without needing to know which
+// screen axis is "depth" this time). d3's translateExtent scales the
+// pannable range with the current zoom level on its own, so this stays
+// correct whether zoomed out to fit everything or zoomed in tight — it
+// never traps part of the tree outside where a pan can reach it.
+function applyPanBounds(container: HTMLElement) {
+  const canvasEl = container.querySelector<HTMLElement & { __zoomObj?: ZoomBehaviorLike }>("#f3Canvas");
+  const zoomObj = canvasEl?.__zoomObj;
+  if (!zoomObj) return;
+
+  let minX = Infinity;
+  let maxX = -Infinity;
+  let minY = Infinity;
+  let maxY = -Infinity;
+  container.querySelectorAll<HTMLElement>(".card[data-id]").forEach((card) => {
+    const wrapper = card.parentElement;
+    const style = wrapper?.getAttribute("style");
+    const match = style?.match(/translate\(([-\d.]+)px,\s*([-\d.]+)px\)/);
+    if (!match) return;
+    const x = Number(match[1]);
+    const y = Number(match[2]);
+    minX = Math.min(minX, x);
+    maxX = Math.max(maxX, x);
+    minY = Math.min(minY, y);
+    maxY = Math.max(maxY, y);
+  });
+  if (!Number.isFinite(minX)) return;
+
+  const MARGIN = 220;
+  zoomObj.translateExtent([
+    [minX - MARGIN, minY - MARGIN],
+    [maxX + MARGIN, maxY + MARGIN],
+  ]);
+}
+
 // Resolves once every g.link-text's `transform` attribute has stopped
 // changing for `quietMs` — used before a tree-image capture (see
 // handleExportTreeImage) instead of a fixed delay, since a fit-all's own
@@ -785,15 +837,24 @@ function App() {
       });
     }
     updateAncestryToggles();
+    applyPanBounds(container);
 
     let ancestrySettleTimer: number | undefined;
     const scheduleAncestryUpdate = () => {
       window.clearTimeout(ancestrySettleTimer);
-      ancestrySettleTimer = window.setTimeout(updateAncestryToggles, 150);
+      ancestrySettleTimer = window.setTimeout(() => {
+        updateAncestryToggles();
+        // Cards keep the same identity but land at new positions on an
+        // orientation toggle or a re-center — no childList change to catch
+        // that, only the style attribute each card's wrapper moves with
+        // (also watched below), so the pan bounds need recomputing here
+        // too, not just when cards are actually added or removed.
+        applyPanBounds(container);
+      }, 150);
     };
     scheduleAncestryUpdate();
     const cardSetObserver = new MutationObserver(scheduleAncestryUpdate);
-    cardSetObserver.observe(container, { childList: true, subtree: true });
+    cardSetObserver.observe(container, { childList: true, subtree: true, attributes: true, attributeFilter: ["style"] });
     linkTextCleanupRef.current.push(() => {
       window.clearTimeout(ancestrySettleTimer);
       cardSetObserver.disconnect();
@@ -859,6 +920,33 @@ function App() {
         g.appendChild(markGroup);
       }
       markGroup.innerHTML = union ? unionMarkMarkup(union) : "";
+
+      // The icons themselves have `fill="none"` (a hollow ring, a plain
+      // stroke) — SVG only hit-tests painted pixels by default, so without
+      // this, only the drawn line itself was clickable/hoverable, not the
+      // visual icon as a whole (reported as needing to hit a thin line that
+      // only got easier at a zoom level nobody actually uses). A padded
+      // transparent rect sized off the icons' own rendered bbox — not part
+      // of `.union-mark-icons` itself, so it doesn't inflate the width/
+      // height correctLinkTextTransform measures for clearance — gives it a
+      // real touch-sized target instead.
+      let hitArea = g.querySelector<SVGRectElement>(".union-mark-hitarea");
+      if (union) {
+        if (!hitArea) {
+          hitArea = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+          hitArea.setAttribute("class", "union-mark-hitarea");
+          hitArea.setAttribute("fill", "transparent");
+          g.insertBefore(hitArea, g.firstChild);
+        }
+        const box = markGroup.getBBox();
+        const HIT_PADDING = 12;
+        hitArea.setAttribute("x", String(box.x - HIT_PADDING));
+        hitArea.setAttribute("y", String(box.y - HIT_PADDING));
+        hitArea.setAttribute("width", String(box.width + HIT_PADDING * 2));
+        hitArea.setAttribute("height", String(box.height + HIT_PADDING * 2));
+      } else {
+        hitArea?.remove();
+      }
 
       g.style.cursor = union ? "pointer" : "default";
       g.onclick = union

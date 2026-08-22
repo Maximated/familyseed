@@ -1670,9 +1670,12 @@ body {
 /* Invite links are the one list here that can actually grow long (an
    owner sharing repeatedly over time) — scrolling just this list, instead
    of letting the whole modal grow, keeps the rest of the panel (and the
-   close button) from being pushed out of view. */
+   close button) from being pushed out of view. Sized to exactly 5 rows
+   (34px row + 8px gap, measured) so the modal itself grows to show at
+   least 5 links before this list's own scroll ever kicks in — scrolling a
+   cramped 1-2-row box is what this was meant to avoid in the first place. */
 .share-links-list {
-  max-height: 12rem;
+  max-height: 13rem;
   overflow-y: auto;
 }
 

@@ -44,14 +44,17 @@ const UNION_STATUSES: UnionStatus[] = ["ENDED_BY_DEATH", "DIVORCED", "SEPARATED"
 export default function Legend() {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
-  const [anchor, setAnchor] = useState({ left: 16, bottom: 60 });
+  const [anchor, setAnchor] = useState({ left: 32, bottom: 76 });
   const triggerRef = useRef<HTMLButtonElement>(null);
   const closeTimerRef = useRef<number | undefined>(undefined);
 
   useLayoutEffect(() => {
     const updateAnchor = () => {
       const rect = triggerRef.current?.getBoundingClientRect();
-      if (rect) setAnchor({ left: rect.left, bottom: window.innerHeight - rect.top + 8 });
+      // Offset past the trigger's own position (not flush with it) — sitting
+      // exactly in the corner the trigger occupies read as cramped, PWA users
+      // reported it as too tucked into the edge to comfortably reach.
+      if (rect) setAnchor({ left: rect.left + 16, bottom: window.innerHeight - rect.top + 24 });
     };
     updateAnchor();
     window.addEventListener("resize", updateAnchor);
