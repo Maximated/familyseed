@@ -1172,7 +1172,7 @@ function App() {
         // rather than needing an orientation-specific branch. Left the
         // horizontal screen axis (card_x_spacing) at its default — only
         // asked for more room vertically.
-        chart.setCardYSpacing(165);
+        chart.setCardYSpacing(170);
 
         // family-chart always creates a <text> here regardless of what this
         // returns (it only ever calls .text() on it) — the actual marriage/
