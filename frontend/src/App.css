@@ -971,7 +971,10 @@ body {
    what paints outside the box, not the box's own dimensions, so the
    layout math never sees a difference. Long names still truncate with an
    ellipsis — each text line clips itself individually (see .card-name
-   etc.), it never depended on this box's own overflow. */
+   etc.), it never depended on this box's own overflow. Also hand-kept in
+   sync with correctLinkTextTransform's own CARD_WIDTH constant in
+   TreeView.tsx, which needs this same width to keep a union mark clear of
+   a card's silhouette in horizontal mode. */
 .f3 .card-inner {
   width: 170px;
   height: 128px;
@@ -1662,6 +1665,15 @@ body {
   align-items: center;
   gap: 0.5rem;
   font-size: 0.9rem;
+}
+
+/* Invite links are the one list here that can actually grow long (an
+   owner sharing repeatedly over time) — scrolling just this list, instead
+   of letting the whole modal grow, keeps the rest of the panel (and the
+   close button) from being pushed out of view. */
+.share-links-list {
+  max-height: 12rem;
+  overflow-y: auto;
 }
 
 .share-member-identity {

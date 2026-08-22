@@ -316,6 +316,7 @@
     "removeAction": "Usuń",
     "linksLegend": "Linki z zaproszeniem",
     "linksHint": "Każdy, kto posiada link, może dołączyć do drzewa po zalogowaniu lub utworzeniu konta — nie musi mieć go wcześniej.",
+    "manageLinksLegend": "Zarządzaj linkami",
     "linkRoleLabel": "Rola przyznawana przez link",
     "linkExpiresLabel": "Link wygasa po (opcjonalnie)",
     "linkMaxUsesLabel": "Maksymalna liczba użyć (opcjonalnie)",

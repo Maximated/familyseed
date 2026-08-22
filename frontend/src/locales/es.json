@@ -316,6 +316,7 @@
     "removeAction": "Quitar",
     "linksLegend": "Enlaces de invitación",
     "linksHint": "Cualquiera con el enlace puede unirse al árbol iniciando sesión o creando una cuenta — no hace falta que ya tenga una.",
+    "manageLinksLegend": "Gestionar enlaces",
     "linkRoleLabel": "Rol que concede el enlace",
     "linkExpiresLabel": "El enlace deja de funcionar a partir de (opcional)",
     "linkMaxUsesLabel": "Número máximo de personas que pueden usarlo (opcional)",

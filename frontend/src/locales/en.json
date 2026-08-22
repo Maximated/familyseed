@@ -316,6 +316,7 @@
     "removeAction": "Remove",
     "linksLegend": "Invite links",
     "linksHint": "Anyone with the link can join the tree by logging in or creating an account — they don't need to have one beforehand.",
+    "manageLinksLegend": "Manage links",
     "linkRoleLabel": "Role granted by link",
     "linkExpiresLabel": "Link expires after (optional)",
     "linkMaxUsesLabel": "Maximum number of uses (optional)",

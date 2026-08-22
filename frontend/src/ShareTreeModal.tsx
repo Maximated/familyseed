@@ -131,27 +131,6 @@ export default function ShareTreeModal({ treeId, onClose }: Props) {
         <h2>{t("share.title")}</h2>
 
         <fieldset>
-          <legend>{t("share.addLegend")}</legend>
-          <form onSubmit={handleAdd} className="field-row">
-            <input
-              type="email"
-              placeholder={t("share.emailPlaceholder")}
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              autoFocus
-            />
-            <select value={role} onChange={(e) => setRole(e.target.value as ShareRole)}>
-              <option value="VIEWER">{t("roles.VIEWER")}</option>
-              <option value="EDITOR">{t("roles.EDITOR")}</option>
-            </select>
-            <button type="submit" disabled={submitting}>
-              {submitting ? t("common.saving") : t("share.addAction")}
-            </button>
-          </form>
-          <p className="field-hint">{t("share.addHint")}</p>
-        </fieldset>
-
-        <fieldset>
           <legend>{t("share.membersLegend")}</legend>
           {loading ? (
             <p className="status">{t("common.loading")}</p>
@@ -185,6 +164,27 @@ export default function ShareTreeModal({ treeId, onClose }: Props) {
         </fieldset>
 
         <fieldset>
+          <legend>{t("share.addLegend")}</legend>
+          <form onSubmit={handleAdd} className="field-row">
+            <input
+              type="email"
+              placeholder={t("share.emailPlaceholder")}
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              autoFocus
+            />
+            <select value={role} onChange={(e) => setRole(e.target.value as ShareRole)}>
+              <option value="VIEWER">{t("roles.VIEWER")}</option>
+              <option value="EDITOR">{t("roles.EDITOR")}</option>
+            </select>
+            <button type="submit" disabled={submitting}>
+              {submitting ? t("common.saving") : t("share.addAction")}
+            </button>
+          </form>
+          <p className="field-hint">{t("share.addHint")}</p>
+        </fieldset>
+
+        <fieldset>
           <legend>{t("share.linksLegend")}</legend>
           <form onSubmit={handleCreateLink}>
             <label>
@@ -215,13 +215,16 @@ export default function ShareTreeModal({ treeId, onClose }: Props) {
             </div>
           </form>
           <p className="field-hint">{t("share.linksHint")}</p>
+        </fieldset>
 
+        <fieldset>
+          <legend>{t("share.manageLinksLegend")}</legend>
           {linksLoading ? (
             <p className="status">{t("common.loading")}</p>
           ) : links.length === 0 ? (
             <p className="field-hint">{t("share.noLinks")}</p>
           ) : (
-            <ul className="share-members-list">
+            <ul className="share-members-list share-links-list">
               {links.map((link) => {
                 const revoked = Boolean(link.revokedAt);
                 const expired = Boolean(link.expiresAt && new Date(link.expiresAt) < new Date());

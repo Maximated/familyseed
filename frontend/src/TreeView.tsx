@@ -205,18 +205,42 @@ function correctLinkTextTransform(
   const toTransform = (mid: number, rowDepth: number) =>
     orientation === "horizontal" ? `translate(${rowDepth}, ${mid})` : `translate(${mid}, ${rowDepth})`;
 
-  // In horizontal mode, spouses stack in a vertical column sharing one
-  // connecting line straight down that column — and the mark is centered
-  // on the same point, so a *fixed* leftward nudge only clears that line
-  // for however wide one particular mark happens to be. A mark combining a
-  // status icon beside the type icon is close to 2x wider than a single
-  // icon alone, so a constant tuned for the short case still left the long
-  // one straddling the line. Measuring this mark's own rendered width (the
-  // icon group, not family-chart's own now-hidden <text>) and shifting by
-  // half of it (plus a fixed margin) clears the line regardless of how
-  // many icons it's showing.
-  const textWidth = g.querySelector<SVGGElement>(".union-mark-icons")?.getBBox().width ?? 20;
-  const depthNudge = orientation === "horizontal" ? -(textWidth / 2 + 18) : -3;
+  // family-chart's own card box — kept in sync by hand with `.f3
+  // .card-inner`'s width/height in App.css (that's the actual source of
+  // truth; not readable from here, since this runs against family-chart's
+  // layout datum, not rendered card elements). Needed below to clear a
+  // card's own silhouette, not just the thin connecting line.
+  const CARD_WIDTH = 170;
+
+  const markGroup = g.querySelector<SVGGElement>(".union-mark-icons");
+  const markBox = markGroup?.getBBox();
+  const markWidth = markBox?.width ?? 20;
+  const markHeight = markBox?.height ?? 20;
+
+  // Vertical mode: the mark sits right on the row's own connecting line —
+  // the old fixed -3 was tuned for family-chart's own baseline-anchored
+  // <text>, which sat mostly above its own y coordinate. The icons that
+  // replaced it are vertically centered on that same point instead, so the
+  // same -3 left roughly half the icon hanging below the line, visibly
+  // overlapping it. Lifting by the icon's own half-height (plus a small
+  // margin) clears the line regardless of whether it's one icon or two —
+  // there's no card to collide with going this direction: the mark only
+  // ever sits in a horizontal gap between cards in its own row (see the
+  // "between" gap search below), and the next row up is a good 22 units of
+  // clear space further away than this reaches.
+  //
+  // Horizontal mode: spouses stack in a vertical column sharing one
+  // connecting line straight down that column, and — unlike vertical mode —
+  // the depth axis here (screen-x) is also where each spouse's *own card*
+  // sits, at that same depth. A nudge only wide enough to clear the line
+  // itself left the mark landing inside one spouse's own card silhouette,
+  // stealing that card's hover/click (reported as the mark sitting right
+  // against a card's edge with no way to click or hover it). Clearing the
+  // card's own half-width first, then the mark's own half-width plus a
+  // margin, lands it in the real gap before the next generation's cards —
+  // 250 units of depth spacing there, comfortable room to spare.
+  const depthNudge =
+    orientation === "horizontal" ? -(CARD_WIDTH / 2 + markWidth / 2 + 18) : -(markHeight / 2 + 4);
   // And, only in horizontal mode, dropped a few px along the spread axis
   // (screen-y there) so it clears the line vertically too, not just
   // sideways.
