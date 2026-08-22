@@ -34,8 +34,10 @@ export const UNION_STATUS_ICON_PATHS: Partial<Record<UnionStatus, string>> = {
 };
 
 // Canvas-only sizing — the React-rendered version (UnionMarkIcon below)
-// sizes itself independently via its own `size` prop.
-const CANVAS_ICON_SIZE = 22;
+// sizes itself independently via its own `size` prop. Bumped up from the
+// original 22 — at the hover-bubble's own scale on top of this, 22 still
+// read as barely bigger than before by request.
+const CANVAS_ICON_SIZE = 28;
 const CANVAS_ICON_GAP = 3;
 
 function svgIcon(paths: string, x: number, y: number): string {

@@ -227,12 +227,14 @@ function correctLinkTextTransform(
   // <text>, which sat mostly above its own y coordinate. The icons that
   // replaced it are vertically centered on that same point instead, so the
   // same -3 left roughly half the icon hanging below the line, visibly
-  // overlapping it. Lifting by the icon's own half-height (plus a small
-  // margin) clears the line regardless of whether it's one icon or two —
-  // there's no card to collide with going this direction: the mark only
-  // ever sits in a horizontal gap between cards in its own row (see the
-  // "between" gap search below), and the next row up is a good 22 units of
-  // clear space further away than this reaches.
+  // overlapping it. Lifting by the icon's own half-height (plus a margin,
+  // bumped up by request for more visible separation from the line) clears
+  // it regardless of whether it's one icon or two — there's no card to
+  // collide with going this direction: the mark only ever sits in a
+  // horizontal gap between cards in its own row (see the "between" gap
+  // search below), and the next row up is a good 42 units of clear space
+  // further away than this reaches (card_y_spacing's own 170, less a
+  // card's 128-unit height).
   //
   // Horizontal mode: spouses stack in a vertical column sharing one
   // connecting line straight down that column, and the mark is centered on
@@ -240,7 +242,7 @@ function correctLinkTextTransform(
   // would leave it straddling one spouse's own card in the export image —
   // by request, left as-is here (see this function's own header comment
   // for why that's fine for a static picture, unlike the live canvas).
-  const depthNudge = orientation === "horizontal" ? -(markWidth / 2 + 18) : -(markHeight / 2 + 4);
+  const depthNudge = orientation === "horizontal" ? -(markWidth / 2 + 18) : -(markHeight / 2 + 12);
   // And, only in horizontal mode, dropped a few px along the spread axis
   // (screen-y there) so it clears the line vertically too, not just
   // sideways.
