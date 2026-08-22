@@ -568,7 +568,7 @@ body {
   background-image: url("/images/tree-watermark.svg");
   background-repeat: no-repeat;
   background-position: center;
-  background-size: min(75vmin, 820px);
+  background-size: min(90vmin, 900px);
   opacity: 0.07;
   pointer-events: none;
 }
@@ -2589,6 +2589,13 @@ button.btn-outline:disabled {
   background: #ddd;
 }
 
+/* Fixed white/dark-gray regardless of theme, not tied to --color-surface
+   — Google's own multi-color "G" logo (see GoogleAuthButton.tsx) needs a
+   light background to stay legible and on-brand, so this can't just
+   follow the app's dark-mode surface color the way most panels do. In
+   dark mode it read as dark-gray text on a near-identical dark-gray
+   background — effectively invisible — until this was pinned to Google's
+   own standard light button regardless of theme. */
 .auth-google-button {
   display: flex;
   align-items: center;
@@ -2597,7 +2604,7 @@ button.btn-outline:disabled {
   padding: 0.55rem;
   border: 1px solid #ccc;
   border-radius: 6px;
-  background: var(--color-surface);
+  background: #fff;
   color: #3c4043;
   font-size: 0.9rem;
   text-decoration: none;
@@ -2633,9 +2640,11 @@ button.btn-outline:disabled {
   background-repeat: no-repeat;
   /* Anchored to the bottom of the page (growing up, roots at the floor)
      instead of centered, so it sits in the empty space below the tree
-     list instead of fighting the list rows for the same area. */
-  background-position: bottom -16px center;
-  background-size: min(40vmin, 440px);
+     list instead of fighting the list rows for the same area. Lifted off
+     the true bottom edge (not flush, let alone bleeding past it) so it
+     doesn't collide with the version/attribution footer text down there. */
+  background-position: bottom 72px center;
+  background-size: min(55vmin, 560px);
   opacity: 0.07;
   pointer-events: none;
 }
