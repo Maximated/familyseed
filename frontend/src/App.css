@@ -316,6 +316,14 @@ body {
     flex-direction: row;
   }
 
+  /* Matches the old hamburger dropdown's own look exactly (see the
+     removed .header-menu-items rule this was ported from) — no plate/pill
+     behind the row, same as the bare person-card icons elsewhere: just
+     .icon-button's own natural 36px squares with a gap between them, no
+     background/border-radius/box-shadow/padding and no reserved label
+     width. Vertical instead of that original's horizontal flyout, since
+     it's opening downward from a trigger that's one item in a plain row
+     now instead of tucked in a far corner. */
   .edit-menu-items {
     top: calc(100% + 0.4rem);
     right: 0;
@@ -323,18 +331,22 @@ body {
     bottom: auto;
     transform: none;
     flex-direction: column;
-    align-items: stretch;
-    gap: 0.15rem;
-    width: min(260px, 80vw);
+    align-items: center;
+    gap: 0.3rem;
+    width: auto;
     max-width: none;
-    max-height: calc(100vh - 4rem);
-    overflow-x: visible;
-    overflow-y: auto;
+    max-height: none;
+    overflow: visible;
+    background: none;
+    border-radius: 0;
+    box-shadow: none;
+    padding: 0;
   }
 
   .edit-menu-items .icon-button {
-    width: 100%;
-    justify-content: flex-start;
+    width: 36px;
+    height: 36px;
+    justify-content: center;
   }
 
   .edit-menu-items .icon-button::after {
