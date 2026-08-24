@@ -12,6 +12,10 @@
     "diedYear": "zm. {{value}}",
     "lifespanRange": "{{birth}} – {{death}}"
   },
+  "pwa": {
+    "updateAvailable": "Dostępna jest nowa wersja",
+    "updateAction": "Zaktualizuj"
+  },
   "app": {
     "defaultTitle": "Drzewo genealogiczne",
     "titleHint": "Kliknij, aby zmienić nazwę drzewa",

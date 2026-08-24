@@ -198,14 +198,16 @@ body {
    a vertical rail. Positioned out of flow (like the header-quick-actions
    it replaces) rather than stacked in normal flow, so .app-header's own
    height never grows to fit it — the earlier bug where that inflated
-   header cut into the tree canvas underneath it. The @media (hover: hover)
-   block further down overrides this back to the single horizontal row for
-   real mouse/trackpad devices. */
+   header cut into the tree canvas underneath it. top matches .app-header's
+   own top padding (see .app-header) rather than top: 100% (this column
+   used to sit below the whole header) — reported as sitting too low,
+   not level with home/back/fit-all/the title on the left. The
+   @media (hover: hover) block further down overrides this back to the
+   single horizontal row for real mouse/trackpad devices. */
 .header-right-actions {
   position: absolute;
-  top: 100%;
+  top: 0.75rem;
   right: 1.5rem;
-  margin-top: 0.3rem;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -216,25 +218,31 @@ body {
 /* The edit menu: same JS-owned hover/focus reveal the old hamburger used
    (see revealEditMenu in TreeView.tsx — real mouseenter/mouseleave with a
    grace delay proved more reliable than a plain :hover rule; :focus-within
-   stays as a keyboard fallback). On touch/PWA (base rules) it flies out
-   sideways next to the trigger, same as the row of top-level icons it
-   sits inside; the hover-capable override further down switches it to a
-   vertical dropdown straight below instead. */
+   stays as a keyboard fallback). On touch/PWA (base rules) it flies out to
+   the left of the trigger, same side the row of top-level icons it sits
+   inside opens toward — but as its own vertical list (a horizontal row of
+   5 labeled items needed horizontal scrolling to fit a phone-width screen,
+   reported as impractical), stacked downward from the trigger's own top
+   rather than centered on it, since the trigger now sits near the top of
+   the screen (see .header-right-actions) and centering would push items
+   above the viewport. The hover-capable override further down switches it
+   to a vertical dropdown straight below instead. */
 .edit-menu {
   position: relative;
 }
 
 .edit-menu-items {
   position: absolute;
-  top: 50%;
+  top: 0;
   right: calc(100% + 0.4rem);
-  transform: translateY(-50%);
   display: flex;
-  flex-direction: row;
-  align-items: center;
+  flex-direction: column;
+  align-items: stretch;
   gap: 0.3rem;
+  width: max-content;
   max-width: calc(100vw - 2rem);
-  overflow-x: auto;
+  max-height: calc(100vh - 2rem);
+  overflow-y: auto;
   background: var(--color-surface);
   border-radius: 10px;
   box-shadow: 0 8px 24px rgba(27, 67, 50, 0.2);
@@ -264,11 +272,6 @@ body {
   padding: 0.5rem 0.7rem;
   border-radius: 6px;
   white-space: nowrap;
-  /* Without this, flex's default shrink-to-fit squeezes each item below
-     its own label's natural width once all 5 don't fit the container's
-     max-width — since the label itself is nowrap, the squeezed boxes'
-     text overflows and overlaps its neighbors instead of just scrolling
-     (which overflow-x: auto on the container is there to handle). */
   flex-shrink: 0;
   opacity: 0;
   transform: scale(0.3);
@@ -2283,6 +2286,53 @@ body {
   align-items: center;
   justify-content: center;
   z-index: 10;
+}
+
+/* A new service worker version is ready — see UpdateAvailableBanner.tsx's
+   own comment for why this is a dismissible-by-ignoring banner instead of
+   an unannounced reload. High z-index and fixed position so it stays
+   reachable over any modal that happens to be open when a new version
+   lands. */
+.update-banner {
+  position: fixed;
+  left: 50%;
+  bottom: 1.25rem;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  max-width: calc(100vw - 2rem);
+  padding: 0.75rem 1.1rem;
+  border-radius: 999px;
+  background: var(--color-forest);
+  color: var(--color-bg);
+  font-size: 0.9rem;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+  z-index: 100;
+  animation: update-banner-in 220ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.update-banner button {
+  flex-shrink: 0;
+  font-size: 0.85rem;
+  font-weight: 700;
+  padding: 0.4rem 0.9rem;
+  border-radius: 999px;
+  border: none;
+  cursor: pointer;
+  background: var(--color-amber);
+  color: #fff;
+}
+
+@keyframes update-banner-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 12px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
 }
 
 /* Above any modal it might be opened from (media gallery inside the info

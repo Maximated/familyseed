@@ -12,6 +12,10 @@
     "diedYear": "d. {{value}}",
     "lifespanRange": "{{birth}} – {{death}}"
   },
+  "pwa": {
+    "updateAvailable": "A new version is available",
+    "updateAction": "Update"
+  },
   "app": {
     "defaultTitle": "Family tree",
     "titleHint": "Click to rename the tree",

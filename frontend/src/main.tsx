@@ -5,11 +5,13 @@ import './index.css'
 import './i18n'
 import './theme'
 import App from './App.tsx'
+import UpdateAvailableBanner from './UpdateAvailableBanner.tsx'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <BrowserRouter>
       <App />
+      <UpdateAvailableBanner />
     </BrowserRouter>
   </StrictMode>,
 )

@@ -25,6 +25,19 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
+      // The plugin's own auto-injected register script reloads the page
+      // the instant a new service worker takes control — no warning, no
+      // regard for whatever the user's mid-interaction with (reported:
+      // the PWA "crashing" right after using search, on a session that
+      // happened to line up with a fresh deploy landing). registerType
+      // 'autoUpdate' still means the new worker activates itself promptly
+      // in the background (that part's fine, nothing user-visible) — it's
+      // specifically the forced reload that's disruptive. Registering it
+      // ourselves via useRegisterSW (see UpdateAvailableBanner.tsx) instead
+      // surfaces a dismissible "actualizar" banner and reloads only when
+      // the user taps it. injectRegister: null stops the plugin from also
+      // injecting its own auto-reloading version alongside ours.
+      injectRegister: null,
       // Runs the service worker in dev too (not just `vite build`), since
       // that's how this app actually gets tested and used day to day.
       devOptions: { enabled: true, type: 'module' },
