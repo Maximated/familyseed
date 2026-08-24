@@ -3,6 +3,7 @@ import { Trans, useTranslation } from "react-i18next";
 import {
   addIndividualLineage,
   addParent,
+  clearMyIdentity,
   createFamily,
   createLineage,
   deleteIndividual,
@@ -11,6 +12,7 @@ import {
   mediaUrl,
   removeIndividualLineage,
   removeParent,
+  setMyIdentity,
   updateIndividual,
   uploadPersonPhoto,
   type DatePrecision,
@@ -27,6 +29,7 @@ import PersonPicker from "./PersonPicker";
 import PersonMediaTab from "./PersonMedia";
 import PhotoCropModal from "./PhotoCropModal";
 import PhotoDropzone from "./PhotoDropzone";
+import IOSToggle from "./IOSToggle";
 import { Trash2Icon } from "./Icons";
 import { checkParentChildWarning } from "./relationshipGuards";
 import { unknownGivenNameFor } from "./unknownPerson";
@@ -53,13 +56,48 @@ type Props = {
   // the "Guardar" submit below) — this lets the tree behind the modal
   // reflect it right away instead of only after the whole form is saved.
   onRelationsChanged: () => void;
+  // Whichever person the current user has marked "Este soy yo" within this
+  // tree, or null — lifted up to TreeView so a toggle flip here is
+  // reflected everywhere else (e.g. a different person's form, or the
+  // statistics panel) without needing that other place to be mounted.
+  myIdentityPersonId: string | null;
+  onIdentityChanged: (personId: string | null) => void;
 };
 
-export default function EditPersonForm({ treeId, personId, people, onSaved, onDeleted, onClose, onRelationsChanged }: Props) {
+export default function EditPersonForm({
+  treeId,
+  personId,
+  people,
+  onSaved,
+  onDeleted,
+  onClose,
+  onRelationsChanged,
+  myIdentityPersonId,
+  onIdentityChanged,
+}: Props) {
   const { t } = useTranslation();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [identityError, setIdentityError] = useState<string | null>(null);
+
+  // A dedicated call, not folded into handleSave's updateIndividual payload
+  // below — that's a PATCH, which the backend blocks for a VIEWER, and
+  // "this is me" must work for VIEWERs too. Optimistic: flips the shared
+  // state before the request resolves, rolls back on failure.
+  async function handleToggleMyIdentity() {
+    const isMe = myIdentityPersonId === personId;
+    const previous = myIdentityPersonId;
+    onIdentityChanged(isMe ? null : personId);
+    setIdentityError(null);
+    try {
+      if (isMe) await clearMyIdentity(treeId);
+      else await setMyIdentity(treeId, personId);
+    } catch (err) {
+      onIdentityChanged(previous);
+      setIdentityError(err instanceof Error ? err.message : String(err));
+    }
+  }
 
   const [givenNames, setGivenNames] = useState("");
   const [surname1, setSurname1] = useState("");
@@ -633,6 +671,13 @@ export default function EditPersonForm({ treeId, personId, people, onSaved, onDe
                 {t("personFields.unknownToggle")}
               </label>
               <p className="field-hint">{t("personFields.unknownHint")}</p>
+              <IOSToggle
+                checked={myIdentityPersonId === personId}
+                onChange={handleToggleMyIdentity}
+                label={t("personFields.thisIsMe")}
+                multi
+              />
+              {identityError && <p className="status status-error">{identityError}</p>}
               <label>
                 {t("personFields.givenNames")}
                 <input

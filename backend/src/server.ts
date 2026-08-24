@@ -15,10 +15,12 @@ import memberRoutes from "./routes/members.js";
 import duplicateRoutes from "./routes/duplicates.js";
 import gedcomRoutes from "./routes/gedcom.js";
 import csvRoutes from "./routes/csv.js";
+import statisticsRoutes from "./routes/statistics.js";
 import treesRoutes from "./routes/trees.js";
 import copyRoutes from "./routes/copy.js";
 import inviteLinkRoutes from "./routes/invite-links.js";
 import inviteRedeemRoutes from "./routes/invite-redeem.js";
+import myIdentityRoutes from "./routes/my-identity.js";
 import uploadsRoutes from "./routes/uploads.js";
 import userUploadsRoutes from "./routes/user-uploads.js";
 import authRoutes, { requireAuth } from "./routes/auth.js";
@@ -87,9 +89,15 @@ async function treeScopedRoutes(fastify: FastifyInstance) {
   await fastify.register(duplicateRoutes, { prefix: "/duplicates" });
   await fastify.register(gedcomRoutes, { prefix: "/gedcom" });
   await fastify.register(csvRoutes, { prefix: "/csv" });
+  await fastify.register(statisticsRoutes);
 }
 
 await app.register(treeScopedRoutes, { prefix: "/trees/:treeId" });
+// A sibling plugin under the same prefix, deliberately kept out of
+// treeScopedRoutes — it needs a relaxed membership check (any role may
+// write, see tree-membership.ts's requireTreeMembershipAnyRole) that the
+// rest of the tree-scoped routes must not inherit.
+await app.register(myIdentityRoutes, { prefix: "/trees/:treeId" });
 
 app.get("/health", async () => ({ status: "ok" }));
 

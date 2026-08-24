@@ -2,6 +2,7 @@ import { useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import PersonMediaTab from "./PersonMedia";
 import RelationsTab from "./RelationsTab";
+import PersonStatisticsTab from "./PersonStatisticsTab";
 import UnionNotesEditor from "./UnionNotesEditor";
 import UnionDetailsEditor from "./UnionDetailsEditor";
 import UnionChildrenEditor, { type UnionChild } from "./UnionChildrenEditor";
@@ -50,7 +51,7 @@ type Props = {
   onDataChanged: () => void;
 };
 
-type Tab = "ficha" | "relaciones" | "fotos" | "documentos";
+type Tab = "ficha" | "relaciones" | "estadisticas" | "fotos" | "documentos";
 
 export default function InfoPanel({ treeId, data, onClose, onNavigateToPerson, onDataChanged }: Props) {
   const { t } = useTranslation();
@@ -100,7 +101,7 @@ export default function InfoPanel({ treeId, data, onClose, onNavigateToPerson, o
 
         {data.personId && (
           <div className="info-panel-tabs">
-            {(["ficha", "relaciones", "fotos", "documentos"] as Tab[]).map((tabKey) => (
+            {(["ficha", "relaciones", "estadisticas", "fotos", "documentos"] as Tab[]).map((tabKey) => (
               <button
                 key={tabKey}
                 type="button"
@@ -179,6 +180,9 @@ export default function InfoPanel({ treeId, data, onClose, onNavigateToPerson, o
         )}
         {tab === "relaciones" && data.personId && (
           <RelationsTab treeId={treeId} personId={data.personId} onNavigate={onNavigateToPerson} />
+        )}
+        {tab === "estadisticas" && data.personId && (
+          <PersonStatisticsTab treeId={treeId} personId={data.personId} />
         )}
         {tab === "fotos" && data.personId && (
           <PersonMediaTab treeId={treeId} personId={data.personId} type="PHOTO" editable={false} />

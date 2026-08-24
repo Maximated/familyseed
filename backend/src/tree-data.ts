@@ -53,6 +53,12 @@ export type TreePerson = {
     avatar?: string;
     birthYear?: number;
     deathYear?: number;
+    // ISO 8601 — full-precision dates, additive alongside birthYear/
+    // deathYear (which stay rounded for existing display/timeline code).
+    // Needed for exact-age arithmetic (statistics.ts's longest-lived/
+    // current-age/parents'-age-at-birth calculations).
+    birthDateValue?: string;
+    deathDateValue?: string;
     lineageIds: string[];
   };
   rels: {
@@ -213,6 +219,8 @@ export async function buildTreeData(treeId: string): Promise<{ people: TreePerso
         // of the genealogical data itself.
         birthYear: individual.birthDateValue ? individual.birthDateValue.getUTCFullYear() : undefined,
         deathYear: individual.deathDateValue ? individual.deathDateValue.getUTCFullYear() : undefined,
+        birthDateValue: individual.birthDateValue ? individual.birthDateValue.toISOString() : undefined,
+        deathDateValue: individual.deathDateValue ? individual.deathDateValue.toISOString() : undefined,
         lineageIds: individual.lineages.map((l) => l.lineageId),
       },
       rels: {

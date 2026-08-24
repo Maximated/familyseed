@@ -9,6 +9,7 @@ import {
   deriveLineages,
   fetchIndividual,
   fetchLineages,
+  fetchMyIdentity,
   fetchTree,
   mediaUrl,
   updateTreeName,
@@ -25,24 +26,23 @@ import IndividualsSearchView from "./IndividualsSearchView";
 import LineageChips from "./LineageChips";
 import Legend from "./Legend";
 import HoverPreview from "./HoverPreview";
-import IOSToggle from "./IOSToggle";
 import InfoPanel, { type InfoPanelData, type InfoPanelSection } from "./InfoPanel";
+import StatisticsPanel from "./StatisticsPanel";
 import { unionMarkMarkup, UnionMarkIcon } from "./unionMarkIcons";
 import {
   ArrowLeftIcon,
   ArrowUpDownIcon,
-  ColumnsIcon,
+  BarChartIcon,
   DuplicatesIcon,
   UnresolvedIcon,
-  ImageIcon,
   GitBranchIcon,
   HomeIcon,
   LinkIcon,
   MaximizeIcon,
-  MenuIcon,
-  RowsIcon,
+  PencilIcon,
   SearchIcon,
   ShareIcon,
+  SwitchOrientationIcon,
   Trash2Icon,
   UserIcon,
   UserPlusIcon,
@@ -595,9 +595,10 @@ function App() {
   const linkTextCleanupRef = useRef<Array<() => void>>([]);
   const selectedLineageIdsRef = useRef<Set<string>>(new Set());
   const lineageMenuRef = useRef<HTMLDivElement>(null);
-  const exportMenuRef = useRef<HTMLDivElement>(null);
-  const headerMenuRef = useRef<HTMLDivElement>(null);
-  const headerMenuCloseTimerRef = useRef<number | undefined>(undefined);
+  const statsMenuRef = useRef<HTMLDivElement>(null);
+  const editMenuRef = useRef<HTMLDivElement>(null);
+  const editMenuCloseTimerRef = useRef<number | undefined>(undefined);
+  const statsHoverTimerRef = useRef<number | undefined>(undefined);
 
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -629,23 +630,37 @@ function App() {
   const [lineages, setLineages] = useState<Lineage[]>([]);
   const [selectedLineageIds, setSelectedLineageIds] = useState<Set<string>>(new Set());
   const [infoPanel, setInfoPanel] = useState<InfoPanelData | null>(null);
+  // The person currently centered on the canvas (family-chart's own
+  // "main" person) — mirrors currentMainIdRef into React state so the
+  // statistics panel (and anything else that cares about "who's selected")
+  // re-renders when it changes. This is distinct from infoPanel: clicking a
+  // card body re-centers the tree (and used to be the only thing "select"
+  // meant to a user) without ever opening the full info panel, which only
+  // opens via the card's explicit "view full" button.
+  const [mainPersonId, setMainPersonId] = useState<string | null>(null);
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
   const [treeName, setTreeName] = useState("");
   const [treeRole, setTreeRole] = useState<TreeRole | null>(null);
   const [treeMemberCount, setTreeMemberCount] = useState(1);
+  // Single shared source of truth for "who is the current user, within this
+  // tree" — both EditPersonForm's toggle (checked state) and the
+  // statistics panel (Section B) read from this, so flipping the toggle on
+  // a different person correctly un-checks the previous one without that
+  // previous person's form needing to be mounted.
+  const [myIdentityPersonId, setMyIdentityPersonId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState("");
+  // An <input> can't size itself to its own value the way text naturally
+  // does — without this it defaults to filling the flex row, stretching
+  // its amber underline across the whole header instead of hugging the
+  // title text. A hidden span (same font, see .tree-title-measure) mirrors
+  // the draft and gets measured after each render; the input's width is
+  // set from that.
+  const [titleInputWidth, setTitleInputWidth] = useState<number | null>(null);
+  const titleMeasureRef = useRef<HTMLSpanElement>(null);
   const [showLineageMenu, setShowLineageMenu] = useState(false);
-  const [headerMenuOpen, setHeaderMenuOpen] = useState(false);
-  const [showExportMenu, setShowExportMenu] = useState(false);
-  const [exportFormat, setExportFormat] = useState<"png" | "svg">("png");
-  const [exportBackground, setExportBackground] = useState<"opaque" | "transparent">("opaque");
-  const [exportQuality, setExportQuality] = useState<"standard" | "high">("high");
-  const [exportScope, setExportScope] = useState<"current" | "whole">("whole");
-  // Synced to the live `orientation` state whenever the export menu opens
-  // (see the trigger button below) — a reasonable default of "whatever
-  // you're currently looking at" without permanently coupling the two.
-  const [exportOrientation, setExportOrientation] = useState<"vertical" | "horizontal">("vertical");
+  const [showStatsPanel, setShowStatsPanel] = useState(false);
+  const [editMenuOpen, setEditMenuOpen] = useState(false);
   const [orientation, setOrientation] = useState<"vertical" | "horizontal">(getDefaultOrientation);
   // wireCardAndUnionClicks (below) is a long-lived useCallback that doesn't
   // list `orientation` as a dependency — correctLinkTextTransform's settle
@@ -1510,11 +1525,15 @@ function App() {
   const loadTree = useCallback(
     async (recenterOnId?: string) => {
       if (!treeId) return;
-      const { name, role, memberCount, people, unions } = await fetchTree(treeId);
+      const [{ name, role, memberCount, people, unions }, identity] = await Promise.all([
+        fetchTree(treeId),
+        fetchMyIdentity(treeId),
+      ]);
       if (!containerRef.current) return;
       setTreeName(name);
       setTreeRole(role);
       setTreeMemberCount(memberCount);
+      setMyIdentityPersonId(identity.individualId);
       if (!people.length) {
         setError(t("app.noIndividuals"));
         return;
@@ -1604,6 +1623,7 @@ function App() {
             }
             isGoingBackRef.current = false;
             currentMainIdRef.current = newMainId;
+            setMainPersonId(newMainId);
             // Navigating to someone else makes a pinned lineage highlight
             // stale — without this, everyone stays dimmed with no way to
             // tell why, since the chip itself still looks selected.
@@ -1620,6 +1640,7 @@ function App() {
         chart.updateTree({ initial: true, tree_position: "fit" });
         chartRef.current = chart;
         currentMainIdRef.current = chart.getMainDatum().id;
+        setMainPersonId(currentMainIdRef.current);
         return;
       }
 
@@ -1732,32 +1753,41 @@ function App() {
   }, [showLineageMenu]);
 
   useEffect(() => {
-    if (!headerMenuOpen) return;
+    if (!showStatsPanel) return;
 
     function handlePointerDown(event: PointerEvent) {
       const target = event.target as Node;
-      if (headerMenuRef.current && !headerMenuRef.current.contains(target)) {
-        setHeaderMenuOpen(false);
+      if (statsMenuRef.current && !statsMenuRef.current.contains(target)) {
+        setShowStatsPanel(false);
       }
     }
 
     document.addEventListener("pointerdown", handlePointerDown);
     return () => document.removeEventListener("pointerdown", handlePointerDown);
-  }, [headerMenuOpen]);
+  }, [showStatsPanel]);
 
   useEffect(() => {
-    if (!showExportMenu) return;
+    if (!editMenuOpen) return;
 
     function handlePointerDown(event: PointerEvent) {
       const target = event.target as Node;
-      if (exportMenuRef.current && !exportMenuRef.current.contains(target)) {
-        setShowExportMenu(false);
+      if (editMenuRef.current && !editMenuRef.current.contains(target)) {
+        setEditMenuOpen(false);
       }
     }
 
     document.addEventListener("pointerdown", handlePointerDown);
     return () => document.removeEventListener("pointerdown", handlePointerDown);
-  }, [showExportMenu]);
+  }, [editMenuOpen]);
+
+  useEffect(() => {
+    if (!editingTitle) return;
+    const span = titleMeasureRef.current;
+    if (!span) return;
+    // A little breathing room past the exact text width so the caret has
+    // somewhere to sit at the end of the line without the text jumping.
+    setTitleInputWidth(span.offsetWidth + 16);
+  }, [editingTitle, titleDraft]);
 
   function handleTitleClick() {
     setTitleDraft(treeName);
@@ -1859,7 +1889,6 @@ function App() {
     if (!container || !chart || exportingImage) return;
     setExportingImage(true);
     setError(null);
-    setShowExportMenu(false);
     const exportDomRestores: Array<() => void> = [];
     const originalOrientation = orientation;
     const orientationChanged = wantOrientation !== originalOrientation;
@@ -2166,17 +2195,28 @@ function App() {
   // that CSS pseudo-class path entirely — real mouseenter/mouseleave
   // events instead, with a short delay bridging the moment the pointer
   // crosses from the trigger onto the row.
-  function revealHeaderMenu() {
-    window.clearTimeout(headerMenuCloseTimerRef.current);
-    setHeaderMenuOpen(true);
+  function revealEditMenu() {
+    window.clearTimeout(editMenuCloseTimerRef.current);
+    setEditMenuOpen(true);
   }
-  function scheduleHideHeaderMenu() {
-    window.clearTimeout(headerMenuCloseTimerRef.current);
-    headerMenuCloseTimerRef.current = window.setTimeout(() => setHeaderMenuOpen(false), 150);
+  function scheduleHideEditMenu() {
+    window.clearTimeout(editMenuCloseTimerRef.current);
+    editMenuCloseTimerRef.current = window.setTimeout(() => setEditMenuOpen(false), 150);
   }
-  function toggleHeaderMenu() {
-    window.clearTimeout(headerMenuCloseTimerRef.current);
-    setHeaderMenuOpen((v) => !v);
+  function toggleEditMenu() {
+    window.clearTimeout(editMenuCloseTimerRef.current);
+    setEditMenuOpen((v) => !v);
+  }
+
+  // Opens the stats panel after a 1s hover, in addition to the button's own
+  // plain click toggle — long enough that just passing the cursor over the
+  // icon on the way elsewhere doesn't pop it open uninvited.
+  function revealStatsPanel() {
+    window.clearTimeout(statsHoverTimerRef.current);
+    statsHoverTimerRef.current = window.setTimeout(() => setShowStatsPanel(true), 1000);
+  }
+  function cancelRevealStatsPanel() {
+    window.clearTimeout(statsHoverTimerRef.current);
   }
 
   // Manual fallback for the auto-derivation every create/edit/import
@@ -2252,6 +2292,9 @@ function App() {
 
   if (!treeId) return null;
 
+  const mainPerson = treeData.find((person) => person.id === mainPersonId) ?? null;
+  const mainPersonName = mainPerson ? `${mainPerson.data["first name"]} ${mainPerson.data["last name"]}`.trim() : null;
+
   return (
     <div className={`app${orientation === "horizontal" ? " app-orientation-horizontal" : ""}`}>
       <header className="app-header">
@@ -2281,266 +2324,204 @@ function App() {
         </div>
 
         {editingTitle ? (
-          <input
-            className="tree-title-input"
-            value={titleDraft}
-            onChange={(e) => setTitleDraft(e.target.value)}
-            onBlur={handleTitleCommit}
-            onKeyDown={handleTitleKeyDown}
-            autoComplete="off"
-            autoFocus
-          />
+          <>
+            <input
+              className="tree-title-input"
+              value={titleDraft}
+              onChange={(e) => setTitleDraft(e.target.value)}
+              onBlur={handleTitleCommit}
+              onKeyDown={handleTitleKeyDown}
+              autoComplete="off"
+              autoFocus
+              style={titleInputWidth ? { width: `${titleInputWidth}px` } : undefined}
+            />
+            <span ref={titleMeasureRef} className="tree-title-measure" aria-hidden="true">
+              {titleDraft || " "}
+            </span>
+          </>
         ) : (
           <h1 className="tree-title" onClick={handleTitleClick} title={t("app.titleHint")}>
             {treeName || t("app.defaultTitle")}
           </h1>
         )}
 
-        <div className={`header-menu${headerMenuOpen ? " header-menu-open" : ""}`} ref={headerMenuRef}>
+        {/* Every action lives in this single top-aligned row now, in a
+            fixed order (see the plain-language spec this was built from):
+            search, lineages, edit (the only collapsible one — a pencil
+            dropdown for the person-editing actions), export/GEDCOM, share,
+            orientation, statistics. No hamburger anymore. */}
+        <div className="header-right-actions">
           <button
             type="button"
-            className="icon-button header-menu-trigger"
-            onClick={toggleHeaderMenu}
-            onMouseEnter={revealHeaderMenu}
-            onMouseLeave={scheduleHideHeaderMenu}
-            onFocus={revealHeaderMenu}
-            aria-label={t("app.moreActions")}
-            aria-expanded={headerMenuOpen}
-            title={t("app.moreActions")}
+            className="icon-button"
+            onClick={() => setShowSearch(true)}
+            aria-label={t("app.search")}
+            title={t("app.search")}
           >
-            <MenuIcon />
+            <SearchIcon />
           </button>
-          <div className="header-menu-items" onMouseEnter={revealHeaderMenu} onMouseLeave={scheduleHideHeaderMenu}>
+
+          <div className="popover-anchor" ref={lineageMenuRef}>
             <button
               type="button"
               className="icon-button"
-              onClick={() => setShowSearch(true)}
-              aria-label={t("app.search")}
-              title={t("app.search")}
+              onClick={() => setShowLineageMenu((v) => !v)}
+              aria-label={t("app.lineages")}
+              aria-expanded={showLineageMenu}
+              title={t("app.lineages")}
             >
-              <SearchIcon />
+              <GitBranchIcon />
             </button>
+            {showLineageMenu && (
+              <div className="popover lineage-popover">
+                <LineageChips lineages={lineages} selectedIds={selectedLineageIds} onChange={setSelectedLineageIds} />
+                <button
+                  type="button"
+                  className="union-notes-edit-link"
+                  onClick={() => {
+                    setShowLineageMenu(false);
+                    setShowLineagesManage(true);
+                  }}
+                >
+                  {t("lineagesManage.manageLink")}
+                </button>
+                <button
+                  type="button"
+                  className="union-notes-edit-link"
+                  onClick={handleDeriveLineages}
+                  disabled={derivingLineages}
+                  title={t("lineagesManage.deriveHint")}
+                >
+                  {derivingLineages ? t("lineagesManage.deriving") : t("lineagesManage.deriveLink")}
+                </button>
+                {deriveLineagesMessage && <p className="field-hint">{deriveLineagesMessage}</p>}
+              </div>
+            )}
+          </div>
 
-            <div className="popover-anchor" ref={lineageMenuRef}>
+          {/* The only collapsible menu left — everything about adding or
+              relating people, behind one pencil icon. Same hover/click/
+              focus reveal mechanics the old hamburger used (see
+              revealEditMenu), just scoped to a shorter list and opening
+              straight down instead of flying out sideways. */}
+          <div className={`edit-menu${editMenuOpen ? " edit-menu-open" : ""}`} ref={editMenuRef}>
+            <button
+              type="button"
+              className="icon-button edit-menu-trigger"
+              onClick={toggleEditMenu}
+              onMouseEnter={revealEditMenu}
+              onMouseLeave={scheduleHideEditMenu}
+              onFocus={revealEditMenu}
+              aria-label={t("app.edit")}
+              aria-expanded={editMenuOpen}
+              title={t("app.edit")}
+            >
+              <PencilIcon />
+            </button>
+            <div className="edit-menu-items" onMouseEnter={revealEditMenu} onMouseLeave={scheduleHideEditMenu}>
               <button
                 type="button"
                 className="icon-button"
-                onClick={() => setShowLineageMenu((v) => !v)}
-                aria-label={t("app.lineages")}
-                aria-expanded={showLineageMenu}
-                title={t("app.lineages")}
+                onClick={() => setShowAddForm(true)}
+                disabled={treeRole === "VIEWER"}
+                aria-label={t("app.addPerson")}
+                title={t("app.addPerson")}
               >
-                <GitBranchIcon />
+                <UserPlusIcon />
               </button>
-              {showLineageMenu && (
-                <div className="popover lineage-popover">
-                  <LineageChips lineages={lineages} selectedIds={selectedLineageIds} onChange={setSelectedLineageIds} />
-                  <button
-                    type="button"
-                    className="union-notes-edit-link"
-                    onClick={() => {
-                      setShowLineageMenu(false);
-                      setShowLineagesManage(true);
-                    }}
-                  >
-                    {t("lineagesManage.manageLink")}
-                  </button>
-                  <button
-                    type="button"
-                    className="union-notes-edit-link"
-                    onClick={handleDeriveLineages}
-                    disabled={derivingLineages}
-                    title={t("lineagesManage.deriveHint")}
-                  >
-                    {derivingLineages ? t("lineagesManage.deriving") : t("lineagesManage.deriveLink")}
-                  </button>
-                  {deriveLineagesMessage && <p className="field-hint">{deriveLineagesMessage}</p>}
-                </div>
-              )}
-            </div>
-
-            <button
-              type="button"
-              className="icon-button"
-              onClick={() => setShowTrash(true)}
-              aria-label={t("app.trash")}
-              title={t("app.trash")}
-            >
-              <Trash2Icon />
-            </button>
-            <button
-              type="button"
-              className="icon-button"
-              onClick={() => setShowAddForm(true)}
-              disabled={treeRole === "VIEWER"}
-              aria-label={t("app.addPerson")}
-              title={t("app.addPerson")}
-            >
-              <UserPlusIcon />
-            </button>
-            <button
-              type="button"
-              className="icon-button"
-              onClick={() => setShowDuplicates(true)}
-              disabled={treeRole === "VIEWER"}
-              aria-label={t("app.duplicates")}
-              title={t("app.duplicates")}
-            >
-              <DuplicatesIcon />
-            </button>
-            <button
-              type="button"
-              className="icon-button"
-              onClick={handleOpenUnrelatedWizard}
-              disabled={treeRole === "VIEWER"}
-              aria-label={t("app.unrelatedWizard")}
-              title={t("app.unrelatedWizard")}
-            >
-              <UnresolvedIcon />
-            </button>
-            <button
-              type="button"
-              className="icon-button"
-              onClick={() => setShowLinkPeople(true)}
-              disabled={treeRole === "VIEWER"}
-              aria-label={t("app.linkPeople")}
-              title={t("app.linkPeople")}
-            >
-              <LinkIcon />
-            </button>
-            <button
-              type="button"
-              className="icon-button"
-              onClick={() => setShowGedcom(true)}
-              aria-label={t("app.gedcom")}
-              title={t("app.gedcom")}
-            >
-              <ArrowUpDownIcon />
-            </button>
-            <div className="popover-anchor" ref={exportMenuRef}>
               <button
                 type="button"
                 className="icon-button"
-                onClick={() => {
-                  // Defaults the orientation choice to whatever's actually
-                  // on screen right now each time the menu opens, rather
-                  // than whatever was last picked in a previous export.
-                  setExportOrientation(orientation);
-                  setShowExportMenu((v) => !v);
-                }}
-                disabled={exportingImage}
-                aria-expanded={showExportMenu}
-                aria-label={exportingImage ? t("app.exportingTreeImage") : t("app.exportTreeImage")}
-                title={exportingImage ? t("app.exportingTreeImage") : t("app.exportTreeImage")}
+                onClick={() => setShowDuplicates(true)}
+                disabled={treeRole === "VIEWER"}
+                aria-label={t("app.duplicates")}
+                title={t("app.duplicates")}
               >
-                <ImageIcon />
+                <DuplicatesIcon />
               </button>
-              {showExportMenu && (
-                <div className="popover export-image-popover">
-                  <div className="export-option-group">
-                    <span className="export-option-label">{t("app.exportFormatLabel")}</span>
-                    <IOSToggle checked={exportFormat === "png"} onChange={() => setExportFormat("png")} label="PNG" />
-                    <IOSToggle checked={exportFormat === "svg"} onChange={() => setExportFormat("svg")} label="SVG" />
-                    {exportFormat === "svg" && <p className="field-hint">{t("app.exportFormatSvgHint")}</p>}
-                  </div>
-
-                  <div className="export-option-group">
-                    <span className="export-option-label">{t("app.exportScopeLabel")}</span>
-                    <IOSToggle
-                      checked={exportScope === "current"}
-                      onChange={() => setExportScope("current")}
-                      label={t("app.exportScopeCurrent")}
-                    />
-                    <IOSToggle
-                      checked={exportScope === "whole"}
-                      onChange={() => setExportScope("whole")}
-                      label={t("app.exportScopeWhole")}
-                    />
-                  </div>
-
-                  <div className="export-option-group">
-                    <span className="export-option-label">{t("app.exportOrientationLabel")}</span>
-                    <IOSToggle
-                      checked={exportOrientation === "vertical"}
-                      onChange={() => setExportOrientation("vertical")}
-                      label={t("app.orientationVertical")}
-                    />
-                    <IOSToggle
-                      checked={exportOrientation === "horizontal"}
-                      onChange={() => setExportOrientation("horizontal")}
-                      label={t("app.orientationHorizontal")}
-                    />
-                  </div>
-
-                  <div className="export-option-group">
-                    <span className="export-option-label">{t("app.exportBackgroundLabel")}</span>
-                    <IOSToggle
-                      checked={exportBackground === "opaque"}
-                      onChange={() => setExportBackground("opaque")}
-                      label={t("app.exportTreeImageWithBg")}
-                    />
-                    <IOSToggle
-                      checked={exportBackground === "transparent"}
-                      onChange={() => setExportBackground("transparent")}
-                      label={t("app.exportTreeImageTransparent")}
-                    />
-                  </div>
-
-                  {exportFormat === "png" && (
-                    <div className="export-option-group">
-                      <span className="export-option-label">{t("app.exportQualityLabel")}</span>
-                      <IOSToggle
-                        checked={exportQuality === "standard"}
-                        onChange={() => setExportQuality("standard")}
-                        label={t("app.exportQualityStandard")}
-                      />
-                      <IOSToggle
-                        checked={exportQuality === "high"}
-                        onChange={() => setExportQuality("high")}
-                        label={t("app.exportQualityHigh")}
-                      />
-                    </div>
-                  )}
-
-                  <button
-                    type="button"
-                    className="btn-primary export-option-submit"
-                    disabled={exportingImage}
-                    onClick={() =>
-                      handleExportTreeImage({
-                        transparent: exportBackground === "transparent",
-                        format: exportFormat,
-                        pixelRatio: exportQuality === "high" ? 4 : 2,
-                        scope: exportScope,
-                        orientation: exportOrientation,
-                      })
-                    }
-                  >
-                    {exportingImage ? t("app.exportingTreeImage") : t("app.exportSubmit")}
-                  </button>
-                </div>
-              )}
+              <button
+                type="button"
+                className="icon-button"
+                onClick={handleOpenUnrelatedWizard}
+                disabled={treeRole === "VIEWER"}
+                aria-label={t("app.unrelatedWizard")}
+                title={t("app.unrelatedWizard")}
+              >
+                <UnresolvedIcon />
+              </button>
+              <button
+                type="button"
+                className="icon-button"
+                onClick={() => setShowLinkPeople(true)}
+                disabled={treeRole === "VIEWER"}
+                aria-label={t("app.linkPeople")}
+                title={t("app.linkPeople")}
+              >
+                <LinkIcon />
+              </button>
+              <button
+                type="button"
+                className="icon-button"
+                onClick={() => setShowTrash(true)}
+                aria-label={t("app.trash")}
+                title={t("app.trash")}
+              >
+                <Trash2Icon />
+              </button>
             </div>
+          </div>
+
+          <button
+            type="button"
+            className="icon-button"
+            onClick={() => setShowGedcom(true)}
+            aria-label={t("app.gedcom")}
+            title={t("app.gedcom")}
+          >
+            <ArrowUpDownIcon />
+          </button>
+
+          {treeRole === "OWNER" && (
+            <button
+              type="button"
+              className="icon-button icon-button-badged"
+              onClick={() => setShowShareModal(true)}
+              aria-label={treeMemberCount > 1 ? t("app.manageGuests", { count: treeMemberCount - 1 }) : t("app.share")}
+              title={treeMemberCount > 1 ? t("app.manageGuests", { count: treeMemberCount - 1 }) : t("app.share")}
+            >
+              <ShareIcon />
+              {treeMemberCount > 1 && <span className="icon-button-badge">{treeMemberCount - 1}</span>}
+            </button>
+          )}
+
+          <button
+            type="button"
+            className="icon-button"
+            onClick={handleToggleOrientation}
+            aria-label={orientation === "vertical" ? t("app.orientationHorizontal") : t("app.orientationVertical")}
+            title={orientation === "vertical" ? t("app.orientationHorizontal") : t("app.orientationVertical")}
+          >
+            <SwitchOrientationIcon />
+          </button>
+
+          <div className="popover-anchor" ref={statsMenuRef} onMouseEnter={revealStatsPanel} onMouseLeave={cancelRevealStatsPanel}>
             <button
               type="button"
               className="icon-button"
-              onClick={handleToggleOrientation}
-              aria-label={orientation === "vertical" ? t("app.orientationHorizontal") : t("app.orientationVertical")}
-              title={orientation === "vertical" ? t("app.orientationHorizontal") : t("app.orientationVertical")}
+              onClick={() => setShowStatsPanel((v) => !v)}
+              aria-label={t("app.statistics")}
+              aria-expanded={showStatsPanel}
+              title={t("app.statistics")}
             >
-              {orientation === "vertical" ? <RowsIcon /> : <ColumnsIcon />}
+              <BarChartIcon />
             </button>
-            {treeRole === "OWNER" && (
-              <button
-                type="button"
-                className="icon-button icon-button-badged"
-                onClick={() => setShowShareModal(true)}
-                aria-label={treeMemberCount > 1 ? t("app.manageGuests", { count: treeMemberCount - 1 }) : t("app.share")}
-                title={treeMemberCount > 1 ? t("app.manageGuests", { count: treeMemberCount - 1 }) : t("app.share")}
-              >
-                <ShareIcon />
-                {treeMemberCount > 1 && <span className="icon-button-badge">{treeMemberCount - 1}</span>}
-              </button>
+            {showStatsPanel && treeId && (
+              <StatisticsPanel
+                treeId={treeId}
+                selectedPersonId={mainPersonId}
+                selectedPersonName={mainPersonName}
+                onClose={() => setShowStatsPanel(false)}
+              />
             )}
           </div>
         </div>
@@ -2606,6 +2587,8 @@ function App() {
           treeId={treeId}
           personId={editingPersonId}
           people={treeData}
+          myIdentityPersonId={myIdentityPersonId}
+          onIdentityChanged={setMyIdentityPersonId}
           onSaved={handlePersonSaved}
           onDeleted={handlePersonDeleted}
           onClose={() => setEditingPersonId(null)}
@@ -2634,6 +2617,9 @@ function App() {
             fetchLineages(treeId).then(setLineages).catch(() => {});
           }}
           onClose={() => setShowGedcom(false)}
+          currentOrientation={orientation}
+          exportingImage={exportingImage}
+          onExportImage={handleExportTreeImage}
         />
       )}
       {wizardIds && (

@@ -127,6 +127,32 @@ export function SearchIcon({ size }: IconProps) {
   );
 }
 
+// Two curved arrows forming a rotate/refresh shape — deliberately not
+// another set of stacked bars (RowsIcon/ColumnsIcon), which sits directly
+// under the hamburger's own three-line MenuIcon and reads as a near-
+// duplicate of it there.
+export function SwitchOrientationIcon({ size }: IconProps) {
+  return (
+    <Svg size={size}>
+      <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+      <path d="M3 3v5h5" />
+      <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16" />
+      <path d="M16 16h5v5" />
+    </Svg>
+  );
+}
+
+export function BarChartIcon({ size }: IconProps) {
+  return (
+    <Svg size={size}>
+      <path d="M3 3v18h18" />
+      <path d="M18 17V9" />
+      <path d="M13 17V5" />
+      <path d="M8 17v-3" />
+    </Svg>
+  );
+}
+
 export function HomeIcon({ size }: IconProps) {
   return (
     <Svg size={size}>

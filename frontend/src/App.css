@@ -25,6 +25,16 @@
   --color-tree-black: #1c1c1c;
   --timeline-width: 132px;
   color-scheme: light;
+
+  /* The statistics panel is a literal black box regardless of which app
+     theme (light/dark) is active — unlike --color-tree-black (which
+     inverts in dark mode, see below), these are intentionally NOT
+     redefined inside :root[data-theme="dark"]. #1c1c1c matches
+     --color-tree-black's own light-mode value for consistency with what
+     "black" already means elsewhere in this app. */
+  --color-panel-black-bg: #1c1c1c;
+  --color-panel-black-text: #f2f0ea;
+  --color-panel-black-border: rgba(255, 255, 255, 0.1);
 }
 
 /* Dark mode is a toggle in Settings (see ThemeSwitcher.tsx), not a
@@ -86,6 +96,7 @@ body {
 }
 
 .app-header {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 1rem;
@@ -126,14 +137,34 @@ body {
   font-family: var(--font-title);
   font-size: 1.725rem;
   font-weight: 700;
-  flex: 1;
-  min-width: 0;
+  /* Width is set inline from JS (see titleInputWidth in TreeView.tsx),
+     measured off .tree-title-measure below — flex: 1 used to stretch this
+     to fill the header row, dragging its amber underline across nearly
+     the whole width instead of just the title text. flex-shrink: 0 keeps
+     it from being squeezed back down once its own width is set. */
+  flex: 0 0 auto;
+  max-width: 100%;
   color: rgba(27, 67, 50, 0.85);
   background: transparent;
   border: none;
   border-bottom: 2px solid var(--color-amber);
   outline: none;
   padding: 0.15rem 0.5rem;
+}
+
+/* Invisible twin of .tree-title-input, same font, used only to measure
+   how wide the current draft text actually is (input elements can't size
+   themselves to their own value). Kept in the document so its offsetWidth
+   is real, but out of the flow and never painted. */
+.tree-title-measure {
+  position: absolute;
+  visibility: hidden;
+  white-space: pre;
+  font-family: var(--font-title);
+  font-size: 1.725rem;
+  font-weight: 700;
+  padding: 0.15rem 0.5rem;
+  pointer-events: none;
 }
 
 /* Both the title and its editable form use a literal rgba(forest, 0.85)
@@ -154,63 +185,162 @@ body {
   gap: 0.4rem;
 }
 
-/* Every per-screen action collapses behind one hamburger icon, revealed
-   (via JS-owned state — see TreeView.tsx's headerMenuOpen; :focus-within
-   stays as a keyboard fallback) as a horizontal row floating over the
-   title instead of pushing it around — see the jelly-pop keyframes below
-   for the reveal itself. */
-.header-menu {
-  position: relative;
-  /* Pushes itself (and pins the hamburger) toward the right edge of the
-     header, regardless of how little space .tree-title ends up needing. */
-  margin-left: auto;
+/* All right-side header actions — search, lineages, edit (the one
+   collapsible menu), export/GEDCOM, share, orientation, statistics, in
+   that fixed order. No hamburger: only the edit menu still collapses, and
+   only the person-editing actions (add, duplicates, unrelated, link,
+   trash) live inside it.
+
+   Base rules here target touch/no-real-hover devices — in practice this
+   is a PWA install, per the user's own framing: without hover there's no
+   native title tooltip, so a bare icon is more ambiguous, and a wide
+   horizontal strip of 7 icons is a worse fit on a phone-width screen than
+   a vertical rail. Positioned out of flow (like the header-quick-actions
+   it replaces) rather than stacked in normal flow, so .app-header's own
+   height never grows to fit it — the earlier bug where that inflated
+   header cut into the tree canvas underneath it. The @media (hover: hover)
+   block further down overrides this back to the single horizontal row for
+   real mouse/trackpad devices. */
+.header-right-actions {
+  position: absolute;
+  top: 100%;
+  right: 1.5rem;
+  margin-top: 0.3rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.3rem;
+  z-index: 15;
 }
 
-/* No plate/pill behind the row — same rule as the person cards: only the
-   icons themselves get a treatment, nothing shaded floats behind them. */
-.header-menu-items {
+/* The edit menu: same JS-owned hover/focus reveal the old hamburger used
+   (see revealEditMenu in TreeView.tsx — real mouseenter/mouseleave with a
+   grace delay proved more reliable than a plain :hover rule; :focus-within
+   stays as a keyboard fallback). On touch/PWA (base rules) it flies out
+   sideways next to the trigger, same as the row of top-level icons it
+   sits inside; the hover-capable override further down switches it to a
+   vertical dropdown straight below instead. */
+.edit-menu {
+  position: relative;
+}
+
+.edit-menu-items {
   position: absolute;
   top: 50%;
   right: calc(100% + 0.4rem);
   transform: translateY(-50%);
   display: flex;
+  flex-direction: row;
   align-items: center;
   gap: 0.3rem;
+  max-width: calc(100vw - 2rem);
+  overflow-x: auto;
+  background: var(--color-surface);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(27, 67, 50, 0.2);
+  padding: 0.4rem;
   opacity: 0;
   pointer-events: none;
   transition: opacity 120ms ease;
   z-index: 20;
 }
 
-/* JS-owned (see TreeView.tsx's headerMenuOpen/revealHeaderMenu) rather
-   than a plain :hover rule — real mouseenter/mouseleave with a grace delay
-   proved far more reliable than the CSS pseudo-class it replaced (see the
-   comment on revealHeaderMenu for why). :focus-within stays as a parallel
-   fallback so tabbing into an item with the keyboard still works even
-   though only the trigger button's own focus calls revealHeaderMenu. */
-.header-menu-open .header-menu-items,
-.header-menu:focus-within .header-menu-items {
+.edit-menu-open .edit-menu-items,
+.edit-menu:focus-within .edit-menu-items {
   opacity: 1;
   pointer-events: auto;
 }
 
-.header-menu-items .icon-button {
+.edit-menu-items .icon-button {
+  display: flex;
+  /* .icon-button's own base rule fixes a bare 36px square (right for an
+     icon-only button everywhere else in the app) — overridden here since
+     this one also carries a text label, sized by its content instead. */
+  width: auto;
+  height: auto;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0.6rem;
+  padding: 0.5rem 0.7rem;
+  border-radius: 6px;
+  white-space: nowrap;
+  /* Without this, flex's default shrink-to-fit squeezes each item below
+     its own label's natural width once all 5 don't fit the container's
+     max-width — since the label itself is nowrap, the squeezed boxes'
+     text overflows and overlaps its neighbors instead of just scrolling
+     (which overflow-x: auto on the container is there to handle). */
+  flex-shrink: 0;
   opacity: 0;
   transform: scale(0.3);
 }
 
-.header-menu-open .header-menu-items .icon-button,
-.header-menu:focus-within .header-menu-items .icon-button {
+.edit-menu-open .edit-menu-items .icon-button,
+.edit-menu:focus-within .edit-menu-items .icon-button {
   animation: jelly-pop 460ms cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
 }
 
-.header-menu-items .icon-button:nth-child(1) { animation-delay: 0ms; }
-.header-menu-items .icon-button:nth-child(2) { animation-delay: 30ms; }
-.header-menu-items .icon-button:nth-child(3) { animation-delay: 60ms; }
-.header-menu-items .icon-button:nth-child(4) { animation-delay: 90ms; }
-.header-menu-items .icon-button:nth-child(5) { animation-delay: 120ms; }
-.header-menu-items .icon-button:nth-child(6) { animation-delay: 150ms; }
-.header-menu-items .icon-button:nth-child(7) { animation-delay: 180ms; }
+.edit-menu-items .icon-button:nth-child(1) { animation-delay: 0ms; }
+.edit-menu-items .icon-button:nth-child(2) { animation-delay: 30ms; }
+.edit-menu-items .icon-button:nth-child(3) { animation-delay: 60ms; }
+.edit-menu-items .icon-button:nth-child(4) { animation-delay: 90ms; }
+.edit-menu-items .icon-button:nth-child(5) { animation-delay: 120ms; }
+
+.edit-menu-items .icon-button:hover {
+  background: rgba(27, 67, 50, 0.06);
+}
+
+.edit-menu-items .icon-button svg {
+  flex-shrink: 0;
+}
+
+/* The explanatory label — kept visible by default (touch/PWA, no hover to
+   reveal the title as a native tooltip instead). Removed entirely by the
+   hover-capable override below. */
+.edit-menu-items .icon-button::after {
+  content: attr(title);
+  font-family: var(--font-ui);
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+/* Real mouse/trackpad devices: the top-level actions collapse back into
+   one plain horizontal row in normal flow, top-aligned with home/back/
+   fit-all, and the edit menu becomes a vertical dropdown straight below
+   its trigger, icon-only — hovering each item already surfaces its title
+   as a native tooltip, so the inline label would just be redundant. */
+@media (hover: hover) and (pointer: fine) {
+  .header-right-actions {
+    position: static;
+    margin-left: auto;
+    margin-top: 0;
+    flex-direction: row;
+  }
+
+  .edit-menu-items {
+    top: calc(100% + 0.4rem);
+    right: 0;
+    left: auto;
+    bottom: auto;
+    transform: none;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.15rem;
+    width: min(260px, 80vw);
+    max-width: none;
+    max-height: calc(100vh - 4rem);
+    overflow-x: visible;
+    overflow-y: auto;
+  }
+
+  .edit-menu-items .icon-button {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .edit-menu-items .icon-button::after {
+    content: none;
+  }
+}
 
 @keyframes jelly-pop {
   0% {
@@ -230,75 +360,6 @@ body {
   100% {
     opacity: 1;
     transform: scale(1);
-  }
-}
-
-/* The row-of-icons reveal above works fine on desktop (plenty of width, a
-   real hover state), but on a phone-width viewport that same row — a
-   dozen icons wide — mostly renders off-screen to the left of the trigger
-   instead of anywhere reachable. Below this width it becomes a vertical
-   dropdown under the trigger instead: narrow enough to always fit, with
-   each icon's own existing `title` (already there for the desktop
-   tooltip) surfaced as a visible label via content: attr(title) — a
-   column of bare icons would be unreadable with no hover state to
-   identify them by on a touch screen. */
-@media (max-width: 640px) {
-  .header-menu-items {
-    top: calc(100% + 0.4rem);
-    right: 0;
-    left: auto;
-    bottom: auto;
-    transform: none;
-    flex-direction: column;
-    align-items: stretch;
-    gap: 0.15rem;
-    width: min(260px, 80vw);
-    max-height: calc(100vh - 4rem);
-    overflow-y: auto;
-    background: var(--color-surface);
-    border-radius: 10px;
-    box-shadow: 0 8px 24px rgba(27, 67, 50, 0.2);
-    padding: 0.4rem;
-  }
-
-  .header-menu-items .icon-button,
-  .header-menu-items .popover-anchor > .icon-button {
-    display: flex;
-    width: 100%;
-    justify-content: flex-start;
-    gap: 0.7rem;
-    padding: 0.55rem 0.7rem;
-    border-radius: 6px;
-  }
-
-  .header-menu-items .icon-button:hover {
-    background: rgba(27, 67, 50, 0.06);
-  }
-
-  /* flex-shrink: 0 on the icon — without it, a label long enough to
-     overflow the row (e.g. "Crear relación entre dos personas") shrinks
-     its *sibling* svg down to 0 width to make room instead, since the svg
-     has no natural min-content size of its own to resist with. The label
-     itself gets the ellipsis treatment as the actual overflow escape
-     valve instead. */
-  .header-menu-items .icon-button svg {
-    flex-shrink: 0;
-  }
-
-  .header-menu-items .icon-button::after {
-    content: attr(title);
-    flex: 1;
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    font-family: var(--font-ui);
-    font-size: 0.9rem;
-    font-weight: 600;
-    white-space: nowrap;
-  }
-
-  .header-menu-items .popover-anchor {
-    width: 100%;
   }
 }
 
@@ -391,6 +452,95 @@ body {
   padding: 0.75rem;
   transform-origin: top right;
   animation: popoverOpen 420ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Layered on top of .popover (className="popover popover-dark stats-panel")
+   rather than forking its positioning/animation — only the decorative
+   surface changes. */
+.popover-dark {
+  background: rgba(28, 28, 28, 0.94);
+  color: var(--color-panel-black-text);
+  border-color: var(--color-panel-black-border);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
+}
+
+.stats-panel {
+  min-width: 280px;
+  max-width: 360px;
+}
+
+.stats-section + .stats-section {
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--color-panel-black-border);
+}
+
+/* The app's body sets Inter at weight 600 globally (the only weights the
+   Google Fonts link otherwise loads are 600/700), which reads as bold
+   throughout the stats panel's prose. Dropped to the light weight (300,
+   added to the font link specifically for this) on every text element
+   here — but deliberately not on .stats-stat-value below, which keeps the
+   app's normal weight so the actual numbers stay easy to scan. */
+.stats-panel,
+.popover-dark .stats-section-heading {
+  font-weight: 300;
+}
+
+.popover-dark .stats-section-heading {
+  margin: 0 0 0.4rem;
+  color: var(--color-amber);
+  font-size: 0.95rem;
+}
+
+.stats-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.15rem 0;
+  font-size: 0.85rem;
+}
+
+.popover-dark .stats-stat-label {
+  color: var(--color-panel-black-text);
+  opacity: 0.75;
+}
+
+.stats-stat-value {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  font-weight: 600;
+}
+
+.popover-dark .stats-sentence,
+.popover-dark .field-hint {
+  color: var(--color-panel-black-text);
+  opacity: 0.75;
+  font-size: 0.8rem;
+  margin: 0.3rem 0;
+}
+
+.stats-sentence {
+  margin: 0.3rem 0;
+  font-size: 0.85rem;
+}
+
+/* The same PersonStatsSection markup, reused inside InfoPanel's own
+   "Estadísticas" tab (a normal light-surface panel, not the forced-black
+   .popover-dark) — light-weight labels, normal-weight numbers, same as
+   the black stats panel, just recolored for this surface instead of
+   relying on .popover-dark's own scoped overrides. */
+.person-stats-tab {
+  font-weight: 300;
+  padding-top: 0.25rem;
+}
+
+.person-stats-tab .stats-stat-label,
+.person-stats-tab .field-hint {
+  color: var(--color-text-secondary);
+}
+
+.person-stats-tab .stats-stat-value {
+  font-weight: 600;
 }
 
 @keyframes popoverItemIn {
@@ -662,11 +812,10 @@ body {
   display: none;
 }
 
-.export-image-popover {
+.export-image-panel {
   display: flex;
   flex-direction: column;
   gap: 0.6rem;
-  min-width: 260px;
 }
 
 /* Each pair of IOSToggle rows below is a mutually-exclusive choice (see

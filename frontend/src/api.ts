@@ -54,6 +54,8 @@ export type TreePerson = {
     deathday?: string;
     birthYear?: number;
     deathYear?: number;
+    birthDateValue?: string;
+    deathDateValue?: string;
     birthPrecision?: string;
     deathPrecision?: string;
     notes?: string;
@@ -426,6 +428,71 @@ export async function updateTreeName(treeId: string, name: string): Promise<{ id
     body: JSON.stringify({ name }),
   });
   return parseJsonOrThrow(res);
+}
+
+export type GeneralStatistics = {
+  sexCounts: { male: number; female: number; unknown: number; total: number };
+  sexPercentages: { male: number; female: number; unknown: number };
+  lineageCount: number;
+  yearRange: { earliest: number; latest: number } | null;
+  longestLived: { individualId: string; name: string; ageYears: number } | null;
+  largestLineage: { lineageId: string; name: string; memberCount: number } | null;
+  largestGeneration: { generation: number; count: number } | null;
+  familyNucleiCount: number;
+  incompleteData: { missingBirth: number; missingDeath: number; missingBoth: number };
+  mostCommonBirthplace: { place: string; count: number } | null;
+};
+
+export type RelationshipResult =
+  | { kind: "self" }
+  | { kind: "direct-ancestor"; degree: number; labelEs: string }
+  | { kind: "direct-descendant"; degree: number; labelEs: string }
+  | { kind: "sibling"; half: boolean; labelEs: string }
+  | { kind: "collateral"; cousinDegree: number; removal: number; labelEs: string }
+  | { kind: "disconnected" };
+
+export type PersonStatistics = {
+  personId: string;
+  ancestorGenerations: number;
+  descendantGenerations: number;
+  totalAncestors: number;
+  totalDescendants: number;
+  age: { years: number; exact: boolean; atDeath: boolean } | null;
+  siblingsCount: number;
+  childrenCount: number;
+  unionsCount: number;
+  parentsAgeAtBirth: { parentId: string; parentName: string; ageYears: number; exact: boolean }[];
+  meNotSet: boolean;
+  generationRelativeToMe: number | null;
+  relationshipToMe: RelationshipResult | null;
+};
+
+export async function fetchStatistics(
+  treeId: string,
+  personId?: string,
+): Promise<{ general: GeneralStatistics; person?: PersonStatistics }> {
+  const qs = personId ? `?personId=${encodeURIComponent(personId)}` : "";
+  const res = await apiFetch(`/trees/${treeId}/statistics${qs}`);
+  return parseJsonOrThrow(res);
+}
+
+export async function fetchMyIdentity(treeId: string): Promise<{ individualId: string | null }> {
+  const res = await apiFetch(`/trees/${treeId}/my-identity`);
+  return parseJsonOrThrow(res);
+}
+
+export async function setMyIdentity(treeId: string, individualId: string): Promise<{ individualId: string | null }> {
+  const res = await apiFetch(`/trees/${treeId}/my-identity`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ individualId }),
+  });
+  return parseJsonOrThrow(res);
+}
+
+export async function clearMyIdentity(treeId: string): Promise<void> {
+  const res = await apiFetch(`/trees/${treeId}/my-identity`, { method: "DELETE" });
+  await throwIfNotOk(res);
 }
 
 export async function fetchLineages(treeId: string): Promise<Lineage[]> {

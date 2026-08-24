@@ -12,6 +12,7 @@ import {
 } from "./api";
 import PersonPicker from "./PersonPicker";
 import RelationshipWizard from "./RelationshipWizard";
+import ExportImagePanel, { type ExportImageOptions } from "./ExportImagePanel";
 
 type FileFormat = "ged" | "csv";
 
@@ -21,6 +22,16 @@ type Props = {
   initialPersonName?: string | null;
   onImported: () => void;
   onClose: () => void;
+  // The tree-image export moved here from its own header popover (see
+  // TreeView.tsx) — this component just renders the picker UI, the actual
+  // capture logic stays in TreeView since it needs the live chart/canvas
+  // refs. Optional: HomeScreen also renders this component (for importing
+  // into a tree before ever opening its canvas), where there's no live
+  // chart to export from — the image-export fieldset simply doesn't render
+  // there.
+  currentOrientation?: "vertical" | "horizontal";
+  exportingImage?: boolean;
+  onExportImage?: (options: ExportImageOptions) => void;
 };
 
 function personLabel(p: Individual): string {
@@ -28,7 +39,16 @@ function personLabel(p: Individual): string {
   return [p.givenNames, surname].filter(Boolean).join(" ");
 }
 
-export default function GedcomView({ treeId, initialPersonId, initialPersonName, onImported, onClose }: Props) {
+export default function GedcomView({
+  treeId,
+  initialPersonId,
+  initialPersonName,
+  onImported,
+  onClose,
+  currentOrientation,
+  exportingImage,
+  onExportImage,
+}: Props) {
   const { t } = useTranslation();
   const [dragging, setDragging] = useState(false);
   const [importing, setImporting] = useState(false);
@@ -192,6 +212,13 @@ export default function GedcomView({ treeId, initialPersonId, initialPersonName,
             </a>
           </p>
         </fieldset>
+
+        {currentOrientation && onExportImage && (
+          <fieldset>
+            <legend>{t("gedcom.exportImageHeading")}</legend>
+            <ExportImagePanel currentOrientation={currentOrientation} exporting={Boolean(exportingImage)} onExport={onExportImage} />
+          </fieldset>
+        )}
 
         <div className="modal-actions">
           <button type="button" onClick={onClose}>
