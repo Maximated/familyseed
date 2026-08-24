@@ -1630,9 +1630,44 @@ function App() {
       else childLinksByFamily.set(famKey, [item]);
     });
 
+    // How many distinct families (marriages) each parent shows up in here —
+    // used below to bail out of the correction when a shared parent has
+    // more than one, rather than assuming "the couple" is unambiguous. Two
+    // different only-child families both hanging off the same parent (a
+    // widow/widower's two marriages, each with one recorded child) each
+    // computed their own "true center" independently and pulled their own
+    // child — and, since the fix below, that child's own spouse — toward
+    // it, with no awareness of each other. Nothing stops those two targets
+    // from landing close enough to cross or overlap, since there's no
+    // single "true center" that's correct for both marriages at once.
+    // Reported as three cards (two children plus one of their spouses)
+    // stacked together under a mother with two husbands.
+    const familyKeysByParent = new Map<string, Set<string>>();
+    childLinksByFamily.forEach((items, famKey) => {
+      const [pid1, pid2] = items[0].parentIds;
+      for (const pid of [pid1, pid2]) {
+        if (!familyKeysByParent.has(pid)) familyKeysByParent.set(pid, new Set());
+        familyKeysByParent.get(pid)!.add(famKey);
+      }
+    });
+
     childLinksByFamily.forEach((items) => {
       if (items.length !== 1) return;
       const { p, targetId, parentIds } = items[0];
+      const hasMultiMarriageParent = parentIds.some((pid) => (familyKeysByParent.get(pid)?.size ?? 0) > 1);
+
+      // A diagonal "true center to the child's real position" line was
+      // tried here and reverted — mathematically correct, but when the
+      // child's own subtree is wide (own spouse + children pushing it far
+      // from either parent), the "true center" can be nowhere near where
+      // family-chart actually drew the child, so the line stretched all
+      // the way across the row, crossing unrelated cards. Left alone,
+      // family-chart's own default (anchored near one parent) has the
+      // milder, already-accepted "comes out of the father, not the
+      // relationship" imperfection — worse than a fully-correct line
+      // would be, but nowhere near as disruptive as one that cuts across
+      // half the canvas.
+      if (hasMultiMarriageParent) return;
 
       // Recomputed fresh on every apply (initial call and every settle
       // re-check below) rather than captured once — re-reads `p.__data__`
@@ -1663,15 +1698,88 @@ function App() {
         const s1Pt = { x: s1.x, y: s1.y };
         const s2Pt = { x: s2.x, y: s2.y };
         const targetPt = { x: target.x, y: target.y };
+        const spouseIds = treeDataRef.current.find((person) => person.id === targetId)?.rels.spouses ?? [];
         const trueMidSpreadLocal = (spreadLocal(s1Pt) + spreadLocal(s2Pt)) / 2;
         const parentDepthLocal = depthLocal(s1Pt);
         const childDepthLocal = depthLocal(targetPt);
-        if (Math.abs(spreadLocal(targetPt) - trueMidSpreadLocal) > 1) {
-          const straightD =
-            orientationRef.current === "horizontal"
-              ? `M${childDepthLocal},${trueMidSpreadLocal}L${parentDepthLocal},${trueMidSpreadLocal}`
-              : `M${trueMidSpreadLocal},${childDepthLocal}L${trueMidSpreadLocal},${parentDepthLocal}`;
-          if (p.getAttribute("d") !== straightD) p.setAttribute("d", straightD);
+        const svgSpreadDelta = trueMidSpreadLocal - spreadLocal(targetPt);
+
+        // Unconditional — not gated behind the delta check below. Confirmed
+        // on the real tree (Michael Kordos) that once the one-time
+        // correction below has run, target.x/.y *already* matches
+        // trueMidSpreadLocal, which drove that check to ~0 — but family-
+        // chart's own later re-render (its own d3 transition, well after
+        // this settle pass) still redraws its default curved elbow `d` for
+        // this child from that very same, already-correct data: its curve
+        // shape isn't actually a function of target.x at all, it just
+        // always renders as if anchored to one parent. Gating this write on
+        // "does the data still look wrong" meant it only ever fired on the
+        // one pass where it did — after that, family-chart's own competing
+        // write always won, silently, with nothing left watching for it.
+        // Recomputing and comparing the *rendered* `d` on every settle,
+        // regardless of how small svgSpreadDelta has become, is what keeps
+        // this self-healing indefinitely instead of just once.
+        const straightD =
+          orientationRef.current === "horizontal"
+            ? `M${childDepthLocal},${trueMidSpreadLocal}L${parentDepthLocal},${trueMidSpreadLocal}`
+            : `M${trueMidSpreadLocal},${childDepthLocal}L${trueMidSpreadLocal},${parentDepthLocal}`;
+        if (p.getAttribute("d") !== straightD) p.setAttribute("d", straightD);
+
+        if (Math.abs(svgSpreadDelta) > 1) {
+          // The child-link's own `d` above is a direct DOM override this
+          // same code re-applies every settle, so it never needs the
+          // underlying datum to be correct. But `target` here is the exact
+          // same node object family-chart's own union-line rendering reads
+          // from too (confirmed by object identity: this person's node is
+          // shared, by reference, between their parent-link's `target` and
+          // their own union-line's `source`/`target` toward a spouse) — so
+          // leaving `target.x`/`target.y` at their original, uncorrected
+          // value meant the union rope toward this child's own spouse kept
+          // drawing from family-chart's original (off-center) layout point
+          // even after this child's *card* got nudged to the true center.
+          // Reported as a couple's connecting line floating disconnected
+          // from both of their (already-correctly-positioned) cards.
+          // Writing the correction back into the shared node — rather than
+          // only ever patching rendered `d` output — means every other
+          // consumer of this same node (this union-line's own applyAllZones
+          // pass, chiefly) picks up the fix automatically on its next read,
+          // the same way family-chart's own rendering would have if it had
+          // laid the child out correctly to begin with.
+          if (orientationRef.current === "horizontal") target.y = trueMidSpreadLocal;
+          else target.x = trueMidSpreadLocal;
+
+          // The child's own spouse-union rope has to move by the same
+          // delta, for the same reason the spouse's *card* gets carried
+          // below by the matching pixel delta: family-chart drew that rope
+          // between the child's original (off-center) point and the
+          // spouse's own point, so leaving the spouse's node untouched
+          // would turn a straight rope into one with only one end
+          // corrected — offset from both cards rather than connecting
+          // either. Found via unionLineEntries (built above, in this same
+          // closure) rather than unionsByPairKeyRef directly, since only an
+          // entry actually carries the live `__data__` node references this
+          // needs to mutate.
+          for (const spouseId of spouseIds) {
+            const spouseEntry = unionLineEntries.find((entry) => {
+              const d = (entry.p as unknown as { __data__?: PathLinkDatum }).__data__;
+              if (!d || Array.isArray(d.source)) return false;
+              const ids = [d.source.data?.id, d.target.data?.id];
+              return ids.includes(targetId) && ids.includes(spouseId);
+            });
+            if (!spouseEntry) continue;
+            const spouseDatum = (spouseEntry.p as unknown as { __data__?: PathLinkDatum }).__data__;
+            const spouseSource = spouseDatum && !Array.isArray(spouseDatum.source) ? spouseDatum.source : null;
+            const spouseNode =
+              spouseSource?.data?.id === spouseId
+                ? spouseSource
+                : spouseDatum?.target.data?.id === spouseId
+                  ? spouseDatum.target
+                  : null;
+            if (!spouseNode || typeof spouseNode.x !== "number" || typeof spouseNode.y !== "number") continue;
+            if (orientationRef.current === "horizontal") spouseNode.y += svgSpreadDelta;
+            else spouseNode.x += svgSpreadDelta;
+          }
+          applyAllZones();
         }
 
         // Pixel-space midpoint of the two parents' own card wrappers, read
@@ -1700,7 +1808,6 @@ function App() {
             // collapsing the gap between the two (sometimes all the way to
             // a full overlap) instead of moving the couple as one, the way
             // family-chart itself drew them.
-            const spouseIds = treeDataRef.current.find((person) => person.id === targetId)?.rels.spouses ?? [];
             for (const spouseId of spouseIds) {
               const spousePos = cardWrapperPixelPos(spouseId);
               if (!spousePos) continue;
