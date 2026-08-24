@@ -1994,7 +1994,21 @@ function App() {
         });
 
         chart.updateMainId(findTopAncestorId(people[0].id, people));
-        chart.updateTree({ initial: true, tree_position: "fit" });
+        // transition_time: 0 only here, on the very first paint — every
+        // later updateTree() call in this file omits it and keeps family-
+        // chart's own default (1000ms), which is the right amount of
+        // motion for actually moving between people. But that same
+        // animation applied to the *initial* mount staggers every card's
+        // entrance with a growing per-generation delay (see family-chart's
+        // own calculateDelay, only applied when props.initial is true) —
+        // on a real-sized tree that's a multi-second cascade of cards
+        // flying in one row at a time before the tree is actually usable,
+        // which reads as an unfinished/cheap-looking load rather than a
+        // deliberate animation. Rendering the first paint already in its
+        // final position (with the loading overlay below covering the
+        // container until this returns) is what a normal app's "loading,
+        // then just... there" moment looks like.
+        chart.updateTree({ initial: true, tree_position: "fit", transition_time: 0 });
         chartRef.current = chart;
         currentMainIdRef.current = chart.getMainDatum().id;
         setMainPersonId(currentMainIdRef.current);
@@ -2962,7 +2976,6 @@ function App() {
           </div>
         </div>
       </header>
-      {loading && <p className="status">{t("app.loadingTree")}</p>}
       {error && <p className="status status-error">{error}</p>}
       {noUnrelatedMessage && <p className="status">{t("relationshipWizard.noneUnrelated")}</p>}
       <div className="main-area">
@@ -2990,6 +3003,21 @@ function App() {
             </defs>
           </svg>
           <div id="FamilyChart" ref={containerRef} className="f3 tree-container" />
+          {/* Covers the canvas until loadTree() resolves and the chart's
+              own first paint (now transition_time: 0, see loadTree) has
+              already landed every card in its final position — so this
+              disappears onto a tree that's already fully assembled,
+              instead of what used to happen: this text sat above an empty
+              canvas that then filled in with a multi-second cascade of
+              cards flying into place underneath it. */}
+          {loading && (
+            <div className="tree-loading-overlay" role="status" aria-live="polite">
+              <div className="tree-loading-bar">
+                <div className="tree-loading-bar-fill" />
+              </div>
+              <p className="tree-loading-label">{t("app.loadingTree")}</p>
+            </div>
+          )}
           <Legend />
           {hoverPreview && (
             <HoverPreview data={hoverPreview.data} x={hoverPreview.x} y={hoverPreview.y} flip={hoverPreview.flip} />

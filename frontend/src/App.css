@@ -779,6 +779,62 @@ body {
   position: relative;
 }
 
+/* Sits over the whole canvas while the tree loads, in the same surface
+   color as the canvas behind it — nothing assembling is ever visible
+   through it. Removed the instant loadTree() resolves, by which point the
+   chart's own first paint has already landed in its final position (see
+   the transition_time: 0 on that call), so there's nothing left to catch
+   mid-motion once this disappears. */
+.tree-loading-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  background: var(--color-bg);
+}
+
+.tree-loading-bar {
+  width: min(240px, 60vw);
+  height: 3px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--color-forest) 15%, transparent);
+}
+
+.tree-loading-bar-fill {
+  height: 100%;
+  width: 40%;
+  border-radius: inherit;
+  background: var(--color-forest);
+  animation: tree-loading-sweep 1.1s ease-in-out infinite;
+}
+
+.tree-loading-label {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--color-text-secondary);
+}
+
+@keyframes tree-loading-sweep {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(350%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tree-loading-bar-fill {
+    animation: none;
+    width: 100%;
+  }
+}
+
 /* Level-navigation buttons (arriba/abajo — ascendant/descendant window for
    whoever's selected), fixed at the canvas edges rather than pinned to the
    selected card, by request. No box of any kind, deliberately — same

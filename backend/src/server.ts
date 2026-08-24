@@ -7,6 +7,7 @@ import cookie from "@fastify/cookie";
 import multipart from "@fastify/multipart";
 import fastifyStatic from "@fastify/static";
 import rateLimit from "@fastify/rate-limit";
+import compress from "@fastify/compress";
 import individualRoutes from "./routes/individuals.js";
 import familyRoutes from "./routes/families.js";
 import treeRoutes from "./routes/tree.js";
@@ -48,6 +49,16 @@ const app = Fastify({ logger: true });
 await mkdir(uploadsRoot(), { recursive: true });
 
 await app.register(cors, isProduction ? { origin: false } : { origin: true, credentials: true });
+// Registered before every route (and, per its own docs, before
+// @fastify/static below) so it compresses both the JSON API responses —
+// GET /trees/:treeId for a real-sized tree runs a couple hundred KB, which
+// gzips down to roughly a seventh of that — and, in production, the built
+// frontend's own JS/CSS bundle served by @fastify/static. Local dev never
+// exercises this at all (Vite's own dev server serves the frontend, not
+// this one), which is part of why a real tree load feels meaningfully
+// slower in production than on localhost even though the DB query itself
+// is fast in both.
+await app.register(compress, { global: true });
 await app.register(cookie, {
   secret: process.env.COOKIE_SECRET ?? "dev-only-insecure-secret-change-me",
   hook: "onRequest",
