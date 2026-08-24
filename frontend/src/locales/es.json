@@ -55,6 +55,10 @@
     "linkPeople": "Crear relación entre dos personas",
     "orientationHorizontal": "Vista horizontal",
     "orientationVertical": "Vista vertical",
+    "expandAncestors": "Mostrar más ascendientes",
+    "collapseAncestors": "Mostrar menos ascendientes",
+    "expandDescendants": "Mostrar más descendientes",
+    "collapseDescendants": "Mostrar menos descendientes",
     "role": "Rol: {{role}}",
     "selfHostedHint": "Modo autohospedado: un único usuario."
   },
@@ -263,9 +267,6 @@
     "deletedOn": "Eliminado el {{date}}",
     "restore": "Restaurar",
     "restoring": "Restaurando…"
-  },
-  "lineageChips": {
-    "clear": "Limpiar"
   },
   "report": {
     "ancestors": "Ascendientes",

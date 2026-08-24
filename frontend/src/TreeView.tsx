@@ -39,7 +39,9 @@ import {
   HomeIcon,
   LinkIcon,
   MaximizeIcon,
+  MinusIcon,
   PencilIcon,
+  PlusIcon,
   SearchIcon,
   ShareIcon,
   SwitchOrientationIcon,
@@ -63,7 +65,12 @@ import { getDefaultOrientation } from "./preferences";
 // setShowSiblingsOfMain above), so "show the whole tree" means widening
 // this rather than switching rendering modes.
 const FIT_ALL_DEPTH = 50;
-const DEFAULT_DEPTH = 3;
+// Starting window for the ascendant/descendant level-navigation buttons —
+// every new selection (a card click, "atrás", or a lineage jump without its
+// own explicit levels) resets to these, never remembered per person (see
+// the reset block inside chart.setAfterUpdate below).
+const DEFAULT_ANCESTOR_LEVELS = 2;
+const DEFAULT_DESCENDANT_LEVELS = 2;
 
 // family-chart's own Datum type requires `gender: 'M' | 'F'`, but our data
 // can omit it (unknown sex) — the library renders a genderless card fine at
@@ -110,6 +117,176 @@ function findTopAncestorId(startId: string, people: TreePerson[]): string {
     current = spouseWithParents;
   }
   return topId;
+}
+
+// Level-by-level BFS from personId, following either rels.parents (up) or
+// rels.children (down) — one call per hop rather than a generic depth-N walk
+// so the level-navigation +/- buttons can ask "is there anyone exactly one
+// level past what's currently shown" without computing the full subset.
+// Dedupes visited ids so a genealogical loop (a cousin marriage closing a
+// cycle) can't spin this forever.
+function levelFrontier(startId: string, hops: number, direction: "parents" | "children", people: TreePerson[]): Set<string> {
+  const byId = new Map(people.map((p) => [p.id, p]));
+  let frontier = new Set<string>([startId]);
+  const visited = new Set<string>([startId]);
+  for (let hop = 0; hop < hops; hop++) {
+    const next = new Set<string>();
+    for (const id of frontier) {
+      const person = byId.get(id);
+      if (!person) continue;
+      for (const relId of person.rels[direction]) {
+        if (visited.has(relId)) continue;
+        visited.add(relId);
+        next.add(relId);
+      }
+    }
+    frontier = next;
+    if (frontier.size === 0) break;
+  }
+  return frontier;
+}
+
+function hasMoreAncestors(personId: string, currentLevels: number, people: TreePerson[]): boolean {
+  return levelFrontier(personId, currentLevels + 1, "parents", people).size > 0;
+}
+
+function hasMoreDescendants(personId: string, currentLevels: number, people: TreePerson[]): boolean {
+  return levelFrontier(personId, currentLevels + 1, "children", people).size > 0;
+}
+
+// family-chart's own "always show main's siblings" (setShowSiblingsOfMain,
+// which this app leaves permanently on — see the spec's own "los hermanos
+// se muestran siempre") looks siblings up straight off raw rels.parents,
+// unaffected by ancestry_depth trimming, but then reaches for the *parent's
+// own hierarchy node* to hang the sibling row off (setupSiblings in
+// family-chart.esm.js). At ancestorLevels 0 that parent node was trimmed
+// away entirely, so the library throws ("no parents") — reproduced directly
+// against family-chart's own calculateTree, not just observed on screen.
+// Selecting someone with recorded siblings therefore can't actually reach 0
+// ancestor levels; 1 is the real floor for them (parents stay visible, but
+// stop there), same as everyone else's floor of 0.
+function hasSiblings(personId: string, people: TreePerson[]): boolean {
+  const person = people.find((p) => p.id === personId);
+  if (!person || person.rels.parents.length === 0) return false;
+  return people.some(
+    (other) => other.id !== personId && other.rels.parents.some((parentId) => person.rels.parents.includes(parentId)),
+  );
+}
+
+function minAncestorLevels(personId: string, people: TreePerson[]): number {
+  return hasSiblings(personId, people) ? 1 : 0;
+}
+
+// Guards every chart.updateMainId(targetId) call site against the same
+// family-chart crash minAncestorLevels' own comment describes: if the
+// tree's *current* ancestry_depth is 0 (reachable when whoever was main
+// before had no siblings) and the person about to become main does have
+// siblings, family-chart throws inside that same updateMainId/updateTree
+// call, before our own reset-to-a-safe-depth logic (inside
+// setAfterUpdate) ever gets a chance to run — it's too late by then, the
+// crash already happened. Call this immediately before every
+// chart.updateMainId(targetId), and the first render of the new person
+// never hits the unsafe depth at all.
+function ensureSafeAncestryDepthFor(chart: ReturnType<typeof f3.createChart>, targetId: string, people: TreePerson[]) {
+  if (chart.store.state.ancestry_depth === 0 && hasSiblings(targetId, people)) {
+    chart.setAncestryDepth(1);
+  }
+}
+
+// Every generation of descendants reachable from refPersonId, breadth-first
+// — used both to find the deepest lineage member (computeLineageDepth) and
+// to score how much of a lineage's tagged membership descends from a given
+// candidate (findLineageRootPerson).
+function descendantGenerations(refPersonId: string, people: TreePerson[]): Map<string, number> {
+  const byId = new Map(people.map((p) => [p.id, p]));
+  const generation = new Map<string, number>([[refPersonId, 0]]);
+  let frontier = [refPersonId];
+  let gen = 0;
+  while (frontier.length > 0) {
+    gen++;
+    const next: string[] = [];
+    for (const id of frontier) {
+      const person = byId.get(id);
+      if (!person) continue;
+      for (const childId of person.rels.children) {
+        if (generation.has(childId)) continue;
+        generation.set(childId, gen);
+        next.push(childId);
+      }
+    }
+    frontier = next;
+  }
+  return generation;
+}
+
+// How many descendant levels below refPersonId are needed to reach every
+// member of a lineage — the "levelDescendientes" a lineage-menu jump opens
+// with, per spec ("todos los descendientes del linaje", computed from the
+// graph rather than a fixed number). Members unreachable as a descendant of
+// refPersonId (shouldn't normally happen if refPersonId really is the
+// lineage's eldest, but data can be messy) are simply ignored — this is a
+// "how wide should the depth window be" number, not a membership filter.
+function computeLineageDepth(refPersonId: string, lineageId: string, people: TreePerson[]): number {
+  const generation = descendantGenerations(refPersonId, people);
+  let maxGen = 0;
+  for (const person of people) {
+    if (!person.data.lineageIds?.includes(lineageId)) continue;
+    const gen = generation.get(person.id);
+    if (gen !== undefined && gen > maxGen) maxGen = gen;
+  }
+  return maxGen;
+}
+
+// "Persona de referencia del linaje": NOT simply "whoever has the earliest
+// birth date" — a lineage tag can catch someone who was born with that
+// surname but married out and left no descendants carrying it (e.g. a
+// daughter who's technically the earliest-dated tagged person, but isn't
+// where "the family" as the user thinks of it actually descends from). Real
+// dates aren't a reliable proxy for "root of this dynasty" once a lineage
+// mixes people from different branches like that.
+//
+// So instead: for each tagged member, count how many *other* tagged members
+// are their own descendants (via descendantGenerations) — the member whose
+// descendants cover the most of the rest of the tagged set is the one the
+// lineage actually hangs off of, regardless of whether they (or their own
+// unknown ancestors) have any date on file at all. Ties (rare — e.g. a
+// couple where either spouse "covers" the same tagged children) break on
+// earliest known/estimated birth (death − 70y assumed-lifespan fallback),
+// then on insertion order as a last, deterministic resort.
+const ASSUMED_LIFESPAN_YEARS = 70;
+
+function estimatedBirthTime(person: TreePerson): number {
+  if (person.data.birthDateValue) return new Date(person.data.birthDateValue).getTime();
+  if (person.data.deathDateValue) {
+    const death = new Date(person.data.deathDateValue);
+    return new Date(death.getFullYear() - ASSUMED_LIFESPAN_YEARS, death.getMonth(), death.getDate()).getTime();
+  }
+  return Infinity;
+}
+
+function findLineageRootPerson(lineageId: string, people: TreePerson[]): TreePerson | null {
+  const members = people.filter((p) => p.data.lineageIds?.includes(lineageId));
+  if (members.length === 0) return null;
+  if (members.length === 1) return members[0];
+  const memberIds = new Set(members.map((m) => m.id));
+
+  let best = members[0];
+  let bestCoverage = -1;
+  let bestTime = Infinity;
+  for (const candidate of members) {
+    const reachable = descendantGenerations(candidate.id, people);
+    let coverage = 0;
+    for (const id of reachable.keys()) {
+      if (memberIds.has(id)) coverage++;
+    }
+    const time = estimatedBirthTime(candidate);
+    if (coverage > bestCoverage || (coverage === bestCoverage && time < bestTime)) {
+      best = candidate;
+      bestCoverage = coverage;
+      bestTime = time;
+    }
+  }
+  return best;
 }
 
 function applyLineageHighlight(container: HTMLElement, people: TreePerson[], selectedIds: Set<string>) {
@@ -587,13 +764,17 @@ function App() {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<ReturnType<typeof f3.createChart> | null>(null);
   const backStackRef = useRef<string[]>([]);
-  const depthModeRef = useRef<"default" | "fitAll">("default");
   const currentMainIdRef = useRef<string | null>(null);
   const isGoingBackRef = useRef(false);
   const treeDataRef = useRef<TreePerson[]>([]);
   const unionsByPairKeyRef = useRef<Map<string, UnionInfo>>(new Map());
   const linkTextCleanupRef = useRef<Array<() => void>>([]);
   const selectedLineageIdsRef = useRef<Set<string>>(new Set());
+  // Set right before a navigation that wants a *different* starting level
+  // window than the plain default (currently: a lineage-menu jump) — read
+  // once and cleared by the reset block inside chart.setAfterUpdate. Null
+  // means "use the plain defaults."
+  const pendingLevelsRef = useRef<{ ancestorLevels: number; descendantLevels: number } | null>(null);
   const lineageMenuRef = useRef<HTMLDivElement>(null);
   const statsMenuRef = useRef<HTMLDivElement>(null);
   const editMenuRef = useRef<HTMLDivElement>(null);
@@ -628,7 +809,17 @@ function App() {
   const [quickAddLoading, setQuickAddLoading] = useState(false);
   const [treeData, setTreeData] = useState<TreePerson[]>([]);
   const [lineages, setLineages] = useState<Lineage[]>([]);
-  const [selectedLineageIds, setSelectedLineageIds] = useState<Set<string>>(new Set());
+  // A single active lineage at a time now (see handleLineageClick) — clicking
+  // one jumps the selection to its eldest member and widens the descendant
+  // window to cover the whole lineage, or (if everyone's already visible)
+  // just highlights/dims like before. selectedLineageIdsRef still mirrors
+  // this as a Set for applyLineageHighlight/runHighlight, unchanged below.
+  const [activeLineageId, setActiveLineageId] = useState<string | null>(null);
+  // The ascendant/descendant level window for whoever's currently selected —
+  // reset to the defaults (or a lineage jump's own values) on every
+  // selection change, see the reset block inside chart.setAfterUpdate.
+  const [ancestorLevels, setAncestorLevels] = useState(DEFAULT_ANCESTOR_LEVELS);
+  const [descendantLevels, setDescendantLevels] = useState(DEFAULT_DESCENDANT_LEVELS);
   const [infoPanel, setInfoPanel] = useState<InfoPanelData | null>(null);
   // The person currently centered on the canvas (family-chart's own
   // "main" person) — mirrors currentMainIdRef into React state so the
@@ -883,6 +1074,7 @@ function App() {
         e.stopPropagation();
         const chart = chartRef.current;
         if (!chart || !personId) return;
+        ensureSafeAncestryDepthFor(chart, personId, treeDataRef.current);
         chart.updateMainId(personId);
         chart.updateTree({});
       };
@@ -1493,12 +1685,32 @@ function App() {
         const childPos = cardWrapperPixelPos(targetId);
         if (parentPositions[0] && parentPositions[1] && childPos) {
           const trueMidSpreadPixel = (spreadPixel(parentPositions[0]) + spreadPixel(parentPositions[1])) / 2;
-          if (Math.abs(spreadPixel(childPos) - trueMidSpreadPixel) > 0.5) {
+          const spreadDelta = trueMidSpreadPixel - spreadPixel(childPos);
+          if (Math.abs(spreadDelta) > 0.5) {
             const nextTransform =
               orientationRef.current === "horizontal"
                 ? `translate(${childPos.x}px, ${trueMidSpreadPixel}px)`
                 : `translate(${trueMidSpreadPixel}px, ${childPos.y}px)`;
             childPos.wrapper.style.transform = nextTransform;
+
+            // family-chart laid the child's own spouse card out at a fixed
+            // offset from the child's *original* position — nudging only
+            // the child here without carrying the spouse along by the same
+            // delta left the spouse's card behind at its old offset,
+            // collapsing the gap between the two (sometimes all the way to
+            // a full overlap) instead of moving the couple as one, the way
+            // family-chart itself drew them.
+            const spouseIds = treeDataRef.current.find((person) => person.id === targetId)?.rels.spouses ?? [];
+            for (const spouseId of spouseIds) {
+              const spousePos = cardWrapperPixelPos(spouseId);
+              if (!spousePos) continue;
+              const nextSpouseSpreadPixel = spreadPixel(spousePos) + spreadDelta;
+              const nextSpouseTransform =
+                orientationRef.current === "horizontal"
+                  ? `translate(${spousePos.x}px, ${nextSpouseSpreadPixel}px)`
+                  : `translate(${nextSpouseSpreadPixel}px, ${spousePos.y}px)`;
+              spousePos.wrapper.style.transform = nextSpouseTransform;
+            }
           }
         }
       };
@@ -1553,13 +1765,29 @@ function App() {
         // real cards below are built from cardTemplate instead.
         card.setCardDisplay([["first name", "last name"], ["birth name"]]);
         card.setCardInnerHtmlCreator(cardTemplate);
+        // A plain card click is the one navigation path that's entirely
+        // internal to family-chart (its own click listener calls this
+        // straight into updateMainId+updateTree) — every other navigation
+        // in this file goes through our own code first, where
+        // ensureSafeAncestryDepthFor is called explicitly before
+        // updateMainId (see its own comment for why). This override is
+        // just that same guard, reached the only other way a navigation
+        // can start.
+        // `d` is family-chart's own TreeDatum — untyped here (matching
+        // CardHtml['onCardClick']'s own `any`) since we only read `.data.id`
+        // off it and otherwise pass it straight through to
+        // onCardClickDefault unmodified.
+        card.setOnCardClick((e: MouseEvent, d: { data: { id: string } }) => {
+          ensureSafeAncestryDepthFor(chart, d.data.id, treeDataRef.current);
+          card.onCardClickDefault(e, d as Parameters<typeof card.onCardClickDefault>[1]);
+        });
         // The very first render of a tree opens on the widest view (same
         // depth + top-ancestor centering as "ver todo el árbol") rather
-        // than a narrow 3-generation slice — landing on a view where half
+        // than a narrow 2-generation slice — landing on a view where half
         // the family is invisible until you go hunt for the right button
-        // isn't a good first impression. Later navigation still narrows
-        // back down to DEFAULT_DEPTH (see handleBack).
-        depthModeRef.current = "fitAll";
+        // isn't a good first impression. Any navigation away from this
+        // first render narrows back down to the default level window (see
+        // the reset block inside setAfterUpdate below).
         chart.setAncestryDepth(FIT_ALL_DEPTH);
         chart.setProgenyDepth(FIT_ALL_DEPTH);
         // Off by default in family-chart — without this, the centered
@@ -1629,7 +1857,29 @@ function App() {
             // tell why, since the chip itself still looks selected.
             if (selectedLineageIdsRef.current.size > 0) {
               selectedLineageIdsRef.current = new Set();
-              setSelectedLineageIds(new Set());
+              setActiveLineageId(null);
+            }
+            // Every new selection starts fresh at the default ascendant/
+            // descendant window — never remembered per person, by request
+            // — unless handleLineageClick queued its own starting window
+            // (0 ascendants, the lineage's own full depth) just before this
+            // navigation. Skipped on the tree's very first render: this
+            // same callback also fires synchronously from the initial
+            // chart.updateTree({initial:true...}) call below, before
+            // chartRef.current is assigned — that first render deliberately
+            // opens wide (see its own comment), so it must not be narrowed
+            // back down to the default window immediately after.
+            if (chartRef.current) {
+              const overrides = pendingLevelsRef.current;
+              pendingLevelsRef.current = null;
+              const nextAncestorLevels = overrides?.ancestorLevels ?? DEFAULT_ANCESTOR_LEVELS;
+              const nextDescendantLevels = overrides?.descendantLevels ?? DEFAULT_DESCENDANT_LEVELS;
+              setAncestorLevels(nextAncestorLevels);
+              setDescendantLevels(nextDescendantLevels);
+              chart.setAncestryDepth(nextAncestorLevels);
+              chart.setProgenyDepth(nextDescendantLevels);
+              chart.updateTree({});
+              return;
             }
           }
           runHighlight();
@@ -1641,11 +1891,18 @@ function App() {
         chartRef.current = chart;
         currentMainIdRef.current = chart.getMainDatum().id;
         setMainPersonId(currentMainIdRef.current);
+        // The first render above already opened at FIT_ALL_DEPTH, so the
+        // level-navigation buttons' own state needs to agree (otherwise the
+        // + button would claim there's more to reveal when everything's
+        // already on screen).
+        setAncestorLevels(FIT_ALL_DEPTH);
+        setDescendantLevels(FIT_ALL_DEPTH);
         return;
       }
 
       chartRef.current.updateData(people as unknown as ChartData);
       if (recenterOnId) {
+        ensureSafeAncestryDepthFor(chartRef.current, recenterOnId, people);
         chartRef.current.updateMainId(recenterOnId);
       }
       chartRef.current.updateTree({});
@@ -1734,9 +1991,9 @@ function App() {
   }, [treeId]);
 
   useEffect(() => {
-    selectedLineageIdsRef.current = selectedLineageIds;
+    selectedLineageIdsRef.current = new Set(activeLineageId ? [activeLineageId] : []);
     runHighlight();
-  }, [selectedLineageIds, runHighlight]);
+  }, [activeLineageId, runHighlight]);
 
   useEffect(() => {
     if (!showLineageMenu) return;
@@ -1820,17 +2077,11 @@ function App() {
     const previousId = backStackRef.current.pop();
     if (!chart || !previousId) return;
 
-    // "Ver todo el árbol" widens how many generations render (see
-    // handleFitAll below) — stepping back to a previously visited person is
-    // a good moment to return to the normal focused view instead of
-    // carrying that wide view forward indefinitely.
-    if (depthModeRef.current === "fitAll") {
-      depthModeRef.current = "default";
-      chart.setAncestryDepth(DEFAULT_DEPTH);
-      chart.setProgenyDepth(DEFAULT_DEPTH);
-    }
-
+    // No need to special-case "coming back from ver-todo-el-árbol" here
+    // anymore — every mainId change (this one included) already resets the
+    // level window back to the defaults inside setAfterUpdate's reset block.
     isGoingBackRef.current = true;
+    ensureSafeAncestryDepthFor(chart, previousId, treeDataRef.current);
     chart.updateMainId(previousId);
     chart.updateTree({});
     setCanGoBack(backStackRef.current.length > 0);
@@ -1852,10 +2103,83 @@ function App() {
     const chart = chartRef.current;
     if (!chart) return;
     const topAncestorId = findTopAncestorId(chart.getMainDatum().id, treeDataRef.current);
-    depthModeRef.current = "fitAll";
+    // Recentering on topAncestorId changes mainId, which would otherwise
+    // trigger setAfterUpdate's own reset back down to the default level
+    // window — queuing FIT_ALL_DEPTH here makes that reset a no-op instead
+    // (see pendingLevelsRef), so it lands on and stays at the wide view.
+    pendingLevelsRef.current = { ancestorLevels: FIT_ALL_DEPTH, descendantLevels: FIT_ALL_DEPTH };
     chart.setAncestryDepth(FIT_ALL_DEPTH);
     chart.setProgenyDepth(FIT_ALL_DEPTH);
     chart.updateMainId(topAncestorId);
+    chart.updateTree({ tree_position: "fit" });
+  }
+
+  function handleAncestorLevelsChange(delta: 1 | -1) {
+    const chart = chartRef.current;
+    if (!chart || !mainPersonId) return;
+    const min = minAncestorLevels(mainPersonId, treeDataRef.current);
+    const next = Math.max(min, ancestorLevels + delta);
+    if (next === ancestorLevels) return;
+    setAncestorLevels(next);
+    chart.setAncestryDepth(next);
+    chart.updateTree({});
+  }
+
+  function handleDescendantLevelsChange(delta: 1 | -1) {
+    const chart = chartRef.current;
+    if (!chart) return;
+    const next = Math.max(0, descendantLevels + delta);
+    if (next === descendantLevels) return;
+    setDescendantLevels(next);
+    chart.setProgenyDepth(next);
+    chart.updateTree({});
+  }
+
+  // Clicking a lineage jumps straight to seeing the whole thing: select its
+  // root person (findLineageRootPerson) and widen the descendant window to
+  // the lineage's own real depth (computeLineageDepth), rather than the
+  // usual narrow 2/2 default — the opposite starting point from clicking a
+  // person directly, by request. Exception: if every member is already on
+  // screen, don't touch the selection at all — just pin the existing
+  // highlight/dim treatment (applyLineageHighlight/runHighlight), the same
+  // "this lineage is right here" nudge this button already gave before this
+  // feature existed.
+  function handleLineageClick(lineageId: string) {
+    if (activeLineageId === lineageId) {
+      setActiveLineageId(null);
+      return;
+    }
+    const people = treeDataRef.current;
+    const members = people.filter((person) => person.data.lineageIds?.includes(lineageId));
+    if (members.length === 0) return;
+
+    const renderedIds = new Set(
+      Array.from(containerRef.current?.querySelectorAll<HTMLElement>(".card[data-id]") ?? []).map((card) =>
+        (card.dataset.id ?? "").replace(/--x\d+$/, ""),
+      ),
+    );
+    const allVisible = members.every((person) => renderedIds.has(person.id));
+    if (allVisible) {
+      setActiveLineageId(lineageId);
+      return;
+    }
+
+    const chart = chartRef.current;
+    const root = findLineageRootPerson(lineageId, people);
+    if (!chart || !root) return;
+    setActiveLineageId(null);
+    pendingLevelsRef.current = {
+      // Normally 0 (the root shouldn't need its own ancestors shown) — but
+      // if the root has recorded siblings, family-chart's own "always show
+      // main's siblings" needs their shared parent's hierarchy node to
+      // exist to hang the sibling row off, or it throws (see
+      // minAncestorLevels's own comment). 1 keeps that parent visible
+      // instead of crashing the jump.
+      ancestorLevels: minAncestorLevels(root.id, people),
+      descendantLevels: computeLineageDepth(root.id, lineageId, people),
+    };
+    ensureSafeAncestryDepthFor(chart, root.id, people);
+    chart.updateMainId(root.id);
     chart.updateTree({ tree_position: "fit" });
   }
 
@@ -2248,6 +2572,7 @@ function App() {
   function handleNavigateToPerson(personId: string) {
     const chart = chartRef.current;
     if (chart) {
+      ensureSafeAncestryDepthFor(chart, personId, treeDataRef.current);
       chart.updateMainId(personId);
       chart.updateTree({});
     }
@@ -2294,6 +2619,10 @@ function App() {
 
   const mainPerson = treeData.find((person) => person.id === mainPersonId) ?? null;
   const mainPersonName = mainPerson ? `${mainPerson.data["first name"]} ${mainPerson.data["last name"]}`.trim() : null;
+  const canExpandAncestors = mainPersonId ? hasMoreAncestors(mainPersonId, ancestorLevels, treeData) : false;
+  const canCollapseAncestors = mainPersonId ? ancestorLevels > minAncestorLevels(mainPersonId, treeData) : false;
+  const canExpandDescendants = mainPersonId ? hasMoreDescendants(mainPersonId, descendantLevels, treeData) : false;
+  const canCollapseDescendants = descendantLevels > 0;
 
   return (
     <div className={`app${orientation === "horizontal" ? " app-orientation-horizontal" : ""}`}>
@@ -2374,7 +2703,7 @@ function App() {
             </button>
             {showLineageMenu && (
               <div className="popover lineage-popover">
-                <LineageChips lineages={lineages} selectedIds={selectedLineageIds} onChange={setSelectedLineageIds} />
+                <LineageChips lineages={lineages} activeId={activeLineageId} onSelect={handleLineageClick} />
                 <button
                   type="button"
                   className="union-notes-edit-link"
@@ -2557,6 +2886,64 @@ function App() {
           <Legend />
           {hoverPreview && (
             <HoverPreview data={hoverPreview.data} x={hoverPreview.x} y={hoverPreview.y} flip={hoverPreview.flip} />
+          )}
+          {/* Level-navigation buttons for whoever's currently selected —
+              arriba/abajo widen or narrow the ascendant/descendant window
+              (chart.setAncestryDepth/setProgenyDepth) one generation at a
+              time. Fixed at the canvas edges rather than pinned to the
+              selected card (by request), so they live here as canvas
+              overlay chrome, not inside family-chart's own container. */}
+          {mainPersonId && (canExpandAncestors || canCollapseAncestors) && (
+            <div className="level-nav-row level-nav-top">
+              {canCollapseAncestors && (
+                <button
+                  type="button"
+                  className="level-nav-button"
+                  onClick={() => handleAncestorLevelsChange(-1)}
+                  aria-label={t("app.collapseAncestors")}
+                  title={t("app.collapseAncestors")}
+                >
+                  <MinusIcon size={28} />
+                </button>
+              )}
+              {canExpandAncestors && (
+                <button
+                  type="button"
+                  className="level-nav-button"
+                  onClick={() => handleAncestorLevelsChange(1)}
+                  aria-label={t("app.expandAncestors")}
+                  title={t("app.expandAncestors")}
+                >
+                  <PlusIcon size={28} />
+                </button>
+              )}
+            </div>
+          )}
+          {mainPersonId && (canExpandDescendants || canCollapseDescendants) && (
+            <div className="level-nav-row level-nav-bottom">
+              {canCollapseDescendants && (
+                <button
+                  type="button"
+                  className="level-nav-button"
+                  onClick={() => handleDescendantLevelsChange(-1)}
+                  aria-label={t("app.collapseDescendants")}
+                  title={t("app.collapseDescendants")}
+                >
+                  <MinusIcon size={28} />
+                </button>
+              )}
+              {canExpandDescendants && (
+                <button
+                  type="button"
+                  className="level-nav-button"
+                  onClick={() => handleDescendantLevelsChange(1)}
+                  aria-label={t("app.expandDescendants")}
+                  title={t("app.expandDescendants")}
+                >
+                  <PlusIcon size={28} />
+                </button>
+              )}
+            </div>
           )}
         </div>
         {/* Timeline is currently unhooked here (not deleted — see

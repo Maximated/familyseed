@@ -55,6 +55,10 @@
     "linkPeople": "Link two people",
     "orientationHorizontal": "Horizontal view",
     "orientationVertical": "Vertical view",
+    "expandAncestors": "Show more ancestors",
+    "collapseAncestors": "Show fewer ancestors",
+    "expandDescendants": "Show more descendants",
+    "collapseDescendants": "Show fewer descendants",
     "role": "Role: {{role}}",
     "selfHostedHint": "Self-hosted mode: single user."
   },
@@ -263,9 +267,6 @@
     "deletedOn": "Deleted on {{date}}",
     "restore": "Restore",
     "restoring": "Restoring…"
-  },
-  "lineageChips": {
-    "clear": "Clear"
   },
   "report": {
     "ancestors": "Ancestors",

@@ -282,3 +282,29 @@ export function MaximizeIcon({ size }: IconProps) {
     </Svg>
   );
 }
+
+export function PlusIcon({ size }: IconProps) {
+  return (
+    <Svg size={size}>
+      <path d="M5 12h14" />
+      <path d="M12 5v14" />
+    </Svg>
+  );
+}
+
+export function MinusIcon({ size }: IconProps) {
+  return (
+    <Svg size={size}>
+      <path d="M5 12h14" />
+    </Svg>
+  );
+}
+
+export function ArrowRightIcon({ size }: IconProps) {
+  return (
+    <Svg size={size}>
+      <path d="M5 12h14" />
+      <path d="m12 5 7 7-7 7" />
+    </Svg>
+  );
+}

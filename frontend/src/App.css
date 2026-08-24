@@ -776,6 +776,54 @@ body {
   position: relative;
 }
 
+/* Level-navigation buttons (arriba/abajo — ascendant/descendant window for
+   whoever's selected), fixed at the canvas edges rather than pinned to the
+   selected card, by request. No box of any kind, deliberately — same
+   opacity + drop-shadow recipe as the union marriage mark
+   (.union-mark-icons below) rather than the app's usual .icon-button plate,
+   just without that icon's hover-only reveal: these stay visible by
+   default (partly transparent) since there's no line to hover first. */
+.level-nav-row {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 0.75rem;
+  z-index: 5;
+  pointer-events: none;
+}
+
+.level-nav-top {
+  top: 0.75rem;
+}
+
+.level-nav-bottom {
+  bottom: 0.75rem;
+}
+
+.level-nav-button {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  padding: 0.35rem;
+  margin: 0;
+  color: var(--color-forest);
+  opacity: 0.55;
+  cursor: pointer;
+  filter: drop-shadow(0 1px 3px var(--color-union-hover-shadow));
+  transition: opacity 150ms ease, transform 150ms ease, filter 150ms ease;
+}
+
+.level-nav-button:hover,
+.level-nav-button:focus-visible {
+  opacity: 1;
+  transform: scale(1.15);
+  filter: drop-shadow(0 2px 6px var(--color-union-hover-shadow));
+}
+
 .tree-container {
   position: relative;
   /* z-index: 0 (not auto) confines the watermark pseudo-element's

@@ -55,6 +55,10 @@
     "linkPeople": "Połącz dwie osoby",
     "orientationHorizontal": "Widok poziomy",
     "orientationVertical": "Widok pionowy",
+    "expandAncestors": "Pokaż więcej przodków",
+    "collapseAncestors": "Pokaż mniej przodków",
+    "expandDescendants": "Pokaż więcej potomków",
+    "collapseDescendants": "Pokaż mniej potomków",
     "role": "Rola: {{role}}",
     "selfHostedHint": "Tryb własnego serwera: pojedynczy użytkownik."
   },
@@ -263,9 +267,6 @@
     "deletedOn": "Usunięto {{date}}",
     "restore": "Przywróć",
     "restoring": "Przywracanie…"
-  },
-  "lineageChips": {
-    "clear": "Wyczyść"
   },
   "report": {
     "ancestors": "Przodkowie",
