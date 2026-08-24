@@ -20,6 +20,7 @@
      reasoning — same logic as amber/male/female/other already not
      changing between themes. */
   --color-union-highlight: #a34de0;
+  --color-union-hover-shadow: rgba(0, 0, 0, 0.55);
   --color-text-secondary: #374151;
   --color-tree-black: #1c1c1c;
   --timeline-width: 132px;
@@ -42,6 +43,14 @@
   --color-forest: #cfe3d8;
   --color-text-secondary: #a3b3ac;
   --color-tree-black: #e7e7e2;
+  /* The union-line hover shadow (see union-line-hover-pulse) is a dark
+     shadow by design on a light ground — invisible against dark mode's own
+     dark background, so it inverts to a light glow instead here. Higher
+     alpha than the light-mode value needs — the line itself is already a
+     light color in dark mode (--color-forest inverts too), so a light
+     shadow around an already-light line needs more strength to still read
+     as a distinct highlight rather than just a soft blur. */
+  --color-union-hover-shadow: rgba(255, 255, 255, 0.85);
   color-scheme: dark;
 }
 
@@ -426,6 +435,69 @@ body {
   font-weight: 700;
 }
 
+/* The edit-person form's own lineage chips (assigned lineages only, see
+   EditPersonForm.tsx) — deliberately a separate class from .lineage-list-*
+   above, which the tree's lineage-*filter* popover (LineageChips.tsx) also
+   uses; this one is a chip with its own inline remove "×" rather than a
+   plain toggleable text row, and shouldn't share style changes with that
+   unrelated popover. */
+.person-lineage-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-bottom: 0.5rem;
+}
+
+.person-lineage-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: var(--color-other);
+  border: none;
+  border-radius: 999px;
+  padding: 0.25rem 0.6rem;
+  font-family: var(--font-name);
+  font-size: 0.85rem;
+  color: var(--color-forest);
+  cursor: pointer;
+}
+
+.person-lineage-chip span {
+  opacity: 0.65;
+  font-size: 0.9em;
+}
+
+.person-lineage-chip:hover span {
+  opacity: 1;
+}
+
+.person-lineage-add-select {
+  width: 100%;
+}
+
+/* Surname autocomplete-from-parent hint (see surnameSuggestions.ts) — a
+   small accept-or-ignore pill under the empty field, not a native
+   autocomplete dropdown, so it reads the same on web and the PWA's touch
+   keyboard. */
+.surname-suggestion-pill {
+  display: inline-flex;
+  align-self: flex-start;
+  margin-top: 0.25rem;
+  background: none;
+  border: 1px dashed var(--color-forest);
+  border-radius: 999px;
+  padding: 0.15rem 0.55rem;
+  font-size: 0.8rem;
+  color: var(--color-forest);
+  opacity: 0.75;
+  cursor: pointer;
+}
+
+.surname-suggestion-pill:hover {
+  opacity: 1;
+  background: var(--color-other);
+}
+
 .lineage-list-clear {
   background: none;
   border: none;
@@ -681,48 +753,55 @@ body {
 }
 
 /* A union's own line needs to visibly read as different from every other
-   connecting line — dashes that slowly travel along it (a real ants-march
-   effect: stroke-dashoffset ticking down forever) in the same color as
-   every other line. Round dots (the first version of this) read as too
-   subtle a difference on their own; a moving dash is unmistakable without
-   needing color to do all the work too. */
+   connecting line — a thick, round-capped rope-colored stroke (color set
+   per line in applyAllZones) with its own knot stamped once at the line's
+   midpoint (see the #union-knot <symbol> and .union-line-knot below). A
+   flowing dashed line, a classic genealogy "double line", a tiled
+   chain-link <pattern>, and dots at each end were all tried before this —
+   the dots in particular turned out to land right behind each card's own
+   avatar (family-chart layers its HTML cards above this whole SVG canvas),
+   so they were never actually visible. */
 .f3 path.link.union-line {
-  stroke: var(--color-forest);
-  stroke-width: 2.5px;
+  stroke-width: 3px;
   stroke-linecap: round;
   stroke-linejoin: round;
-  stroke-dasharray: 6 5;
-  animation: union-line-flow 1.4s linear infinite;
 }
 
-/* One full dash-plus-gap cycle (6 + 5 = 11 local units) — an exact loop,
-   so it never visibly jumps or stutters at the seam. */
-@keyframes union-line-flow {
-  from {
-    stroke-dashoffset: 0;
+/* Hover feedback used to be a CSS :has() rule reacting to the hitarea's
+   native :hover — dropped because every union's own elements are flat
+   siblings inside one shared SVG group (family-chart draws all links into
+   a single <g>), so a sibling-combinator selector couldn't be scoped to
+   just *this* union's own line without also matching others (see the
+   union-icon-hover bug this caused). A JS-toggled class on this specific
+   closure's own elements (see wireCardAndUnionClicks' handleEnter/
+   handleLeave) can't cross-match another union's line, at the cost of the
+   couple-millisecond JS-vs-native-:hover difference, which doesn't matter
+   here since the icon reveal in the same handler already needs JS anyway.
+   A pulsing shadow (fading in and out for as long as the hover holds)
+   rather than the earlier flat lavender glow, per request — the line
+   itself stays the app's usual palette, the pulse alone marks it as
+   interactive. --color-union-hover-shadow inverts to a light shadow in
+   dark mode (see :root[data-theme="dark"]) — a dark shadow is invisible
+   against that theme's own dark background. */
+.union-line-glow.union-line {
+  animation: union-line-hover-pulse 1.1s ease-in-out infinite;
+}
+
+@keyframes union-line-hover-pulse {
+  0%,
+  100% {
+    filter: drop-shadow(0 0 0 transparent);
   }
-  to {
-    stroke-dashoffset: -11;
+  50% {
+    filter: drop-shadow(0 2px 4px var(--color-union-hover-shadow));
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .f3 path.link.union-line {
+  .union-line-glow.union-line {
     animation: none;
+    filter: drop-shadow(0 2px 4px var(--color-union-hover-shadow));
   }
-}
-
-/* The neon-violet glow only shows up on hover now — by request, a glow
-   that's always on stopped reading as a hover cue at all. path.link comes
-   *before* its own hitarea sibling in the DOM (painted underneath it, on
-   purpose — see that rule's own comment), so reacting to the hitarea's
-   hover state means reaching forward with :has() rather than the more
-   common "hover a wrapper, style a later child" pattern. Native :hover,
-   not a JS-driven class — genuinely zero-delay, so the glow appears before
-   the separate 1s hover-preview timer (see wireCardAndUnionClicks) even
-   starts counting down. */
-.f3 path.link.union-line:has(+ .union-line-hitarea:hover) {
-  filter: drop-shadow(0 0 2px var(--color-union-highlight)) drop-shadow(0 0 6px var(--color-union-highlight));
 }
 
 /* A union's own line is the click/hover target on the live canvas (see
@@ -737,6 +816,15 @@ body {
   stroke: transparent;
   stroke-width: 22px;
   cursor: pointer;
+}
+
+/* The rope's own knot (see the #union-knot <symbol> near the tree
+   container and its placement in applyAllZones) — sits visually on top of
+   .union-line-hitarea, so pointer-events are off here to let hover/click
+   fall through to the hitarea underneath rather than being swallowed by
+   the knot's own opaque fill. */
+.union-line-knot {
+  pointer-events: none;
 }
 
 /* The marriage/divorce/etc. mark itself (.union-mark-icons) — positioned
@@ -974,33 +1062,6 @@ body {
   opacity: 1;
   transform: translateY(0);
   pointer-events: auto;
-}
-
-/* Drag-to-link overlay: sits above every family-chart layer so the branch
-   is always drawn on top of cards, but stays empty (and so invisible and
-   non-interactive) outside of an active drag — see startRelateDrag in
-   TreeView. */
-.relate-drag-overlay {
-  position: absolute;
-  inset: 0;
-  z-index: 30;
-  pointer-events: none;
-  overflow: visible;
-}
-
-.branch-drag-path {
-  fill: none;
-  stroke: var(--color-forest);
-  stroke-width: 3;
-  stroke-linecap: round;
-  opacity: 0.75;
-}
-
-/* Highlights whichever card is currently under the dragged branch as a
-   valid drop target. */
-.card.relate-target .card-avatar,
-.card.relate-target .card-avatar-placeholder {
-  box-shadow: 0 0 0 4px var(--color-amber);
 }
 
 .legend-item {
@@ -1357,10 +1418,10 @@ body {
   text-align: center;
 }
 
-/* The expand/edit/relate corner toggles are hover-revealed together, at
+/* The expand/edit/quick-add corner toggles are hover-revealed together, at
    the same moment, to keep the card uncluttered by default — one hover
    away instead of always on show. Expand/edit sit at the top corners;
-   relate takes the bottom right. The ancestry toggle (bottom left) is
+   quick-add takes the bottom right. The ancestry toggle (bottom left) is
    deliberately NOT part of that hover group — it's an at-a-glance signal
    ("there's more above this person") rather than an action someone needs
    to go looking for, so it stays visible on its own whenever it applies;
@@ -1369,7 +1430,7 @@ body {
    parent data. */
 .card-expand-toggle,
 .card-edit-toggle,
-.card-relate-toggle {
+.card-quickadd-toggle {
   position: absolute;
   width: 20px;
   height: 20px;
@@ -1383,7 +1444,7 @@ body {
   color: var(--color-bg);
   cursor: pointer;
   opacity: 0;
-  transition: opacity 150ms ease, background 150ms ease;
+  transition: opacity 150ms ease, background 150ms ease, transform 150ms ease;
 }
 
 .card-ancestry-toggle {
@@ -1400,6 +1461,29 @@ body {
   color: var(--color-bg);
   cursor: pointer;
   transition: background 150ms ease, transform 150ms ease;
+  /* The one corner button that's always-on rather than hover-revealed
+     (see the comment above) gets its own always-on cue to match: a slow
+     lavender breathing glow marking "there's something here" at rest,
+     replaced by the same amber+grow hover treatment every other corner
+     button gets the moment it's actually interacted with (see below). */
+  animation: ancestry-toggle-glow 2.4s ease-in-out infinite;
+}
+
+@keyframes ancestry-toggle-glow {
+  0%,
+  100% {
+    filter: drop-shadow(0 0 1px var(--color-union-highlight));
+  }
+  50% {
+    filter: drop-shadow(0 0 5px var(--color-union-highlight));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card-ancestry-toggle {
+    animation: none;
+    filter: drop-shadow(0 0 3px var(--color-union-highlight));
+  }
 }
 
 .card-expand-toggle {
@@ -1412,14 +1496,9 @@ body {
   left: -6px;
 }
 
-.card-relate-toggle {
+.card-quickadd-toggle {
   bottom: -6px;
   right: -6px;
-  /* Dragging starts on pointerdown — this button has no click/tap
-     behavior of its own, so the browser's touch scroll/zoom gestures
-     would otherwise fight the drag on touch devices. */
-  touch-action: none;
-  cursor: grab;
 }
 
 .card-ancestry-toggle {
@@ -1429,36 +1508,35 @@ body {
 
 .card:hover .card-expand-toggle,
 .card:hover .card-edit-toggle,
-.card:hover .card-relate-toggle {
+.card:hover .card-quickadd-toggle {
   opacity: 1;
-}
-
-.card-ancestry-toggle:hover {
-  transform: scale(1.15);
 }
 
 .card-expand-toggle svg,
 .card-edit-toggle svg,
-.card-relate-toggle svg,
+.card-quickadd-toggle svg,
 .card-ancestry-toggle svg {
   width: 12px;
   height: 12px;
 }
 
+/* All four corner buttons share one hover treatment now — turn amber and
+   grow — including the ancestry toggle, whose only remaining difference is
+   the always-on glow above (explicitly cancelled here so hovering it reads
+   exactly like the other three, no lingering glow underneath). */
 .card-expand-toggle:hover,
 .card-edit-toggle:hover,
-.card-relate-toggle:hover,
+.card-quickadd-toggle:hover,
 .card-ancestry-toggle:hover {
   background: var(--color-amber);
+  transform: scale(1.3);
+  animation: none;
+  filter: none;
 }
 
 .card-edit-toggle svg {
   width: 12px;
   height: 12px;
-}
-
-.card-edit-toggle:hover {
-  background: var(--color-amber);
 }
 
 /* Header row: a small icon badge + title/subtitle, echoing a calendar-
@@ -2084,22 +2162,94 @@ body {
 
 /* A union's own full panel (see InfoPanel.tsx), opened by clicking/tapping
    the connecting line — same translucent, blurred look as the hover-
-   preview it grew out of, kept as its own modifier rather than changing
-   .modal-panel itself so a person's own panel stays the plain opaque
-   surface it's always been. Still a real modal underneath (the dimmed
-   .modal-backdrop, the same close/edit/delete affordances) — only the
-   surface treatment changes. No manual -webkit-backdrop-filter line here
-   — see .legend-trigger's own comment on why that silently kills this in
-   the production build. */
+   preview it grew out of, kept as its own modifier (rather than folding
+   into .modal-panel-frosted below) since the lavender tint is specifically
+   a union thing. Still a real modal underneath (the dimmed .modal-
+   backdrop, the same close/edit/delete affordances) — only the surface
+   treatment changes. No manual -webkit-backdrop-filter line here — see
+   .legend-trigger's own comment on why that silently kills this in the
+   production build. */
 .info-panel-union {
   background: rgba(220, 203, 234, 0.35);
   backdrop-filter: blur(14px);
   box-shadow: 0 12px 32px rgba(27, 67, 50, 0.22);
 }
 
+/* The neutral counterpart — a person's own full panel, the create/edit
+   forms, and the quick-add kind picker all asked for the same
+   transparency-plus-blur treatment the union panel already had, just
+   without a color tint of its own. color-mix keeps this a translucent
+   version of the theme's own surface color rather than a fixed rgba, so it
+   stays correct in both light and dark mode without a separate override
+   block. Same no-webkit-prefix note as above. */
+.modal-panel-frosted {
+  background: color-mix(in srgb, var(--color-surface) 62%, transparent);
+  backdrop-filter: blur(14px);
+  box-shadow: 0 12px 32px rgba(27, 67, 50, 0.18);
+}
+
 .modal-panel h2 {
   margin: 0 0 1rem;
   font-size: 1.1rem;
+}
+
+/* The card's "+" button opens this — same width as every other dialog
+   (AddPersonForm's own relation fieldset is the same size), just with far
+   less content. A dedicated narrower width made the standard-size Cancelar
+   button look oversized by comparison instead. Each option is plain
+   clickable text (see .quickadd-kind-link below), not a boxed toggle row —
+   by request, so picking one reacts instantly instead of holding on an
+   on-animation before the panel changes. */
+.quickadd-kind-list {
+  list-style: none;
+  margin: 0 0 1rem;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.quickadd-kind-link {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  font-weight: 600;
+  color: var(--color-forest);
+  cursor: pointer;
+}
+
+.quickadd-kind-link:hover:not(:disabled) {
+  text-decoration: underline;
+}
+
+.quickadd-kind-link:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* The create/edit person form's own heading: the person's live name (as
+   typed, so it updates while filling in the form) takes the place of the
+   old static "Editar persona"/"Añadir persona" title, which now sits below
+   as a small eyebrow instead — same title/subtitle relationship as
+   InfoPanel's own header, just inverted (name first, action second),
+   since here the name is the more useful thing to see at a glance. */
+.person-form-heading {
+  margin: 0 0 1rem;
+}
+
+.person-form-name {
+  margin: 0;
+  font-size: 1.3rem;
+}
+
+.person-form-subtitle {
+  margin: 0.15rem 0 0;
+  font-size: 0.85rem;
+  color: var(--color-text-secondary);
 }
 
 .modal-panel fieldset {
@@ -2127,7 +2277,12 @@ body {
   margin: 0.4rem 0;
 }
 
-.modal-panel fieldset:last-of-type > label {
+/* Was `fieldset:last-of-type` — broke once EditPersonForm started adding
+   the photo/document gallery fieldsets after this one (see
+   EditPersonForm.tsx), since this fieldset stopped being positionally
+   last. An explicit class on the person-detail fieldset itself (both
+   Add/EditPersonForm) is what actually identifies it. */
+.modal-panel fieldset.person-detail-fieldset > label {
   display: flex;
   flex-direction: column;
   align-items: stretch;
@@ -2137,7 +2292,7 @@ body {
 /* A checkbox reads better as one inline row (box, then its own label text)
    than stacked the way every other field in this fieldset is — overrides
    the column layout just above for this one row. */
-.modal-panel fieldset:last-of-type > label.unknown-person-toggle {
+.modal-panel fieldset.person-detail-fieldset > label.unknown-person-toggle {
   flex-direction: row;
   align-items: center;
   gap: 0.5rem;
@@ -2215,17 +2370,6 @@ body {
   font-size: 0.8rem;
   color: var(--color-text-secondary);
   margin: 0;
-}
-
-.link-people-fixed-pair {
-  padding: 0.6rem 0.8rem;
-  border-radius: 8px;
-  background: rgba(116, 168, 146, 0.16);
-  border: 1px solid rgba(27, 67, 50, 0.12);
-}
-
-.link-people-fixed-pair p {
-  margin: 0.2rem 0;
 }
 
 /* iOS-style switch used as a mutually-exclusive radio option (see

@@ -19,6 +19,8 @@ export type UnionInfo = {
   unionType: UnionType;
   unionStatus: UnionStatus;
   unionDateText: string | null;
+  unionDateValue: string | null;
+  unionDatePrecision: DatePrecision | null;
   unionPlace: string | null;
   notes: string | null;
   // Chronological order of this union among each partner's own unions
@@ -703,6 +705,8 @@ export type UpdateFamilyPayload = {
   unionType?: UnionType;
   unionStatus?: UnionStatus;
   unionDateText?: string | null;
+  unionDateValue?: string | null;
+  unionDatePrecision?: DatePrecision | null;
   unionPlace?: string | null;
 };
 

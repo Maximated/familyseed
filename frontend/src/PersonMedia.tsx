@@ -16,9 +16,14 @@ type Props = {
   treeId: string;
   personId: string;
   type: PersonMediaType;
+  // Upload/delete now live in the edit form (see EditPersonForm.tsx) —
+  // InfoPanel's own Fotos/Documentos tabs pass false here so the read-only
+  // "ficha info" panel can no longer mutate anything, matching the rest of
+  // that panel already being view-only.
+  editable?: boolean;
 };
 
-export default function PersonMediaTab({ treeId, personId, type }: Props) {
+export default function PersonMediaTab({ treeId, personId, type, editable = true }: Props) {
   const { t } = useTranslation();
   const [items, setItems] = useState<PersonMediaItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -88,15 +93,17 @@ export default function PersonMediaTab({ treeId, personId, type }: Props) {
                 onClick={() => setLightboxUrl(mediaUrl(item.url))}
                 style={{ cursor: "zoom-in" }}
               />
-              <button
-                type="button"
-                className="media-delete-button"
-                onClick={() => handleDelete(item.id)}
-                aria-label={t("media.deletePhoto")}
-                title={t("media.deletePhoto")}
-              >
-                ×
-              </button>
+              {editable && (
+                <button
+                  type="button"
+                  className="media-delete-button"
+                  onClick={() => handleDelete(item.id)}
+                  aria-label={t("media.deletePhoto")}
+                  title={t("media.deletePhoto")}
+                >
+                  ×
+                </button>
+              )}
             </div>
           ))}
         </div>
@@ -107,15 +114,17 @@ export default function PersonMediaTab({ treeId, personId, type }: Props) {
               <a href={mediaUrl(item.url)} target="_blank" rel="noreferrer">
                 {item.filename}
               </a>
-              <button
-                type="button"
-                className="media-delete-button"
-                onClick={() => handleDelete(item.id)}
-                aria-label={t("media.deleteDocument")}
-                title={t("media.deleteDocument")}
-              >
-                ×
-              </button>
+              {editable && (
+                <button
+                  type="button"
+                  className="media-delete-button"
+                  onClick={() => handleDelete(item.id)}
+                  aria-label={t("media.deleteDocument")}
+                  title={t("media.deleteDocument")}
+                >
+                  ×
+                </button>
+              )}
             </li>
           ))}
         </ul>
@@ -125,21 +134,25 @@ export default function PersonMediaTab({ treeId, personId, type }: Props) {
         <p className="field-hint">{type === "PHOTO" ? t("media.noPhotos") : t("media.noDocuments")}</p>
       )}
 
-      <button
-        type="button"
-        className="media-upload-button"
-        onClick={() => fileInputRef.current?.click()}
-        disabled={uploading}
-      >
-        {uploading ? t("media.uploading") : type === "PHOTO" ? t("media.addPhoto") : t("media.addDocument")}
-      </button>
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept={type === "PHOTO" ? "image/*,.heic,.heif" : undefined}
-        onChange={handleFileChange}
-        style={{ display: "none" }}
-      />
+      {editable && (
+        <>
+          <button
+            type="button"
+            className="media-upload-button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={uploading}
+          >
+            {uploading ? t("media.uploading") : type === "PHOTO" ? t("media.addPhoto") : t("media.addDocument")}
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept={type === "PHOTO" ? "image/*,.heic,.heif" : undefined}
+            onChange={handleFileChange}
+            style={{ display: "none" }}
+          />
+        </>
+      )}
       {lightboxUrl && <PhotoLightbox src={lightboxUrl} onClose={() => setLightboxUrl(null)} />}
     </div>
   );

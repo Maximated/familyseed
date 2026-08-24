@@ -7,7 +7,7 @@ import UnionDetailsEditor from "./UnionDetailsEditor";
 import UnionChildrenEditor, { type UnionChild } from "./UnionChildrenEditor";
 import CopyPersonModal from "./CopyPersonModal";
 import PhotoLightbox from "./PhotoLightbox";
-import { deleteFamily, type UnionStatus, type UnionType } from "./api";
+import { deleteFamily, type DatePrecision, type UnionStatus, type UnionType } from "./api";
 
 export type InfoPanelSection = {
   heading: string;
@@ -33,6 +33,8 @@ export type InfoPanelData = {
     unionType: UnionType;
     unionStatus: UnionStatus;
     unionDateText: string | null;
+    unionDateValue: string | null;
+    unionDatePrecision: DatePrecision | null;
     unionPlace: string | null;
     partner1Id: string;
     partner2Id: string;
@@ -76,7 +78,7 @@ export default function InfoPanel({ treeId, data, onClose, onNavigateToPerson, o
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <div
-        className={`modal-panel info-panel${data.familyId ? " info-panel-union" : ""}`}
+        className={`modal-panel info-panel${data.familyId ? " info-panel-union" : " modal-panel-frosted"}`}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="info-panel-header">
@@ -178,9 +180,11 @@ export default function InfoPanel({ treeId, data, onClose, onNavigateToPerson, o
         {tab === "relaciones" && data.personId && (
           <RelationsTab treeId={treeId} personId={data.personId} onNavigate={onNavigateToPerson} />
         )}
-        {tab === "fotos" && data.personId && <PersonMediaTab treeId={treeId} personId={data.personId} type="PHOTO" />}
+        {tab === "fotos" && data.personId && (
+          <PersonMediaTab treeId={treeId} personId={data.personId} type="PHOTO" editable={false} />
+        )}
         {tab === "documentos" && data.personId && (
-          <PersonMediaTab treeId={treeId} personId={data.personId} type="DOCUMENT" />
+          <PersonMediaTab treeId={treeId} personId={data.personId} type="DOCUMENT" editable={false} />
         )}
 
         <div className="modal-actions">

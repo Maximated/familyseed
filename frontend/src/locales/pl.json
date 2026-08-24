@@ -6,6 +6,7 @@
     "save": "Zapisz",
     "saving": "Zapisywanie…",
     "circaYear": "ok. {{year}}",
+    "circaDate": "ok. {{date}}",
     "bornYear": "ur. {{value}}",
     "diedYear": "zm. {{value}}",
     "lifespanRange": "{{birth}} – {{death}}"
@@ -87,8 +88,15 @@
   },
   "card": {
     "viewFull": "Zobacz pełną kartę",
-    "relate": "Przeciągnij do innej osoby, aby utworzyć relację",
+    "quickAdd": "Dodaj krewnego",
     "moreAncestry": "Posiada więcej przodków — kliknij, aby ich zobaczyć"
+  },
+  "quickAdd": {
+    "title": "Co chcesz dodać?",
+    "child": "Dziecko",
+    "sibling": "Rodzeństwo",
+    "partner": "Małżonek/partner",
+    "parent": "Rodzic"
   },
   "sex": {
     "MALE": "Mężczyzna",
@@ -127,6 +135,8 @@
     "deletingUnion": "Usuwanie…"
   },
   "media": {
+    "photosLegend": "Zdjęcia",
+    "documentsLegend": "Dokumenty",
     "noPhotos": "Brak zdjęć.",
     "noDocuments": "Brak dokumentów.",
     "addPhoto": "+ Dodaj zdjęcie",
@@ -147,6 +157,7 @@
     "surname2": "Drugie nazwisko (panieńskie matki — opcjonalne, konwencja hiszpańska)",
     "surname1BirthName": "Nazwisko rodowe (jeśli inne niż obecne)",
     "surname1BirthNamePlaceholder": "np. Kowalski",
+    "surnameSuggestion": "Użyć „{{value}}”? (Enter)",
     "alias": "Pseudonim lub przydomek (opcjonalnie)",
     "aliasPlaceholder": "np. Boni",
     "sex": "Płeć",
@@ -196,7 +207,6 @@
   "linkPeople": {
     "title": "Połącz dwie osoby",
     "hint": "Wybierz dwie istniejące osoby w drzewie i określ ich relację.",
-    "hintFixed": "Określ relację między tymi dwiema osobami.",
     "personA": "Osoba 1",
     "personB": "Osoba 2",
     "personPlaceholder": "— Wybierz osobę —",
@@ -225,6 +235,9 @@
     "lineagesLegend": "Gałęzie / Linia",
     "lineagesHint": "Tworzone automatycznie na podstawie nazwiska i nazwiska rodowego podczas zapisywania. Możesz odznaczyć niepasujące lub dodać własne.",
     "noLineages": "W tym drzewie nie utworzono jeszcze żadnej gałęzi.",
+    "noLineagesAssigned": "Brak przypisanej gałęzi.",
+    "removeLineage": "Usuń z gałęzi {{name}}",
+    "addExistingLineage": "+ Dodaj do innej istniejącej gałęzi",
     "addLineage": "+ Utwórz nową gałąź",
     "newLineagePlaceholder": "Nazwa gałęzi, np. Zawadzki",
     "personLegend": "Dane osoby",

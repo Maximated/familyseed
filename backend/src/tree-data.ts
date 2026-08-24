@@ -1,5 +1,39 @@
 import { prisma } from "./db.js";
 
+// Shared by the two familiesAsPartnerN includes below — just enough of the
+// child's own Individual row to sort siblings by birth date/name (see
+// sortChildren).
+const CHILD_ORDER_SELECT = { select: { birthDateValue: true, givenNames: true, surname1: true } };
+
+// Siblings render left-to-right in this order: birth date (undated last) >
+// name > when the parent-child link itself was created (the old, sole sort
+// key — kept as the final tiebreaker so equally-dated/named siblings still
+// land in a stable, predictable order).
+function sortChildren<
+  T extends {
+    createdAt: Date;
+    individual: { birthDateValue: Date | null; givenNames: string; surname1: string };
+  },
+>(children: T[]): T[] {
+  return [...children].sort((a, b) => {
+    const aDate = a.individual.birthDateValue;
+    const bDate = b.individual.birthDateValue;
+    if (aDate && bDate) {
+      const diff = aDate.getTime() - bDate.getTime();
+      if (diff !== 0) return diff;
+    } else if (aDate) {
+      return -1;
+    } else if (bDate) {
+      return 1;
+    }
+    const nameDiff = `${a.individual.givenNames} ${a.individual.surname1}`.localeCompare(
+      `${b.individual.givenNames} ${b.individual.surname1}`,
+    );
+    if (nameDiff !== 0) return nameDiff;
+    return a.createdAt.getTime() - b.createdAt.getTime();
+  });
+}
+
 export type TreePerson = {
   id: string;
   data: {
@@ -35,6 +69,8 @@ export type TreeUnion = {
   unionType: string;
   unionStatus: string;
   unionDateText: string | null;
+  unionDateValue: string | null;
+  unionDatePrecision: string | null;
   unionPlace: string | null;
   notes: string | null;
   order: number;
@@ -60,8 +96,14 @@ export async function buildTreeData(treeId: string): Promise<{ people: TreePerso
       // landing correctly-computed-for-the-wrong-layout on reload — not a
       // math bug, a different (arbitrary) card arrangement each time.
       childOf: { include: { family: true }, orderBy: { createdAt: "asc" } },
-      familiesAsPartner1: { include: { children: { orderBy: { createdAt: "asc" } } }, orderBy: { createdAt: "asc" } },
-      familiesAsPartner2: { include: { children: { orderBy: { createdAt: "asc" } } }, orderBy: { createdAt: "asc" } },
+      familiesAsPartner1: {
+        include: { children: { include: { individual: CHILD_ORDER_SELECT }, orderBy: { createdAt: "asc" } } },
+        orderBy: { createdAt: "asc" },
+      },
+      familiesAsPartner2: {
+        include: { children: { include: { individual: CHILD_ORDER_SELECT }, orderBy: { createdAt: "asc" } } },
+        orderBy: { createdAt: "asc" },
+      },
       lineages: { select: { lineageId: true } },
     },
   });
@@ -112,6 +154,8 @@ export async function buildTreeData(treeId: string): Promise<{ people: TreePerso
         unionType: family.unionType,
         unionStatus: family.unionStatus,
         unionDateText: family.unionDateText,
+        unionDateValue: family.unionDateValue ? family.unionDateValue.toISOString() : null,
+        unionDatePrecision: family.unionDatePrecision,
         unionPlace: family.unionPlace,
         notes: family.notes,
         order: Math.max(orderOf(family.partner1Id, family.id), orderOf(family.partner2Id, family.id)),
@@ -134,13 +178,13 @@ export async function buildTreeData(treeId: string): Promise<{ people: TreePerso
     const children = new Set<string>();
     for (const family of individual.familiesAsPartner1) {
       if (family.partner2Id && activeIds.has(family.partner2Id)) spouses.add(family.partner2Id);
-      for (const child of family.children) {
+      for (const child of sortChildren(family.children)) {
         if (activeIds.has(child.individualId)) children.add(child.individualId);
       }
     }
     for (const family of individual.familiesAsPartner2) {
       if (family.partner1Id && activeIds.has(family.partner1Id)) spouses.add(family.partner1Id);
-      for (const child of family.children) {
+      for (const child of sortChildren(family.children)) {
         if (activeIds.has(child.individualId)) children.add(child.individualId);
       }
     }

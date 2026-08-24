@@ -7,6 +7,7 @@ import { Link, useParams } from "react-router-dom";
 import i18n from "./i18n";
 import {
   deriveLineages,
+  fetchIndividual,
   fetchLineages,
   fetchTree,
   mediaUrl,
@@ -16,7 +17,8 @@ import {
   type TreeRole,
   type UnionInfo,
 } from "./api";
-import AddPersonForm from "./AddPersonForm";
+import AddPersonForm, { type QuickAddInitialRelation } from "./AddPersonForm";
+import QuickAddKindPicker, { type QuickAddPickerKind } from "./QuickAddKindPicker";
 import EditPersonForm from "./EditPersonForm";
 import TrashView from "./TrashView";
 import IndividualsSearchView from "./IndividualsSearchView";
@@ -134,6 +136,26 @@ function pairKey(idA: string, idB: string): string {
   return [idA, idB].sort().join("_");
 }
 
+// A genealogical loop (someone reachable from the centered person by two
+// different chains of ancestors/descendants — e.g. two first cousins who
+// married) renders the *same* union twice, once per chain, at two
+// different spots on the canvas. `union.id` alone can't tell those two
+// rendered occurrences apart, so a lookup keyed only by it (as
+// zoneByFamilyId used to be) collapses both into one shared zone —
+// whichever occurrence computed last simply overwrites the other's entry,
+// so hovering the *other* occurrence's line pulled up a mark positioned
+// for a completely different spot on the canvas. Coordinates disambiguate
+// occurrences the id can't: each rendered instance of a union has its own
+// distinct pair of laid-out spouse positions, even though the underlying
+// union row is identical. Order-independent (sorted) since a path.link's
+// source/target and a g.link-text's own node pair aren't guaranteed to
+// list the same two spouses in the same order.
+function occurrenceKey(x1: number, y1: number, x2: number, y2: number): string {
+  const a = `${Math.round(x1)},${Math.round(y1)}`;
+  const b = `${Math.round(x2)},${Math.round(y2)}`;
+  return a < b ? `${a}|${b}` : `${b}|${a}`;
+}
+
 // The datum d3 binds onto each `g.link-text` element for the marriage/
 // divorce/etc. mark on a spouse link — enough to recover which two people
 // it joins, plus their own laid-out coordinates (see correctLinkTextTransform
@@ -152,12 +174,14 @@ type LinkTextDatum = { nodes: [LinkTextNode, LinkTextNode] };
 type PathLinkNode = { data: { id: string }; x?: number; y?: number };
 type PathLinkDatum = { source: PathLinkNode | (PathLinkNode | null | undefined)[]; target: PathLinkNode };
 
-// How close two nodes' depth coordinate has to be to count as "the same
-// row" — well under family-chart's actual row spacing (150 local units),
-// so it can't mistake an adjacent generation for this one. "Depth" is
-// whichever screen axis that actually is for the current orientation (see
-// correctLinkTextTransform).
-const SAME_ROW_TOLERANCE = 20;
+// A union line's own hitarea/knot (see the unionLineEntries-building loop
+// in wireCardAndUnionClicks) are stashed directly on the `path.link`
+// element itself, not found by DOM sibling position — family-chart's own
+// d3 reorders path.link elements on every update with no idea these
+// synthetic siblings exist, so a sibling-position lookup can drift onto a
+// *different* union's hit/knot after a reorder (see that loop's own
+// comment for the stray-knot bug this caused).
+type PathLinkWithExtras = SVGPathElement & { __unionHit?: SVGPathElement; __unionKnot?: SVGUseElement };
 
 // family-chart positions a spouse-link mark (marriage/divorce/etc. symbol)
 // using a heuristic — one card's x plus half the fixed inter-card spacing —
@@ -167,52 +191,47 @@ const SAME_ROW_TOLERANCE = 20;
 // remarriage): the mark for whichever pair *isn't* horizontally adjacent
 // lands at that wrong fixed offset instead of their real midpoint —
 // reported as union icons drifting to one side or hovering over blank
-// space. The fix is just the true midpoint of the two spouses' own laid-out
-// x — those coordinates are right there on the bound datum, unlike the
-// heuristic family-chart derives them with.
+// space.
 //
-// That true midpoint is sometimes still a bad place to put it, though: when
-// the two spouses aren't adjacent (someone else's card sits between them,
-// e.g. an ex-partner whose own remarriage put a third card in this row),
-// the midpoint can land almost exactly on that third card. Lifting the mark
-// up instead (an earlier attempt at this) trades that for a different
-// collision: family-chart routes its own ancestor/descendant connector
-// lines through the strip between rows, at a fixed height that turned out
-// to overlap the lift too. Neither problem exists at the row's own height,
-// where the actual spouse-to-spouse line is drawn — so instead this slots
-// the mark into whichever real gap between adjacent cards in the row falls
-// closest to the true midpoint, which is always clear of every card by
-// construction (same uniform spacing family-chart lays every row out with).
+// The fix here reuses `zoneByFamilyId` — the exact same exclusive-zone
+// segment computeZones/applyAllZones already trims this same union's own
+// connecting line (and rope knot) to, in wireCardAndUnionClicks below; see
+// that function's own comment for the full exclusive-zone rationale. An
+// earlier version of this function instead ran its own independent
+// "nearest gap between cards to the raw midpoint" search — which had a bug
+// this didn't: given a union whose true midpoint sits, by ordinary even
+// card spacing, almost exactly between two candidate gaps, a *tie* in
+// "which gap's center is closest" silently fell back to whichever gap came
+// first — which could be a *different* union's own segment (reported: a
+// remarriage's icon appearing over the first marriage's line instead of
+// its own). Deriving the icon's position from the very same zone the line
+// is trimmed to can't drift out of sync with it: the icon always lands
+// somewhere on its own union's visible segment, never a neighbor's, by
+// construction.
+//
 // family-chart swaps which screen axis is "spread" (spouses/siblings laid
 // out side by side within a row) vs "depth" (generation) when the tree is
 // horizontal — see its own d.psx/d.psy assignment, which reads `p.sx`/`p.y`
-// in one order for vertical and the other for horizontal. Everything below
-// used to hardcode x=spread/y=depth, which is only correct in vertical
-// mode; in horizontal mode it was grouping "same row" by the wrong axis and
-// searching for gaps along the wrong axis too, landing the mark on the
-// wrong spot (or on top of another card) — this is orientation-aware so
-// both modes use whichever axis actually is "spread" for them.
-//
-// Called from both wireCardAndUnionClicks (the live, hover-revealed icon)
-// and handleExportTreeImage (the static snapshot, which has no hover to
-// reveal anything with, so it needs the icon visible outright). Only
-// clears the connecting line itself, not a spouse's own card silhouette
-// the way an earlier version of the live icon had to — the icon isn't the
-// click/hover target on the live canvas any more (the line is, see
-// wireCardAndUnionClicks), so a card covering part of it while it's
-// bubbling in is a passing cosmetic overlap, not a blocked click the way
-// it was when the icon itself had to be aimed at.
+// in one order for vertical and the other for horizontal — so `depth`
+// below stays orientation-aware. `zoneByFamilyId` itself is already
+// expressed in the matching spread axis (see computeZones' own `c.axis`),
+// so no separate spread() helper is needed here any more.
 function correctLinkTextTransform(
   g: SVGGElement,
-  allNodes: LinkTextNode[],
   orientation: "vertical" | "horizontal",
+  zoneByFamilyId: Map<string, { lo: number; hi: number }>,
 ): string | null {
   const datum = (g as unknown as { __data__?: LinkTextDatum }).__data__;
   if (!datum) return null;
   const [sp1, sp2] = datum.nodes;
-  if (typeof sp1.x !== "number" || typeof sp2.x !== "number" || typeof sp1.y !== "number") return null;
+  if (typeof sp1.x !== "number" || typeof sp1.y !== "number" || typeof sp2.x !== "number" || typeof sp2.y !== "number") {
+    return null;
+  }
 
-  const spread = (n: { x: number; y: number }) => (orientation === "horizontal" ? n.y : n.x);
+  const familyId = g.getAttribute("data-family-id");
+  const zone = familyId ? zoneByFamilyId.get(`${familyId}@${occurrenceKey(sp1.x, sp1.y, sp2.x, sp2.y)}`) : undefined;
+  if (!zone) return null;
+
   const depth = (n: { x: number; y: number }) => (orientation === "horizontal" ? n.x : n.y);
   const toTransform = (mid: number, rowDepth: number) =>
     orientation === "horizontal" ? `translate(${rowDepth}, ${mid})` : `translate(${mid}, ${rowDepth})`;
@@ -228,12 +247,14 @@ function correctLinkTextTransform(
   // replaced it are vertically centered on that same point instead, so the
   // same -3 left roughly half the icon hanging below the line, visibly
   // overlapping it. Lifting by the icon's own half-height (plus a margin,
-  // bumped up by request for more visible separation from the line) clears
-  // it regardless of whether it's one icon or two — there's no card to
-  // collide with going this direction: the mark only ever sits in a
-  // horizontal gap between cards in its own row (see the "between" gap
-  // search below), and the next row up is a good 42 units of clear space
-  // further away than this reaches (card_y_spacing's own 170, less a
+  // bumped up twice now by request for more visible separation — first
+  // from the line itself, then again once the line grew its own rope knot,
+  // which the mark was landing right on top of) clears it regardless of
+  // whether it's one icon or two — there's no card to collide with going
+  // this direction: the mark only ever sits within its own union's zone,
+  // which is itself always clear of every card by construction (see
+  // computeZones), and the next row up is a good 77 units of clear space
+  // further away than this reaches (card_y_spacing's own 205, less a
   // card's 128-unit height).
   //
   // Horizontal mode: spouses stack in a vertical column sharing one
@@ -242,7 +263,7 @@ function correctLinkTextTransform(
   // would leave it straddling one spouse's own card in the export image —
   // by request, left as-is here (see this function's own header comment
   // for why that's fine for a static picture, unlike the live canvas).
-  const depthNudge = orientation === "horizontal" ? -(markWidth / 2 + 18) : -(markHeight / 2 + 12);
+  const depthNudge = orientation === "horizontal" ? -(markWidth / 2 + 18) : -(markHeight / 2 + 20);
   // And, only in horizontal mode, dropped a few px along the spread axis
   // (screen-y there) so it clears the line vertically too, not just
   // sideways.
@@ -253,38 +274,9 @@ function correctLinkTextTransform(
   // block's height instead of a token few px.
   const spreadNudge = orientation === "horizontal" ? 30 : 0;
 
-  const sp1Spread = spread(sp1);
-  const sp2Spread = spread(sp2);
   const rowDepth = depth(sp1) + depthNudge;
-  const loSpread = Math.min(sp1Spread, sp2Spread);
-  const hiSpread = Math.max(sp1Spread, sp2Spread);
-  const rawMidSpread = (sp1Spread + sp2Spread) / 2;
-
-  const between = allNodes
-    .filter(
-      (node) =>
-        node.data.id !== sp1.data.id &&
-        node.data.id !== sp2.data.id &&
-        Math.abs(depth(node) - depth(sp1)) < SAME_ROW_TOLERANCE &&
-        spread(node) > loSpread &&
-        spread(node) < hiSpread,
-    )
-    .sort((a, b) => spread(a) - spread(b));
-
-  if (between.length === 0) return toTransform(rawMidSpread + spreadNudge, rowDepth);
-
-  const boundaries = [loSpread, ...between.map((node) => spread(node)), hiSpread];
-  let bestMid = rawMidSpread;
-  let bestDist = Infinity;
-  for (let i = 0; i < boundaries.length - 1; i++) {
-    const gapCenter = (boundaries[i] + boundaries[i + 1]) / 2;
-    const dist = Math.abs(gapCenter - rawMidSpread);
-    if (dist < bestDist) {
-      bestDist = dist;
-      bestMid = gapCenter;
-    }
-  }
-  return toTransform(bestMid + spreadNudge, rowDepth);
+  const mid = (zone.lo + zone.hi) / 2;
+  return toTransform(mid + spreadNudge, rowDepth);
 }
 
 // Minimal shape of the d3-zoom behavior family-chart attaches to
@@ -414,18 +406,24 @@ const EXPAND_ICON_SVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentCol
 // (family-chart owns that DOM, not React).
 const EDIT_ICON_SVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .622.622l4.353-1.321a2 2 0 0 0 .83-.497Z"/><path d="m15 5 4 4"/></svg>`;
 
-// Same glyph as Icons.tsx's LinkIcon — the "create a relationship" affordance,
-// now living on the card itself (see .card-relate-toggle's drag-to-link
-// wiring in wireCardAndUnionClicks) instead of only a global button.
-const RELATE_ICON_SVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>`;
+// Plain "+" — replaces the old drag-to-link branch icon (dropping a card
+// onto another to open LinkPeopleModal), which turned out to barely get
+// used and duplicated the hamburger menu's own "Vincular personas" entry
+// point. This is a quick-create instead: a click opens a small kind picker
+// (child/spouse/parent), then AddPersonForm with that relation and this
+// card's person already filled in — see the quickAddKindPicker state below.
+const QUICKADD_ICON_SVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>`;
 
-// Lucide's "chevrons-up" glyph — sits in the card's one remaining free
-// corner, and (unlike the three above) is only ever shown on cards whose
-// own recorded parents aren't part of the currently-rendered tree: a
-// spouse who married into the family, whose own ancestry is real data but
-// never gets drawn from the current root (see wireCardAndUnionClicks,
-// where visibility is decided per render from cardIds + rels.parents).
-const ANCESTRY_ICON_SVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m17 11-5-5-5 5"/><path d="m17 18-5-5-5 5"/></svg>`;
+// Lucide's "git-branch" glyph — same one used for "lineages" in the
+// hamburger menu (see GitBranchIcon in Icons.tsx), reused here for visual
+// consistency rather than the old, unrelated "chevrons-up" pair. Sits in
+// the card's one remaining free corner, and (unlike the three above) is
+// only ever shown on cards whose own recorded parents aren't part of the
+// currently-rendered tree: a spouse who married into the family, whose own
+// ancestry is real data but never gets drawn from the current root (see
+// wireCardAndUnionClicks, where visibility is decided per render from
+// cardIds + rels.parents).
+const ANCESTRY_ICON_SVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="3" x2="6" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></svg>`;
 
 // Lucide's "user" glyph — the neutral placeholder shown on a card when the
 // person has no uploaded photo.
@@ -457,7 +455,7 @@ function cardTemplate(d: CardDatum): string {
     </div>
     <button type="button" class="card-expand-toggle" data-person-id="${d.data.id}" title="${escapeHtml(i18n.t("card.viewFull"))}" aria-label="${escapeHtml(i18n.t("card.viewFull"))}">${EXPAND_ICON_SVG}</button>
     <button type="button" class="card-edit-toggle" data-person-id="${d.data.id}" title="${escapeHtml(i18n.t("app.edit"))}" aria-label="${escapeHtml(i18n.t("app.edit"))}">${EDIT_ICON_SVG}</button>
-    <button type="button" class="card-relate-toggle" data-person-id="${d.data.id}" title="${escapeHtml(i18n.t("card.relate"))}" aria-label="${escapeHtml(i18n.t("card.relate"))}">${RELATE_ICON_SVG}</button>
+    <button type="button" class="card-quickadd-toggle" data-person-id="${d.data.id}" title="${escapeHtml(i18n.t("card.quickAdd"))}" aria-label="${escapeHtml(i18n.t("card.quickAdd"))}">${QUICKADD_ICON_SVG}</button>
     <button type="button" class="card-ancestry-toggle" data-person-id="${d.data.id}" title="${escapeHtml(i18n.t("card.moreAncestry"))}" aria-label="${escapeHtml(i18n.t("card.moreAncestry"))}">${ANCESTRY_ICON_SVG}</button>
   `;
 }
@@ -483,11 +481,19 @@ function buildPersonInfoPanel(person: TreePerson): InfoPanelData {
   identity.push(i18n.t("infoPanel.sexLine", { value: i18n.t(`sex.${sexKey}`) }));
   sections.push({ heading: i18n.t("infoPanel.sectionIdentity"), items: identity });
 
-  const birth = [d.birthday, d["birth place"]].filter((v): v is string => typeof v === "string" && v.length > 0);
+  // birthDateText/deathDateText are the user's own freeform display string
+  // and take priority when present (trust what they actually wrote, e.g.
+  // an exact day, rather than second-guessing it) — the precision-aware
+  // year (same "c." logic the card's own lifespan line uses) is only a
+  // fallback for a date recorded solely via the structured picker with no
+  // free text, so hover still shows *something* instead of "desconocido".
+  const birthText = d.birthday || yearLabel(d.birthYear, d.birthPrecision) || undefined;
+  const birth = [birthText, d["birth place"]].filter((v): v is string => typeof v === "string" && v.length > 0);
   sections.push({ heading: i18n.t("infoPanel.sectionBirth"), items: birth.length ? birth : [i18n.t("infoPanel.unknown")] });
 
-  if (d.deathday || d["death place"]) {
-    const death = [d.deathday, d["death place"]].filter((v): v is string => typeof v === "string" && v.length > 0);
+  const deathText = d.deathday || yearLabel(d.deathYear, d.deathPrecision) || undefined;
+  if (deathText || d["death place"]) {
+    const death = [deathText, d["death place"]].filter((v): v is string => typeof v === "string" && v.length > 0);
     sections.push({ heading: i18n.t("infoPanel.sectionDeath"), items: death });
   }
 
@@ -525,13 +531,25 @@ function buildUnionInfoPanel(union: UnionInfo, people: TreePerson[]): InfoPanelD
   // showed nothing beyond its own two names. Same read-only wording
   // UnionDetailsEditor/UnionChildrenEditor already use, just not gated
   // behind a click.
+  // unionDateText (freeform) takes priority when present, same as birth/
+  // death dates above — falls back to the structured date+precision so a
+  // date entered solely via the picker still shows on hover instead of
+  // "unknown".
+  const unionDisplayDate =
+    union.unionDateText ||
+    (union.unionDateValue
+      ? union.unionDatePrecision === "ABOUT"
+        ? i18n.t("common.circaDate", { date: union.unionDateValue.slice(0, 10) })
+        : union.unionDateValue.slice(0, 10)
+      : "");
+
   const sections: InfoPanelSection[] = [
     {
       heading: i18n.t("infoPanel.unionHeading"),
       items: [
         i18n.t("infoPanel.unionType", { value: i18n.t(`unionType.${union.unionType}`) }),
         i18n.t("infoPanel.unionStatus", { value: i18n.t(`unionStatus.${union.unionStatus}`) }),
-        i18n.t("infoPanel.unionDate", { value: union.unionDateText || i18n.t("infoPanel.unknownDate") }),
+        i18n.t("infoPanel.unionDate", { value: unionDisplayDate || i18n.t("infoPanel.unknownDate") }),
         ...(union.unionPlace ? [i18n.t("infoPanel.unionPlace", { value: union.unionPlace })] : []),
       ],
     },
@@ -553,6 +571,8 @@ function buildUnionInfoPanel(union: UnionInfo, people: TreePerson[]): InfoPanelD
       unionType: union.unionType,
       unionStatus: union.unionStatus,
       unionDateText: union.unionDateText,
+      unionDateValue: union.unionDateValue,
+      unionDatePrecision: union.unionDatePrecision,
       unionPlace: union.unionPlace,
       partner1Id: union.partner1Id,
       partner2Id: union.partner2Id,
@@ -565,8 +585,6 @@ function App() {
   const { t } = useTranslation();
   const { treeId } = useParams<{ treeId: string }>();
   const containerRef = useRef<HTMLDivElement>(null);
-  const relateOverlayRef = useRef<SVGSVGElement>(null);
-  const relateDragTargetRef = useRef<HTMLElement | null>(null);
   const chartRef = useRef<ReturnType<typeof f3.createChart> | null>(null);
   const backStackRef = useRef<string[]>([]);
   const depthModeRef = useRef<"default" | "fitAll">("default");
@@ -597,10 +615,16 @@ function App() {
   const [showGedcom, setShowGedcom] = useState(false);
   const [wizardIds, setWizardIds] = useState<string[] | null>(null);
   const [noUnrelatedMessage, setNoUnrelatedMessage] = useState(false);
-  // Set by dragging a relation branch from one card onto another (see
-  // startRelateDrag) — both people are already chosen, unlike
-  // showLinkPeople's blank "pick two people" entry point.
-  const [relateDraft, setRelateDraft] = useState<{ personAId: string; personBId: string } | null>(null);
+  // The card's own "+" corner button (see QUICKADD_ICON_SVG) — a click
+  // opens a small kind picker (child/spouse/parent) for that card's
+  // person, then AddPersonForm with that relation and person already
+  // filled in. quickAddLoading covers the moment between picking a kind
+  // and AddPersonForm actually opening, while the root person's full
+  // record (PersonPicker-selected people carry the full Individual shape,
+  // but a card only has the lighter TreePerson one) is fetched.
+  const [quickAddPickerPersonId, setQuickAddPickerPersonId] = useState<string | null>(null);
+  const [quickAddInitialRelation, setQuickAddInitialRelation] = useState<QuickAddInitialRelation | null>(null);
+  const [quickAddLoading, setQuickAddLoading] = useState(false);
   const [treeData, setTreeData] = useState<TreePerson[]>([]);
   const [lineages, setLineages] = useState<Lineage[]>([]);
   const [selectedLineageIds, setSelectedLineageIds] = useState<Set<string>>(new Set());
@@ -643,72 +667,46 @@ function App() {
     applyLineageHighlight(containerRef.current, treeDataRef.current, selectedLineageIdsRef.current);
   }, []);
 
-  // Pressing a card's relate button and dragging draws a curved "branch"
-  // from that card to the pointer, tracking document-level pointer events
-  // (not the small button itself) so the drag keeps working once the
-  // cursor leaves the button. Dropping it on another card's data-person-id
-  // opens LinkPeopleModal pre-filled with both people; dropping on empty
-  // space just cancels. Plain DOM/refs throughout (like the rest of this
-  // file's family-chart wiring) — no React re-render during the drag.
-  const startRelateDrag = useCallback((sourcePersonId: string, startEvent: PointerEvent) => {
-    const overlay = relateOverlayRef.current;
-    if (!overlay) return;
-    const rect = overlay.getBoundingClientRect();
-    const startX = startEvent.clientX - rect.left;
-    const startY = startEvent.clientY - rect.top;
-
-    const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
-    path.setAttribute("class", "branch-drag-path");
-    overlay.appendChild(path);
-
-    function updatePath(x: number, y: number) {
-      const dx = x - startX;
-      const dy = y - startY;
-      // A gentle curve instead of a straight line reads more like a
-      // branch reaching out than a ruler-drawn connector.
-      const midX = startX + dx / 2 - dy * 0.15;
-      const midY = startY + dy / 2 + dx * 0.15;
-      path.setAttribute("d", `M ${startX} ${startY} Q ${midX} ${midY} ${x} ${y}`);
-    }
-    updatePath(startX, startY);
-
-    function clearTarget() {
-      relateDragTargetRef.current?.classList.remove("relate-target");
-      relateDragTargetRef.current = null;
-    }
-
-    function findTarget(clientX: number, clientY: number): { id: string; card: HTMLElement } | null {
-      const el = document.elementFromPoint(clientX, clientY);
-      const personEl = el?.closest<HTMLElement>("[data-person-id]");
-      const id = personEl?.dataset.personId;
-      if (!id || id === sourcePersonId) return null;
-      return { id, card: personEl.closest<HTMLElement>(".card") ?? personEl };
-    }
-
-    function onMove(e: PointerEvent) {
-      updatePath(e.clientX - rect.left, e.clientY - rect.top);
-      const found = findTarget(e.clientX, e.clientY);
-      if (found?.card !== relateDragTargetRef.current) {
-        clearTarget();
-        if (found) {
-          found.card.classList.add("relate-target");
-          relateDragTargetRef.current = found.card;
-        }
-      }
-    }
-
-    function onUp(e: PointerEvent) {
-      document.removeEventListener("pointermove", onMove);
-      document.removeEventListener("pointerup", onUp);
-      const found = findTarget(e.clientX, e.clientY);
-      clearTarget();
-      path.remove();
-      if (found) setRelateDraft({ personAId: sourcePersonId, personBId: found.id });
-    }
-
-    document.addEventListener("pointermove", onMove);
-    document.addEventListener("pointerup", onUp);
+  // A card's "+" button opens the kind picker for that person — fetching
+  // the full Individual record (a card only carries the lighter TreePerson
+  // shape) happens once a kind is actually picked, not here, so opening
+  // the picker itself is instant.
+  const handleQuickAddClick = useCallback((personId: string) => {
+    setQuickAddPickerPersonId(personId);
   }, []);
+
+  async function handleQuickAddKindPicked(rootPersonId: string, kind: QuickAddPickerKind) {
+    setQuickAddLoading(true);
+    try {
+      let relation: QuickAddInitialRelation;
+      if (kind === "SIBLING_OF") {
+        // Sugar for CHILD_OF_PARENTS seeded with the clicked card's own
+        // parents (however many of the two are actually recorded), rather
+        // than the card's own person — see QuickAddPickerKind's own
+        // comment. treeDataRef already carries every rendered person's
+        // parent ids (rels.parents); AddPersonForm needs the full
+        // Individual shape for each, not just the id, so those still need
+        // fetching.
+        const rootParentIds = treeDataRef.current.find((p) => p.id === rootPersonId)?.rels.parents ?? [];
+        const [parent, parent2] = await Promise.all(rootParentIds.slice(0, 2).map((id) => fetchIndividual(treeId!, id)));
+        relation = { kind: "CHILD_OF_PARENTS", parent, parent2 };
+      } else {
+        const individual = await fetchIndividual(treeId!, rootPersonId);
+        relation =
+          kind === "CHILD_OF_PARENTS"
+            ? { kind, parent: individual }
+            : kind === "PARTNER"
+              ? { kind, partner: individual }
+              : { kind, child: individual };
+      }
+      setQuickAddInitialRelation(relation);
+      setQuickAddPickerPersonId(null);
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setQuickAddLoading(false);
+    }
+  }
 
   // Re-run after every tree render: family-chart rebuilds the card/link DOM
   // from scratch each time, so any handler attached to it has to be
@@ -734,11 +732,10 @@ function App() {
       };
     });
 
-    container.querySelectorAll<HTMLButtonElement>(".card-relate-toggle").forEach((btn) => {
-      btn.onpointerdown = (e) => {
+    container.querySelectorAll<HTMLButtonElement>(".card-quickadd-toggle").forEach((btn) => {
+      btn.onclick = (e) => {
         e.stopPropagation();
-        e.preventDefault();
-        if (btn.dataset.personId) startRelateDrag(btn.dataset.personId, e);
+        if (btn.dataset.personId) handleQuickAddClick(btn.dataset.personId);
       };
     });
 
@@ -889,70 +886,11 @@ function App() {
       p.style.display = orphaned ? "none" : "";
     });
 
-    // The union's own icon(s) live at the same fixed spot the old
-    // permanent mark used to sit (see correctLinkTextTransform), but stay
-    // hidden — see the .union-mark-icons CSS — until the connecting line
-    // itself is hovered (wired below), when they bubble in. The line
-    // stays the actual interactive surface throughout (click/hover both
-    // live there), this block only positions and builds the markup;
-    // markGroupByPairKey is how the line-hover handlers below find the
-    // right icon group to reveal.
-    const linkTextEls = container.querySelectorAll<SVGGElement>("g.link-text");
-    const allLinkTextNodes = [...linkTextEls].flatMap((g) => {
-      const datum = (g as unknown as { __data__?: LinkTextDatum }).__data__;
-      return datum ? datum.nodes : [];
-    });
-    const markGroupByPairKey = new Map<string, SVGGElement>();
-    linkTextEls.forEach((g) => {
-      const datum = (g as unknown as { __data__?: LinkTextDatum }).__data__;
-      const union =
-        datum && unionsByPairKeyRef.current.get(pairKey(datum.nodes[0].data.id, datum.nodes[1].data.id));
-      if (!union) return;
-
-      const originalText = g.querySelector<SVGTextElement>(":scope > text");
-      if (originalText) originalText.style.display = "none";
-      let markGroup = g.querySelector<SVGGElement>(".union-mark-icons");
-      if (!markGroup) {
-        markGroup = document.createElementNS("http://www.w3.org/2000/svg", "g");
-        markGroup.setAttribute("class", "union-mark-icons");
-        g.appendChild(markGroup);
-      }
-      markGroup.innerHTML = unionMarkMarkup(union);
-      markGroupByPairKey.set(pairKey(union.partner1Id, union.partner2Id), markGroup);
-
-      // Same settle problem as the union-line's own `d` below — family-
-      // chart keeps nudging this element's transform via its own d3
-      // transition, so a one-time apply here would just get overwritten
-      // mid-animation. `lastApplied` guards against reacting to this same
-      // code's own writes.
-      let lastApplied: string | null = null;
-      const apply = () => {
-        const transform = correctLinkTextTransform(g, allLinkTextNodes, orientationRef.current);
-        if (!transform) return;
-        lastApplied = transform;
-        g.setAttribute("transform", transform);
-      };
-      apply();
-      let settleTimer: number | undefined;
-      const scheduleApply = () => {
-        window.clearTimeout(settleTimer);
-        settleTimer = window.setTimeout(apply, 120);
-      };
-      const observer = new MutationObserver(() => {
-        if (g.getAttribute("transform") !== lastApplied) scheduleApply();
-      });
-      observer.observe(g, { attributes: true, attributeFilter: ["transform"] });
-      linkTextCleanupRef.current.push(() => {
-        window.clearTimeout(settleTimer);
-        observer.disconnect();
-      });
-    });
-
     // The connecting line itself is still the actual click/hover surface
-    // — hovering it now also reveals the icon(s) above (immediately, via
-    // markGroupByPairKey — no delay, unlike the person-card hover-preview
-    // below, so the bubble is visible well before that timer would ever
-    // fire), and clicking it opens the full InfoPanel, restyled to match
+    // — hovering it now also reveals the icon(s) above (immediately — no
+    // delay, unlike the person-card hover-preview below, so the bubble is
+    // visible well before that timer would ever fire), and clicking it
+    // opens the full InfoPanel, restyled to match
     // the translucent/blurred hover-preview look for a union specifically
     // (see InfoPanel's own info-panel-union class).
     //
@@ -964,13 +902,43 @@ function App() {
     type UnionLineEntry = {
       p: SVGPathElement;
       union: UnionInfo;
-      x1: number;
-      y1: number;
-      x2: number;
-      y2: number;
-      axis: "x" | "y"; // whichever coordinate is constant along this row/column
+      hit: SVGPathElement;
+      knot: SVGUseElement;
     };
     const unionLineEntries: UnionLineEntry[] = [];
+
+    // hit/knot elements used to be inserted as `p`'s own DOM siblings
+    // (afterend of `p`, then afterend of `hit`) — reasonable at a glance,
+    // but family-chart's own d3 data-join reorders path.link elements to
+    // match its data order on every update (and again mid-transition,
+    // *after* this whole function had already run and correctly
+    // positioned everything, confirmed by logging the DOM structure
+    // immediately after this function returns vs. a moment later). d3's
+    // reorder has no idea these synthetic siblings exist, so it never
+    // carries them along — stranding a hit/knot pair wherever `p` used to
+    // be, no longer adjacent to it. Reported as knots floating with no
+    // line, over a completely unrelated relationship elsewhere in the row.
+    // A single overlay `<g>`, created once and never touched by
+    // family-chart's own selection at all, sidesteps the whole problem:
+    // every hit/knot lives here instead of next to `p`, so nothing family-
+    // chart does to path.link's own DOM order can strand them. Positioning
+    // stays purely coordinate-driven (the `d`/`x`/`y`/`transform`
+    // attributes set in applyAllZones below), so where this group sits in
+    // the DOM doesn't affect where anything draws — appended last so
+    // hit/knot still paint on top of every line.
+    const linksParent = container.querySelector("path.link")?.parentElement;
+    let overlay = linksParent?.querySelector<SVGGElement>(":scope > .union-line-overlay") ?? null;
+    if (linksParent && !overlay) {
+      overlay = document.createElementNS("http://www.w3.org/2000/svg", "g");
+      overlay.setAttribute("class", "union-line-overlay");
+      linksParent.appendChild(overlay);
+    } else if (overlay) {
+      // Re-appended every pass — a plain `appendChild` on an element
+      // already in the DOM moves it, which keeps this group (and so every
+      // hit/knot in it) last in paint order even if family-chart's own
+      // reorder shuffled it earlier in the meantime.
+      linksParent?.appendChild(overlay);
+    }
 
     container.querySelectorAll<SVGPathElement>("path.link").forEach((p) => {
       const datum = (p as unknown as { __data__?: PathLinkDatum }).__data__;
@@ -980,27 +948,124 @@ function App() {
           ? unionsByPairKeyRef.current.get(pairKey(source.data.id, datum!.target.data.id))
           : undefined;
 
-      if (!union || typeof source!.x !== "number" || typeof source!.y !== "number") {
-        const nextEl = p.nextElementSibling;
-        if (nextEl?.classList.contains("union-line-hitarea")) nextEl.remove();
+      // A union whose line was just hidden above (its cards fell outside
+      // the currently-rendered cardIds — e.g. a collapsed ancestor branch)
+      // still has a perfectly valid x/y from family-chart's own layout —
+      // the layout covers the *whole* loaded data, not just what's on
+      // screen — so it would otherwise sail through this check and get a
+      // knot positioned wherever that (currently invisible) row happens to
+      // sit, sometimes far off in empty space above/around the visible
+      // tree.
+      if (!union || typeof source!.x !== "number" || typeof source!.y !== "number" || p.style.display === "none") {
         p.classList.remove("union-line");
+        p.style.stroke = "";
         p.onclick = null;
         p.onmouseenter = null;
         p.onmouseleave = null;
         return;
       }
 
-      const target = datum!.target;
-      unionLineEntries.push({
-        p,
-        union,
-        x1: source!.x,
-        y1: source!.y,
-        x2: target.x ?? source!.x,
-        y2: target.y ?? source!.y,
-        axis: source!.y === target.y ? "y" : "x",
-      });
+      p.classList.add("union-line");
+      // Found/reused via a reference stashed directly on `p` (see
+      // PathLinkWithExtras below), not by DOM position — see the overlay
+      // group's own comment above for why position isn't reliable here.
+      const pWithExtras = p as PathLinkWithExtras;
+      let hit = pWithExtras.__unionHit;
+      if (!hit) {
+        // A separate, much-wider transparent stroke rather than widening
+        // path.link's own visible stroke — same idea as the old icon's own
+        // padded hit rect, just along a line instead of around a shape.
+        hit = document.createElementNS("http://www.w3.org/2000/svg", "path");
+        hit.setAttribute("class", "union-line-hitarea");
+        pWithExtras.__unionHit = hit;
+      }
+      overlay?.appendChild(hit);
+
+      // The rope's own knot (see the #union-knot <symbol> above) — one per
+      // line, stamped at its midpoint by applyAllZones/positionKnot below.
+      // pointer-events are off (see .union-line-knot in App.css) so it
+      // never steals hover/click away from `hit` sitting right underneath
+      // it.
+      let knot = pWithExtras.__unionKnot;
+      if (!knot) {
+        knot = document.createElementNS("http://www.w3.org/2000/svg", "use") as unknown as SVGUseElement;
+        knot.setAttribute("class", "union-line-knot");
+        knot.setAttribute("href", "#union-knot");
+        pWithExtras.__unionKnot = knot;
+      }
+      overlay?.appendChild(knot);
+
+      unionLineEntries.push({ p, union, hit, knot });
     });
+
+    // family-chart's own d3 data-join removes a path.link element outright
+    // once it's no longer needed (e.g. navigating to a person whose row no
+    // longer includes a given union) — it has no idea this hitarea sibling
+    // even exists, so it never removes it along with the path. Left
+    // unswept, these accumulate as the user browses the tree: a "hitarea"
+    // is invisible so this went unnoticed, but the same leak with the
+    // decorative dots this line used to have showed up as stray black dots
+    // scattered wherever an old, now-unrelated union used to be. Rather
+    // than trying to catch every path through which a path.link can
+    // disappear, this sweeps the whole container for anything not claimed
+    // by *this* render's own entries and removes it — correct regardless
+    // of how the element became orphaned.
+    const claimedHitareas = new Set<Element>([
+      ...unionLineEntries.map((entry) => entry.hit),
+      ...unionLineEntries.map((entry) => entry.knot),
+    ]);
+    container.querySelectorAll(".union-line-hitarea, .union-line-dot, .union-line-knot").forEach((el) => {
+      if (!claimedHitareas.has(el)) el.remove();
+    });
+
+    // The sweep above only catches a union.link.link that was already
+    // gone (or already display:none) by the time *this* render ran — it
+    // can't catch one that disappears *between* renders. Confirmed
+    // empirically (logging exactly when each path.link actually left the
+    // DOM vs. when this function last ran): family-chart's own d3 exit
+    // selection routes a removed path.link through a fade-out
+    // `.transition().remove()`, so the node leaves the DOM only once that
+    // transition finishes — after this function has already returned and
+    // already computed its claimed set for that render. No later redraw is
+    // guaranteed to happen just because that transition finished (the user
+    // may not click anything again for a while), so a hit/knot pair whose
+    // path.link exits between renders could sit there orphaned
+    // indefinitely instead of just until the next click. Watching for the
+    // actual DOM removal — whenever it happens — and clearing that node's
+    // own hit/knot right then closes the gap the periodic sweep leaves.
+    if (linksParent) {
+      const removalObserver = new MutationObserver((mutations) => {
+        mutations.forEach((mutation) => {
+          mutation.removedNodes.forEach((node) => {
+            if (!(node instanceof Element)) return;
+            const removed = node as PathLinkWithExtras;
+            removed.__unionHit?.remove();
+            removed.__unionKnot?.remove();
+          });
+        });
+      });
+      removalObserver.observe(linksParent, { childList: true });
+      linkTextCleanupRef.current.push(() => removalObserver.disconnect());
+    }
+
+    // Always re-read straight off `p.__data__` rather than trusting values
+    // cached at entry-creation time — family-chart may swap in a whole new
+    // datum object on a later layout pass rather than mutating the old one
+    // in place, so a value captured once could silently go stale. `p`
+    // itself (the actual DOM node) is what family-chart keeps updating in
+    // place, so reading its *current* `__data__` is the one thing that's
+    // never stale, however many layout passes have happened since this
+    // entry was built.
+    const coordsOf = (entry: UnionLineEntry) => {
+      const datum = (entry.p as unknown as { __data__?: PathLinkDatum }).__data__;
+      const source = datum && !Array.isArray(datum.source) ? datum.source : null;
+      const x1 = source?.x ?? 0;
+      const y1 = source?.y ?? 0;
+      const x2 = datum?.target.x ?? x1;
+      const y2 = datum?.target.y ?? y1;
+      const axis: "x" | "y" = y1 === y2 ? "y" : "x";
+      return { x1, y1, x2, y2, axis, sourceId: source?.data?.id ?? null };
+    };
 
     // family-chart draws a straight line from each spouse's own laid-out
     // position to the other's — fine for the common case, but when someone
@@ -1026,129 +1091,421 @@ function App() {
     // picks up the *new* stretch beyond whatever's already spoken for. This
     // holds regardless of how many marriages share the row — it's just
     // more cuts along the same one line, never more lines.
-    const rowGroups = new Map<string, UnionLineEntry[]>();
-    unionLineEntries.forEach((entry) => {
-      const key = `${entry.axis}:${Math.round(entry.axis === "y" ? entry.y1 : entry.x1)}`;
-      const group = rowGroups.get(key);
-      if (group) group.push(entry);
-      else rowGroups.set(key, [entry]);
-    });
-    // Each union's [lo, hi] span along the row's own spread axis, after
-    // trimming off whatever a shorter union in the same row already
-    // claimed — untouched ([lo, hi] as family-chart laid it out) unless it
-    // overlaps something shorter.
-    const zoneByEntry = new Map<UnionLineEntry, { lo: number; hi: number }>();
-    rowGroups.forEach((group) => {
-      const ranges = group.map((entry) => {
-        const a = entry.axis === "y" ? entry.x1 : entry.y1;
-        const b = entry.axis === "y" ? entry.x2 : entry.y2;
-        return { entry, lo: Math.min(a, b), hi: Math.max(a, b) };
+    //
+    // Grouping used to be keyed by the row's rounded Y (or X, in horizontal
+    // mode) alone — which turned out to catch far more than intended: a
+    // completely unrelated couple one generation up (someone's own
+    // parents' marriage line, say) can land on the exact same generation
+    // row purely by coincidence of layout, get lumped into the same
+    // exclusive-zone group, and have its unrelated span "steal" a chunk out
+    // of a real overlapping pair's trim — which is exactly what was
+    // reported as an icon randomly appearing over the wrong relationship.
+    // Two lines can only ever need trimming against each other if they fan
+    // out from the *same* anchor card in the first place (the scenario
+    // this whole mechanism exists for — one person, several spouses), so
+    // grouping by that shared source person's id is both correct and
+    // strictly narrower than "same row."
+    //
+    // This has to be a *group* computation (any one union's own zone
+    // depends on where every other union sharing its anchor currently
+    // sits), so it's wrapped in one function re-run as a whole rather than
+    // having each line separately remember its own zone — see
+    // applyAllZones below for why that distinction matters.
+    const computeZones = () => {
+      const sourceGroups = new Map<string, { entry: UnionLineEntry; lo: number; hi: number }[]>();
+      const coordsByEntry = new Map<UnionLineEntry, ReturnType<typeof coordsOf>>();
+      unionLineEntries.forEach((entry) => {
+        const c = coordsOf(entry);
+        coordsByEntry.set(entry, c);
+        if (!c.sourceId) return;
+        const a = c.axis === "y" ? c.x1 : c.y1;
+        const b = c.axis === "y" ? c.x2 : c.y2;
+        const item = { entry, lo: Math.min(a, b), hi: Math.max(a, b) };
+        const group = sourceGroups.get(c.sourceId);
+        if (group) group.push(item);
+        else sourceGroups.set(c.sourceId, [item]);
       });
-      if (ranges.length < 2) {
-        ranges.forEach(({ entry, lo, hi }) => zoneByEntry.set(entry, { lo, hi }));
-        return;
+
+      const zoneByEntry = new Map<UnionLineEntry, { lo: number; hi: number }>();
+      sourceGroups.forEach((group) => {
+        if (group.length < 2) {
+          group.forEach(({ entry, lo, hi }) => zoneByEntry.set(entry, { lo, hi }));
+          return;
+        }
+        // Shortest (almost always the common, adjacent-spouse case) first —
+        // it's the one every longer union of this same person yields to.
+        const claimed: { lo: number; hi: number }[] = [];
+        [...group]
+          .sort((a, b) => a.hi - a.lo - (b.hi - b.lo))
+          .forEach(({ entry, lo, hi }) => {
+            let pieces: { lo: number; hi: number }[] = [{ lo, hi }];
+            for (const claim of claimed) {
+              pieces = pieces.flatMap(({ lo: pLo, hi: pHi }) => {
+                if (claim.hi <= pLo || claim.lo >= pHi) return [{ lo: pLo, hi: pHi }];
+                const rest: { lo: number; hi: number }[] = [];
+                if (pLo < claim.lo) rest.push({ lo: pLo, hi: claim.lo });
+                if (claim.hi < pHi) rest.push({ lo: claim.hi, hi: pHi });
+                return rest;
+              });
+            }
+            // A gap sandwiched between two shorter, already-claimed unions
+            // on either side is the rare case this can't cleanly represent
+            // as one contiguous zone — keeping the single largest leftover
+            // piece is a reasonable fallback rather than adding a second
+            // hit path for what should be a one-in-a-thousand layout.
+            const zone = pieces.length
+              ? pieces.reduce((biggest, piece) => (piece.hi - piece.lo > biggest.hi - biggest.lo ? piece : biggest))
+              : { lo, hi };
+            zoneByEntry.set(entry, zone);
+            claimed.push({ lo, hi });
+          });
+      });
+
+      // Keyed by union id *plus* this occurrence's own coordinates (see
+      // occurrenceKey) — not just the UnionLineEntry object — so the
+      // g.link-text icon-positioning loop below, which walks family-chart's
+      // own separate g.link-text elements rather than unionLineEntries, can
+      // look a union's zone up by the same `data-family-id` it already
+      // stamps on each element. Plain union id alone would collapse two
+      // rendered occurrences of the same union (a genealogical loop) into
+      // one shared entry.
+      const zoneByFamilyId = new Map<string, { lo: number; hi: number }>();
+      zoneByEntry.forEach((zone, entry) => {
+        const c = coordsByEntry.get(entry)!;
+        zoneByFamilyId.set(`${entry.union.id}@${occurrenceKey(c.x1, c.y1, c.x2, c.y2)}`, zone);
+      });
+
+      return { zoneByEntry, coordsByEntry, zoneByFamilyId };
+    };
+
+    // The union's own icon(s) live at the same fixed spot the old
+    // permanent mark used to sit (see correctLinkTextTransform), but stay
+    // hidden — see the .union-mark-icons CSS — until the connecting line
+    // itself is hovered (wired below), when they bubble in. The line
+    // stays the actual interactive surface throughout (click/hover both
+    // live there); this block only positions and builds the markup. The
+    // line-hover handlers below look up the icon group by `data-family-id`
+    // at hover time (a live DOM query, not a map captured here) — a union
+    // whose `g.link-text` datum failed to resolve on this particular pass
+    // (this loop, unlike the line-hover loop above, can legitimately skip
+    // one) must not leave that union's hover handler permanently wired to
+    // a stale/missing group until the next redraw.
+    const linkTextEls = container.querySelectorAll<SVGGElement>("g.link-text");
+    linkTextEls.forEach((g) => {
+      const datum = (g as unknown as { __data__?: LinkTextDatum }).__data__;
+      const union =
+        datum && unionsByPairKeyRef.current.get(pairKey(datum.nodes[0].data.id, datum.nodes[1].data.id));
+      if (!union) return;
+
+      g.setAttribute("data-family-id", union.id);
+      // Disambiguates which *occurrence* of this union this particular
+      // g.link-text is — see occurrenceKey's own comment. Without it,
+      // hovering either rendered copy of a genealogical-loop union always
+      // revealed whichever g.link-text happened to come first in DOM
+      // order (family-id alone can't tell the two apart), so the mark
+      // only ever bubbled in over its "twin" line, never the one actually
+      // under the pointer.
+      g.setAttribute(
+        "data-occurrence",
+        occurrenceKey(datum.nodes[0].x, datum.nodes[0].y, datum.nodes[1].x, datum.nodes[1].y),
+      );
+      const originalText = g.querySelector<SVGTextElement>(":scope > text");
+      if (originalText) originalText.style.display = "none";
+      let markGroup = g.querySelector<SVGGElement>(".union-mark-icons");
+      if (!markGroup) {
+        markGroup = document.createElementNS("http://www.w3.org/2000/svg", "g");
+        markGroup.setAttribute("class", "union-mark-icons");
+        g.appendChild(markGroup);
       }
-      // Shortest (almost always the common, adjacent-spouse case) first —
-      // it's the one every longer union in this row yields to.
-      const claimed: { lo: number; hi: number }[] = [];
-      ranges
-        .sort((a, b) => a.hi - a.lo - (b.hi - b.lo))
-        .forEach(({ entry, lo, hi }) => {
-          let pieces: { lo: number; hi: number }[] = [{ lo, hi }];
-          for (const claim of claimed) {
-            pieces = pieces.flatMap(({ lo: pLo, hi: pHi }) => {
-              if (claim.hi <= pLo || claim.lo >= pHi) return [{ lo: pLo, hi: pHi }];
-              const rest: { lo: number; hi: number }[] = [];
-              if (pLo < claim.lo) rest.push({ lo: pLo, hi: claim.lo });
-              if (claim.hi < pHi) rest.push({ lo: claim.hi, hi: pHi });
-              return rest;
-            });
-          }
-          // A gap sandwiched between two shorter, already-claimed unions
-          // on either side is the rare case this can't cleanly represent
-          // as one contiguous zone — keeping the single largest leftover
-          // piece is a reasonable fallback rather than adding a second hit
-          // path for what should be a one-in-a-thousand layout.
-          const zone = pieces.length
-            ? pieces.reduce((biggest, piece) => (piece.hi - piece.lo > biggest.hi - biggest.lo ? piece : biggest))
-            : { lo, hi };
-          zoneByEntry.set(entry, zone);
-          claimed.push({ lo, hi });
-        });
-    });
+      markGroup.innerHTML = unionMarkMarkup(union);
 
-    unionLineEntries.forEach((entry) => {
-      const { p, union, x1, y1, axis } = entry;
-      const zone = zoneByEntry.get(entry)!;
-      const computeD = () =>
-        axis === "y" ? `M${zone.lo},${y1}L${zone.hi},${y1}` : `M${x1},${zone.lo}L${x1},${zone.hi}`;
-
-      p.classList.add("union-line");
-      const nextEl = p.nextElementSibling;
-      let hit = nextEl?.classList.contains("union-line-hitarea") ? (nextEl as SVGPathElement) : null;
-      // A separate, much-wider transparent stroke rather than widening
-      // path.link's own visible stroke — same idea as the old icon's own
-      // padded hit rect, just along a line instead of around a shape.
-      if (!hit) {
-        hit = document.createElementNS("http://www.w3.org/2000/svg", "path");
-        hit.setAttribute("class", "union-line-hitarea");
-        p.insertAdjacentElement("afterend", hit);
-      }
-
-      // The endpoints above (from the datum, not from reading p's own `d`
-      // back out) are already this render's real, settled answer — no need
-      // to wait on anything to compute them. What still needs a settle
-      // step is applying them: family-chart's own d3 transition keeps
-      // interpolating `d` toward its own (untrimmed) target for as long as
-      // the transition runs, fighting a one-time overwrite here. Re-
-      // applying once things go quiet — the same approach
-      // correctLinkTextTransform used to need for the old floating mark —
-      // lands it correctly once the tug-of-war ends, rather than trying to
-      // win every single animation frame. `lastApplied` guards against
-      // reacting to this same code's own writes, which would otherwise
-      // never let the observer settle.
+      // Same settle problem as the union-line's own `d` below — family-
+      // chart keeps nudging this element's transform via its own d3
+      // transition, so a one-time apply here would just get overwritten
+      // mid-animation. `lastApplied` guards against reacting to this same
+      // code's own writes. Recomputes zones fresh on every apply (not just
+      // once at wire time) for the same reason applyAllZones itself does —
+      // see that function's own comment on why a stale, once-computed zone
+      // can't be trusted across settle passes.
       let lastApplied: string | null = null;
       const apply = () => {
-        const d = computeD();
-        lastApplied = d;
-        p.setAttribute("d", d);
-        hit!.setAttribute("d", d);
+        const { zoneByFamilyId } = computeZones();
+        const transform = correctLinkTextTransform(g, orientationRef.current, zoneByFamilyId);
+        if (!transform) return;
+        lastApplied = transform;
+        g.setAttribute("transform", transform);
       };
       apply();
-
       let settleTimer: number | undefined;
       const scheduleApply = () => {
         window.clearTimeout(settleTimer);
         settleTimer = window.setTimeout(apply, 120);
       };
       const observer = new MutationObserver(() => {
-        if (p.getAttribute("d") !== lastApplied) scheduleApply();
+        if (g.getAttribute("transform") !== lastApplied) scheduleApply();
       });
-      observer.observe(p, { attributes: true, attributeFilter: ["d"] });
+      observer.observe(g, { attributes: true, attributeFilter: ["transform"] });
       linkTextCleanupRef.current.push(() => {
         window.clearTimeout(settleTimer);
         observer.disconnect();
       });
+    });
 
+    // Every union line's own drawing depends on all of its row's siblings,
+    // not just itself — a spouse card sliding into its final layout
+    // position can change where an *unrelated* line's zone should be
+    // trimmed to. An earlier version had each line remember its own zone
+    // once and reactively reapply that same (increasingly stale) value on
+    // settle; that raced family-chart's own per-element, individually
+    // *delayed* transitions (see its own `.delay(...)` calls) — two
+    // sibling lines settling at different times could each reapply a zone
+    // computed before the other had reached its final position, sometimes
+    // leaving them overlapping. Recomputing every zone fresh from
+    // `coordsOf` (which itself always re-reads current DOM state, never a
+    // cached value) on every settle, for every line at once, is what
+    // actually self-corrects regardless of which line's transition
+    // triggered the recheck.
+    // On-screen size of the #union-knot symbol — its own viewBox is
+    // 1300x1031 (potrace's native trace size), so height keeps that same
+    // ~1.26:1 aspect rather than being picked independently.
+    const KNOT_WIDTH = 34;
+    const KNOT_HEIGHT = KNOT_WIDTH / (1300 / 1031);
+
+    const lastAppliedByEntry = new Map<UnionLineEntry, string>();
+    const applyAllZones = () => {
+      const { zoneByEntry, coordsByEntry } = computeZones();
+      unionLineEntries.forEach((entry) => {
+        const { p, hit, knot } = entry;
+        const zone = zoneByEntry.get(entry)!;
+        const c = coordsByEntry.get(entry)!;
+        const d = c.axis === "y" ? `M${zone.lo},${c.y1}L${zone.hi},${c.y1}` : `M${c.x1},${zone.lo}L${c.x1},${zone.hi}`;
+        lastAppliedByEntry.set(entry, d);
+        p.setAttribute("d", d);
+        hit.setAttribute("d", d);
+        // Plain rope-colored stroke now (see the #union-knot <symbol>
+        // above for the decorative mark that replaced the old tiled
+        // chain-link <pattern>) — the union-line-glow hover rule below
+        // still applies on top of this via drop-shadow, unaffected by the
+        // switch away from a pattern fill.
+        p.style.stroke = "var(--color-forest)";
+
+        // Stamped once at the (zone-trimmed) line's own midpoint — always
+        // inside the true rope segment, never on a card, by the same
+        // exclusive-zone math the line itself is cut to. Vertical-mode
+        // lines (axis "x": constant x, y varies) get the knot rotated 90°
+        // in place around that same midpoint so the rope reads along the
+        // line's own direction instead of sideways across it.
+        const mid = (zone.lo + zone.hi) / 2;
+        const centerX = c.axis === "y" ? mid : c.x1;
+        const centerY = c.axis === "y" ? c.y1 : mid;
+        knot.setAttribute("x", String(centerX - KNOT_WIDTH / 2));
+        knot.setAttribute("y", String(centerY - KNOT_HEIGHT / 2));
+        knot.setAttribute("width", String(KNOT_WIDTH));
+        knot.setAttribute("height", String(KNOT_HEIGHT));
+        knot.setAttribute("transform", c.axis === "x" ? `rotate(90 ${centerX} ${centerY})` : "");
+      });
+    };
+    applyAllZones();
+
+    let settleTimer: number | undefined;
+    const scheduleApplyAll = () => {
+      window.clearTimeout(settleTimer);
+      settleTimer = window.setTimeout(applyAllZones, 120);
+    };
+    const drifted = () => unionLineEntries.some((entry) => entry.p.getAttribute("d") !== lastAppliedByEntry.get(entry));
+    const observer = new MutationObserver(() => {
+      if (drifted()) scheduleApplyAll();
+    });
+    unionLineEntries.forEach((entry) => observer.observe(entry.p, { attributes: true, attributeFilter: ["d"] }));
+    linkTextCleanupRef.current.push(() => {
+      window.clearTimeout(settleTimer);
+      observer.disconnect();
+    });
+
+    unionLineEntries.forEach((entry) => {
+      const { union, p, hit } = entry;
       const handleClick = (e: MouseEvent) => {
         e.stopPropagation();
         setInfoPanel(buildUnionInfoPanel(union, treeDataRef.current));
       };
       // No delay, no timer — unlike the person-card hover-preview below,
       // this is meant to be seen bubbling in immediately, well before a
-      // 1s-style delay would ever fire (by request).
-      const markGroup = markGroupByPairKey.get(pairKey(union.partner1Id, union.partner2Id));
+      // 1s-style delay would ever fire (by request). Looked up live by
+      // family id rather than a map snapshotted earlier in this same
+      // redraw — see the comment above the g.link-text loop. Also matched
+      // on this specific occurrence's own coordinates (see occurrenceKey),
+      // not family id alone — a genealogical loop renders the same union
+      // twice, and family id alone can't tell which of the two rendered
+      // copies is the one actually being hovered.
+      const findMarkGroup = () => {
+        const c = coordsOf(entry);
+        const occ = occurrenceKey(c.x1, c.y1, c.x2, c.y2);
+        return container.querySelector<SVGGElement>(
+          `g.link-text[data-family-id="${union.id}"][data-occurrence="${occ}"] .union-mark-icons`,
+        );
+      };
+      // The glow used to be a CSS :has(~ .union-line-hitarea:hover) rule —
+      // but every union's rails and hitarea are flat siblings inside the
+      // same shared SVG group (family-chart draws all links into one <g>),
+      // so `~` (general sibling) matched *any* union-line sitting earlier
+      // in that shared list, not just this one's own pair — hovering one
+      // relationship lit up an inconsistent subset of every other line
+      // before it in DOM order. Toggling a class directly on this
+      // closure's own elements (real element references, not a selector)
+      // can't cross-match another union's elements.
       const handleEnter = () => {
-        markGroup?.classList.add("union-mark-visible");
+        findMarkGroup()?.classList.add("union-mark-visible");
+        p.classList.add("union-line-glow");
       };
       const handleLeave = () => {
-        markGroup?.classList.remove("union-mark-visible");
+        findMarkGroup()?.classList.remove("union-mark-visible");
+        p.classList.remove("union-line-glow");
       };
       hit.onclick = handleClick;
       hit.onmouseenter = handleEnter;
       hit.onmouseleave = handleLeave;
     });
-  }, [startRelateDrag]);
+
+    // family-chart positions an only child's own card the same way it used
+    // to position a union's marriage mark — a heuristic tied to one parent
+    // plus a fixed offset, which assumes that parent's own row is a simple,
+    // single-marriage one. That breaks down exactly like the union-mark bug
+    // did: when one of the two parents has *another* marriage elsewhere in
+    // their row, the heuristic lands the child's card under whichever
+    // parent it anchored to instead of the couple's true center, so the
+    // connecting line has to visibly bend to reach it — reported as one
+    // only child's descent line looking crooked next to a sibling's own
+    // (also an only child, but of a simply-married couple) perfectly
+    // straight one.
+    //
+    // Scoped deliberately to only children — a multi-child family's
+    // siblings are already laid out as a deliberate group by family-chart's
+    // own logic (individually off-center from the parents by design, the
+    // group centered overall), which this leaves untouched. An only child
+    // has nothing else's layout depending on where their own card sits, so
+    // nudging just that one card is safe.
+    // Both the SVG-local coordinates (path.link's own datum) and the HTML
+    // cards' pixel transforms use x for "spread" (siblings/spouses side by
+    // side) and y for "depth" (generation) only in vertical mode — family-
+    // chart swaps which screen axis plays which role in horizontal mode
+    // (see correctLinkTextTransform's own comment on that swap). An
+    // earlier version of this fix hardcoded x=spread/y=depth throughout,
+    // which is only correct in vertical mode; in horizontal mode it forced
+    // the child's card onto the *depth* axis instead of correcting its
+    // spread, landing it at the same generation-column as its own parents
+    // — reported as a lone child rendering stacked between its two parents
+    // instead of past them. Reading both axes through these two helpers
+    // (matching correctLinkTextTransform's own pattern) keeps this correct
+    // in both orientations.
+    const spreadLocal = (n: { x: number; y: number }) => (orientationRef.current === "horizontal" ? n.y : n.x);
+    const depthLocal = (n: { x: number; y: number }) => (orientationRef.current === "horizontal" ? n.x : n.y);
+    const cardWrapperPixelPos = (personId: string) => {
+      const card = container.querySelector<HTMLElement>(`.card[data-id="${personId}"]`);
+      const wrapper = card?.parentElement ?? null;
+      const style = wrapper?.getAttribute("style");
+      const match = style?.match(/translate\(([-\d.]+)px,\s*([-\d.]+)px\)/);
+      return match ? { wrapper: wrapper!, x: Number(match[1]), y: Number(match[2]) } : null;
+    };
+    const spreadPixel = (pos: { x: number; y: number }) => (orientationRef.current === "horizontal" ? pos.y : pos.x);
+
+    type ChildLink = { p: SVGPathElement; targetId: string; parentIds: [string, string] };
+    const childLinksByFamily = new Map<string, ChildLink[]>();
+    container.querySelectorAll<SVGPathElement>("path.link").forEach((p) => {
+      const datum = (p as unknown as { __data__?: PathLinkDatum }).__data__;
+      if (!datum || !Array.isArray(datum.source)) return;
+      const [s1, s2] = datum.source;
+      const targetId = datum.target?.data?.id;
+      if (!s1?.data?.id || !s2?.data?.id || !targetId) return;
+      const famKey = pairKey(s1.data.id, s2.data.id);
+      const item: ChildLink = { p, targetId, parentIds: [s1.data.id, s2.data.id] };
+      const arr = childLinksByFamily.get(famKey);
+      if (arr) arr.push(item);
+      else childLinksByFamily.set(famKey, [item]);
+    });
+
+    childLinksByFamily.forEach((items) => {
+      if (items.length !== 1) return;
+      const { p, targetId, parentIds } = items[0];
+
+      // Recomputed fresh on every apply (initial call and every settle
+      // re-check below) rather than captured once — re-reads `p.__data__`
+      // the same way coordsOf elsewhere does, so a later layout pass (or
+      // an orientation toggle, which reroutes through orientationRef) can't
+      // leave this acting on stale coordinates.
+      const applyChildCorrection = () => {
+        const datum = (p as unknown as { __data__?: PathLinkDatum }).__data__;
+        const source = datum && Array.isArray(datum.source) ? datum.source : null;
+        const [s1, s2] = source ?? [];
+        const target = datum?.target;
+        if (
+          !s1 ||
+          !s2 ||
+          !target ||
+          typeof s1.x !== "number" ||
+          typeof s1.y !== "number" ||
+          typeof s2.x !== "number" ||
+          typeof s2.y !== "number" ||
+          typeof target.x !== "number" ||
+          typeof target.y !== "number"
+        ) {
+          return;
+        }
+        // Narrowing s1.x/s1.y above only narrows those property-access
+        // expressions, not s1's own declared type (still PathLinkNode, with
+        // optional x/y) — spreadLocal/depthLocal need plain {x,y} numbers.
+        const s1Pt = { x: s1.x, y: s1.y };
+        const s2Pt = { x: s2.x, y: s2.y };
+        const targetPt = { x: target.x, y: target.y };
+        const trueMidSpreadLocal = (spreadLocal(s1Pt) + spreadLocal(s2Pt)) / 2;
+        const parentDepthLocal = depthLocal(s1Pt);
+        const childDepthLocal = depthLocal(targetPt);
+        if (Math.abs(spreadLocal(targetPt) - trueMidSpreadLocal) > 1) {
+          const straightD =
+            orientationRef.current === "horizontal"
+              ? `M${childDepthLocal},${trueMidSpreadLocal}L${parentDepthLocal},${trueMidSpreadLocal}`
+              : `M${trueMidSpreadLocal},${childDepthLocal}L${trueMidSpreadLocal},${parentDepthLocal}`;
+          if (p.getAttribute("d") !== straightD) p.setAttribute("d", straightD);
+        }
+
+        // Pixel-space midpoint of the two parents' own card wrappers, read
+        // live rather than converted from the SVG-local values above — the
+        // two rendering layers (HTML cards vs. this SVG) apply their own
+        // independent scale/offset, but since both are linear transforms of
+        // the same underlying layout, computing the midpoint separately in
+        // each space and applying each to its own layer stays consistent
+        // without needing to know that conversion factor at all.
+        const parentPositions = parentIds.map(cardWrapperPixelPos);
+        const childPos = cardWrapperPixelPos(targetId);
+        if (parentPositions[0] && parentPositions[1] && childPos) {
+          const trueMidSpreadPixel = (spreadPixel(parentPositions[0]) + spreadPixel(parentPositions[1])) / 2;
+          if (Math.abs(spreadPixel(childPos) - trueMidSpreadPixel) > 0.5) {
+            const nextTransform =
+              orientationRef.current === "horizontal"
+                ? `translate(${childPos.x}px, ${trueMidSpreadPixel}px)`
+                : `translate(${trueMidSpreadPixel}px, ${childPos.y}px)`;
+            childPos.wrapper.style.transform = nextTransform;
+          }
+        }
+      };
+      applyChildCorrection();
+
+      const childPosForObserve = cardWrapperPixelPos(targetId);
+      let onlyChildSettleTimer: number | undefined;
+      const scheduleChildCorrection = () => {
+        window.clearTimeout(onlyChildSettleTimer);
+        onlyChildSettleTimer = window.setTimeout(applyChildCorrection, 120);
+      };
+      const wrapperObserver = new MutationObserver(scheduleChildCorrection);
+      if (childPosForObserve) wrapperObserver.observe(childPosForObserve.wrapper, { attributes: true, attributeFilter: ["style"] });
+      const pathObserver = new MutationObserver(scheduleChildCorrection);
+      pathObserver.observe(p, { attributes: true, attributeFilter: ["d"] });
+      linkTextCleanupRef.current.push(() => {
+        window.clearTimeout(onlyChildSettleTimer);
+        wrapperObserver.disconnect();
+        pathObserver.disconnect();
+      });
+    });
+  }, [handleQuickAddClick]);
 
   const loadTree = useCallback(
     async (recenterOnId?: string) => {
@@ -1201,22 +1558,30 @@ function App() {
         // form, so the placeholder is pure confusion; disable it entirely.
         chart.setSingleParentEmptyCard(false);
 
-        // A little extra room specifically on the screen-vertical axis —
-        // by request, to keep a card's own name/lifespan text (which hangs
-        // below the avatar) from crowding the union line running through
-        // the row underneath it, and to give the tree some breathing room
+        // Extra room on both screen axes — by request, to keep a card's
+        // own name/lifespan text (which hangs below the avatar) from
+        // crowding the union line/knot running through the row underneath
+        // it (worst in horizontal mode, where the knot was landing right on
+        // top of that text), and to give the tree some breathing room
         // generally. family-chart swaps which of its two spacing knobs
-        // (node_separation/level_separation) maps to which screen axis
-        // when the tree is horizontal (see correctLinkTextTransform's own
-        // comment on that swap) — level_separation is what ends up
-        // governing the vertical screen axis in *both* orientations
-        // (confirmed empirically: it's generation depth in vertical mode,
-        // but the spouse-stacking axis in horizontal mode, and both render
-        // vertically on screen), so this one call is enough for both
-        // rather than needing an orientation-specific branch. Left the
-        // horizontal screen axis (card_x_spacing) at its default — only
-        // asked for more room vertically.
-        chart.setCardYSpacing(170);
+        // (node_separation/level_separation) maps to which screen axis when
+        // the tree is horizontal (see correctLinkTextTransform's own
+        // comment on that swap) — level_separation ends up governing the
+        // vertical screen axis in *both* orientations, and node_separation
+        // the horizontal one in *both* (confirmed empirically: level_
+        // separation is generation depth in vertical mode but the spouse-
+        // stacking axis in horizontal mode, and both render vertically on
+        // screen — node_separation is the mirror of that), so one call of
+        // each is enough for both rather than needing an orientation-
+        // specific branch. Defaults are 150/250 — the y-axis knob was
+        // already bumped to 170 in an earlier round for the same "give the
+        // text room" reason, then +15 (185) once the union-line knot itself
+        // started landing on a card's own text — worst in horizontal mode
+        // (governed by this same y-axis knob, hence the further +20 to 205
+        // below), but requested for vertical mode's own union-line length
+        // too, hence the matching x-axis bump.
+        chart.setCardYSpacing(205);
+        chart.setCardXSpacing(265);
 
         // family-chart always creates a <text> here regardless of what this
         // returns (it only ever calls .text() on it) — the actual marriage/
@@ -1688,13 +2053,13 @@ function App() {
       // green dot in exports, not a union mark at all) is deliberately
       // *not* hover-gated in the app, since it's meant to catch the eye
       // whenever it applies (see wireCardAndUnionClicks). The edit/expand/
-      // relate corner buttons are hover-gated via CSS opacity, so they're
-      // already invisible on export — hidden here too anyway, since all
-      // four are interactive affordances for the live app, not something
-      // that belongs in a static picture of the tree.
+      // quick-add corner buttons are hover-gated via CSS opacity, so
+      // they're already invisible on export — hidden here too anyway,
+      // since all four are interactive affordances for the live app, not
+      // something that belongs in a static picture of the tree.
       container
         .querySelectorAll<HTMLElement>(
-          ".card-ancestry-toggle, .card-expand-toggle, .card-edit-toggle, .card-relate-toggle",
+          ".card-ancestry-toggle, .card-expand-toggle, .card-edit-toggle, .card-quickadd-toggle",
         )
         .forEach((el) => {
           const previousDisplay = el.style.display;
@@ -1850,21 +2215,23 @@ function App() {
     if (person) setInfoPanel(buildPersonInfoPanel(person));
   }
 
-  function handlePersonCreated(newPersonId: string) {
+  // The new person's id comes in via AddPersonForm's onCreated contract but
+  // is deliberately unused here — see handlePersonSaved's comment below,
+  // same reasoning applies to creation as to editing.
+  function handlePersonCreated(_newPersonId: string) {
     setShowAddForm(false);
-    loadTree(newPersonId).catch((err: Error) => setError(err.message));
+    loadTree().catch((err: Error) => setError(err.message));
   }
 
   // The saved person's id comes in via EditPersonForm's onSaved contract
   // but is deliberately unused here — see the comment below.
   function handlePersonSaved(_personId: string) {
     setEditingPersonId(null);
-    // Not passed as loadTree's own recenterOnId — editing someone
-    // shouldn't select them, only clicking their card should (reported:
-    // editing person Z while person X was centered silently swapped the
-    // selection over to Z). handlePersonCreated below is the one case
-    // that *should* recenter, since jumping to a just-created relative is
-    // the actual point of that flow.
+    // Not passed as loadTree's own recenterOnId — editing or creating a
+    // relative shouldn't move the selection, only clicking a card should
+    // (reported: editing person Z while person X was centered silently
+    // swapped the selection over to Z; the same happened when creating a
+    // new relative Y while X was centered).
     loadTree().catch((err: Error) => setError(err.message));
     // Editing can create a new lineage inline — refresh the filter chips so
     // it shows up without leaving/reentering the tree.
@@ -2183,8 +2550,29 @@ function App() {
       {noUnrelatedMessage && <p className="status">{t("relationshipWizard.noneUnrelated")}</p>}
       <div className="main-area">
         <div className="tree-canvas-wrap">
+          {/* A union line's stroke is painted with one of these two tiled
+              chain-link pattern (an earlier attempt) into a plain solid
+              rope-colored stroke (see applyAllZones, which now just sets
+              `stroke: var(--color-forest)`) plus this one knot, stamped
+              once at each line's own midpoint by applyAllZones/
+              positionKnot — "atar el nudo" as the union's own mark, traced
+              (via potrace) from the reference image supplied by request
+              rather than hand-drawn, so the silhouette matches exactly.
+              `<symbol>`/`<use>` (not a `<pattern>`) since this is one motif
+              placed once per line, not tiled — `href` references resolve
+              document-wide same as `url()` did, so this can live anywhere
+              in the DOM; zero size, so it never affects layout. */}
+          <svg width="0" height="0" style={{ position: "absolute" }} aria-hidden="true">
+            <defs>
+              <symbol id="union-knot" viewBox="0 0 1300 1031">
+                <g transform="translate(-0.207674,1031.632989) scale(0.1,-0.1)" fill="var(--color-forest)">
+                  <path d="M9060 10314 c-14 -3 -88 -16 -165 -30 -399 -71 -645 -152 -988 -326 -582 -295 -1066 -711 -1469 -1264 -157 -216 -340 -525 -396 -669 l-20 -50 1255 3 1254 3 76 -73 c195 -188 294 -380 313 -609 12 -146 -3 -429 -29 -549 -46 -209 -129 -447 -225 -645 -334 -689 -869 -1371 -1288 -1642 -104 -67 -175 -89 -522 -158 -178 -35 -371 -80 -430 -99 -491 -161 -1183 -786 -1637 -1479 -95 -145 -207 -363 -193 -376 22 -23 715 -156 993 -191 586 -74 1320 -70 1874 10 538 78 1254 322 1780 606 579 312 1015 643 1395 1057 287 312 458 563 672 982 272 536 427 1081 497 1755 25 243 25 888 0 1090 -64 511 -200 986 -393 1372 -125 250 -206 371 -372 554 -196 216 -391 362 -672 503 -168 84 -281 125 -450 165 -219 53 -272 58 -560 61 -151 2 -286 1 -300 -1z" />
+                  <path d="M6387 7390 c-289 -9 -336 -13 -517 -46 -771 -140 -1652 -498 -2325 -947 -230 -153 -516 -372 -665 -509 -248 -228 -555 -561 -712 -771 -426 -571 -738 -1217 -908 -1882 -70 -273 -95 -557 -87 -1002 5 -314 22 -418 110 -678 129 -376 270 -610 536 -888 169 -175 355 -309 596 -428 307 -150 631 -229 945 -229 285 0 584 80 904 242 276 141 590 390 875 693 159 171 440 532 464 597 7 20 16 18 -393 88 -348 60 -531 99 -848 181 -298 77 -472 127 -489 141 -43 36 37 314 192 663 224 503 692 1107 1190 1532 292 250 479 380 700 489 226 110 374 157 727 229 353 73 431 108 596 269 387 377 729 888 936 1396 115 284 148 458 129 671 -6 65 -17 129 -26 146 -15 27 -22 31 -79 37 -98 10 -1576 15 -1851 6z" />
+                </g>
+              </symbol>
+            </defs>
+          </svg>
           <div id="FamilyChart" ref={containerRef} className="f3 tree-container" />
-          <svg ref={relateOverlayRef} className="relate-drag-overlay" aria-hidden="true" />
           <Legend />
           {hoverPreview && (
             <HoverPreview data={hoverPreview.data} x={hoverPreview.x} y={hoverPreview.y} flip={hoverPreview.flip} />
@@ -2198,12 +2586,19 @@ function App() {
             in case a design that doesn't depend on that alignment comes
             up later. */}
       </div>
-      {showAddForm && (
+      {(showAddForm || quickAddInitialRelation) && (
         <AddPersonForm
           treeId={treeId}
           people={treeData}
-          onCreated={handlePersonCreated}
-          onClose={() => setShowAddForm(false)}
+          initialRelation={quickAddInitialRelation ?? undefined}
+          onCreated={(id) => {
+            setQuickAddInitialRelation(null);
+            handlePersonCreated(id);
+          }}
+          onClose={() => {
+            setShowAddForm(false);
+            setQuickAddInitialRelation(null);
+          }}
         />
       )}
       {editingPersonId && (
@@ -2281,16 +2676,11 @@ function App() {
           onClose={() => setShowLinkPeople(false)}
         />
       )}
-      {relateDraft && (
-        <LinkPeopleModal
-          treeId={treeId}
-          fixedPersonAId={relateDraft.personAId}
-          fixedPersonBId={relateDraft.personBId}
-          onLinked={() => {
-            setRelateDraft(null);
-            loadTree().catch((err: Error) => setError(err.message));
-          }}
-          onClose={() => setRelateDraft(null)}
+      {quickAddPickerPersonId && (
+        <QuickAddKindPicker
+          loading={quickAddLoading}
+          onPick={(kind) => handleQuickAddKindPicked(quickAddPickerPersonId, kind)}
+          onClose={() => setQuickAddPickerPersonId(null)}
         />
       )}
       {lightboxUrl && <PhotoLightbox src={lightboxUrl} shape="circle" onClose={() => setLightboxUrl(null)} />}

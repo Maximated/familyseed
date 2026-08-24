@@ -1,24 +1,11 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import {
-  addParent,
-  createFamily,
-  fetchIndividual,
-  type Individual,
-  type UnionStatus,
-  type UnionType,
-} from "./api";
+import { addParent, createFamily, type Individual, type UnionStatus, type UnionType } from "./api";
 import IOSToggle from "./IOSToggle";
 import PersonPicker from "./PersonPicker";
 
 type Props = {
   treeId: string;
-  // Set together when this modal is opened by dragging a relation branch
-  // from one person's card onto another's (see TreeView's drag-to-link
-  // wiring) — both people are already chosen at that point, so the picker
-  // selects are replaced with plain read-only labels instead.
-  fixedPersonAId?: string;
-  fixedPersonBId?: string;
   onLinked: () => void;
   onClose: () => void;
 };
@@ -37,9 +24,8 @@ function personLabel(person: Individual) {
 // people imported separately, or added with "sin relación conocida").
 // Reuses the same backend calls AddPersonForm's flows resolve to
 // (addParent / createFamily) rather than adding new relationship logic.
-export default function LinkPeopleModal({ treeId, fixedPersonAId, fixedPersonBId, onLinked, onClose }: Props) {
+export default function LinkPeopleModal({ treeId, onLinked, onClose }: Props) {
   const { t } = useTranslation();
-  const isFixed = Boolean(fixedPersonAId && fixedPersonBId);
   const [personA, setPersonA] = useState<Individual | null>(null);
   const [personB, setPersonB] = useState<Individual | null>(null);
   const [linkKind, setLinkKind] = useState<LinkKind>("A_PARENT_OF_B");
@@ -49,18 +35,6 @@ export default function LinkPeopleModal({ treeId, fixedPersonAId, fixedPersonBId
   const [unionPlace, setUnionPlace] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  // The drag-to-link flow already knows both people — fetch just those two
-  // instead of the picker's own search, since there's nothing left to pick.
-  useEffect(() => {
-    if (!fixedPersonAId || !fixedPersonBId) return;
-    Promise.all([fetchIndividual(treeId, fixedPersonAId), fetchIndividual(treeId, fixedPersonBId)])
-      .then(([a, b]) => {
-        setPersonA(a);
-        setPersonB(b);
-      })
-      .catch((err: Error) => setError(err.message));
-  }, [treeId, fixedPersonAId, fixedPersonBId]);
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
@@ -102,40 +76,27 @@ export default function LinkPeopleModal({ treeId, fixedPersonAId, fixedPersonBId
     <div className="modal-backdrop" onClick={onClose}>
       <form className="modal-panel" onClick={(e) => e.stopPropagation()} onSubmit={handleSubmit}>
         <h2>{t("linkPeople.title")}</h2>
-        <p className="field-hint">{isFixed ? t("linkPeople.hintFixed") : t("linkPeople.hint")}</p>
+        <p className="field-hint">{t("linkPeople.hint")}</p>
 
-        {isFixed ? (
-          <div className="link-people-fixed-pair">
-            <p>
-              <strong>{t("linkPeople.personA")}:</strong> {personA ? personLabel(personA) : "…"}
-            </p>
-            <p>
-              <strong>{t("linkPeople.personB")}:</strong> {personB ? personLabel(personB) : "…"}
-            </p>
-          </div>
-        ) : (
-          <>
-            <label>
-              {t("linkPeople.personA")}
-              <PersonPicker
-                treeId={treeId}
-                selectedName={personA ? personLabel(personA) : null}
-                onSelect={setPersonA}
-                excludeIds={personB ? [personB.id] : []}
-              />
-            </label>
+        <label>
+          {t("linkPeople.personA")}
+          <PersonPicker
+            treeId={treeId}
+            selectedName={personA ? personLabel(personA) : null}
+            onSelect={setPersonA}
+            excludeIds={personB ? [personB.id] : []}
+          />
+        </label>
 
-            <label>
-              {t("linkPeople.personB")}
-              <PersonPicker
-                treeId={treeId}
-                selectedName={personB ? personLabel(personB) : null}
-                onSelect={setPersonB}
-                excludeIds={personA ? [personA.id] : []}
-              />
-            </label>
-          </>
-        )}
+        <label>
+          {t("linkPeople.personB")}
+          <PersonPicker
+            treeId={treeId}
+            selectedName={personB ? personLabel(personB) : null}
+            onSelect={setPersonB}
+            excludeIds={personA ? [personA.id] : []}
+          />
+        </label>
 
         <fieldset>
           <legend>{t("linkPeople.relationshipLegend")}</legend>

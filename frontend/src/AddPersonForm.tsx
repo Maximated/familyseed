@@ -1,9 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   addParent,
   createFamily,
   createIndividual,
+  uploadPersonMedia,
   uploadPersonPhoto,
   type DatePrecision,
   type Individual,
@@ -21,12 +22,29 @@ import PersonPicker from "./PersonPicker";
 import IOSToggle from "./IOSToggle";
 import { unknownGivenNameFor } from "./unknownPerson";
 import { checkParentChildWarning } from "./relationshipGuards";
+import { surnameSuggestion } from "./surnameSuggestions";
+import SurnameSuggestion from "./SurnameSuggestion";
+import StagedMediaTab, { type StagedMediaItem } from "./StagedMediaTab";
 
 // Independently combinable now (a new person is very often a child *and*
 // a spouse *and* a parent all at once) — only "no relation known" stays
 // mutually exclusive with the rest, since it specifically means none of
 // them apply yet.
-type RelationshipKind = "CHILD_OF_PARENTS" | "PARTNER" | "PARENT_OF";
+export type RelationshipKind = "CHILD_OF_PARENTS" | "PARTNER" | "PARENT_OF";
+
+// The card's own "+" quick-add button (see TreeView.tsx) already knows
+// which person and which relation kind — this seeds the form with exactly
+// that one relationship pre-selected and pre-filled, instead of opening
+// blank the way the hamburger menu's "add person" does. `parent`/`parent2`
+// are both optional on CHILD_OF_PARENTS: the ordinary "+ child" flow always
+// has exactly one (the clicked card), while "+ sibling" (see
+// handleQuickAddKindPicked in TreeView.tsx) seeds *both* — copied straight
+// from the clicked card's own parents — or however many of the two that
+// card actually has recorded.
+export type QuickAddInitialRelation =
+  | { kind: "CHILD_OF_PARENTS"; parent?: Individual; parent2?: Individual }
+  | { kind: "PARTNER"; partner: Individual }
+  | { kind: "PARENT_OF"; child: Individual };
 
 type Props = {
   treeId: string;
@@ -37,6 +55,7 @@ type Props = {
   // create a cycle if Y already sits above X, so that one combination is
   // still worth checking against the existing graph.
   people: TreePerson[];
+  initialRelation?: QuickAddInitialRelation;
   onCreated: (newPersonId: string) => void;
   onClose: () => void;
 };
@@ -47,18 +66,28 @@ function personLabel(person: Individual) {
   return `${person.givenNames} ${surname}${year}`;
 }
 
-export default function AddPersonForm({ treeId, people, onCreated, onClose }: Props) {
+export default function AddPersonForm({ treeId, people, initialRelation, onCreated, onClose }: Props) {
   const { t } = useTranslation();
-  const [selectedKinds, setSelectedKinds] = useState<Set<RelationshipKind>>(new Set(["CHILD_OF_PARENTS"]));
+  const [selectedKinds, setSelectedKinds] = useState<Set<RelationshipKind>>(
+    () => new Set([initialRelation?.kind ?? "CHILD_OF_PARENTS"]),
+  );
   const [noRelationKnown, setNoRelationKnown] = useState(false);
-  const [parent1, setParent1] = useState<Individual | null>(null);
-  const [parent2, setParent2] = useState<Individual | null>(null);
-  const [partner, setPartner] = useState<Individual | null>(null);
+  const [parent1, setParent1] = useState<Individual | null>(
+    () => (initialRelation?.kind === "CHILD_OF_PARENTS" ? (initialRelation.parent ?? null) : null),
+  );
+  const [parent2, setParent2] = useState<Individual | null>(
+    () => (initialRelation?.kind === "CHILD_OF_PARENTS" ? (initialRelation.parent2 ?? null) : null),
+  );
+  const [partner, setPartner] = useState<Individual | null>(
+    () => (initialRelation?.kind === "PARTNER" ? initialRelation.partner : null),
+  );
   const [unionType, setUnionType] = useState<UnionType>("MARRIAGE");
   const [unionStatus, setUnionStatus] = useState<UnionStatus>("ONGOING");
   const [unionDateText, setUnionDateText] = useState("");
   const [unionPlace, setUnionPlace] = useState("");
-  const [child, setChild] = useState<Individual | null>(null);
+  const [child, setChild] = useState<Individual | null>(
+    () => (initialRelation?.kind === "PARENT_OF" ? initialRelation.child : null),
+  );
 
   function toggleKind(kind: RelationshipKind) {
     setNoRelationKnown(false);
@@ -98,9 +127,30 @@ export default function AddPersonForm({ treeId, people, onCreated, onClose }: Pr
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [cropSource, setCropSource] = useState<File | null>(null);
   const [convertingPhoto, setConvertingPhoto] = useState(false);
+  // Gallery photos/documents — same fields the edit form has, but there's
+  // no personId to upload against yet, so these stay local (see
+  // StagedMediaTab) until the person is actually created below.
+  const [stagedPhotos, setStagedPhotos] = useState<StagedMediaItem[]>([]);
+  const [stagedDocuments, setStagedDocuments] = useState<StagedMediaItem[]>([]);
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // If a follow-up relation call fails after the person itself was already
+  // created, a retry click must not create a second person — resume from
+  // here using the id already committed on a prior attempt (see
+  // handleSubmit). The component unmounts when the modal closes, so this
+  // naturally resets on the next "add person" open.
+  const createdPersonIdRef = useRef<string | null>(null);
+  // Same idempotency reasoning as createdPersonIdRef/completedKindsRef
+  // below — a retry after a later step fails must not re-upload the same
+  // staged files a second time.
+  const mediaUploadedRef = useRef(false);
+  // Same reasoning for the follow-up relation calls below the person
+  // creation itself: without this, a retry after a *later* follow-up call
+  // fails would redundantly re-run an *earlier* one that already succeeded,
+  // surfacing a spurious "that relation already exists" error instead of
+  // just continuing.
+  const completedKindsRef = useRef<Set<RelationshipKind>>(new Set());
 
   useEffect(() => {
     if (!isUnknownPerson) return;
@@ -214,39 +264,46 @@ export default function AddPersonForm({ treeId, people, onCreated, onClose }: Pr
       // alongside it.
       const anchorKind = kinds.includes("CHILD_OF_PARENTS") ? "CHILD_OF_PARENTS" : kinds[0];
 
-      const { individual } = await createIndividual(treeId, {
-        individual: {
-          givenNames: givenNames.trim(),
-          surname1: surname1.trim(),
-          surname2: surname2.trim() || undefined,
-          surname1BirthName: surname1BirthName.trim() || undefined,
-          alias: alias.trim() || undefined,
-          sex,
-          birthDateText: birthDateText.trim() || undefined,
-          birthDateValue: birthDateValue || undefined,
-          birthDatePrecision: birthDateValue ? birthDatePrecision : undefined,
-          birthPlace: birthPlace.trim() || undefined,
-          deathDateText: deathDateText.trim() || undefined,
-          deathDateValue: deathDateValue || undefined,
-          deathDatePrecision: deathDateValue ? deathDatePrecision : undefined,
-          deathPlace: deathPlace.trim() || undefined,
-          notes: notes.trim() || undefined,
-          biography: biography.trim() || undefined,
-        },
-        relationship: anchorKind ? buildRelationshipFor(anchorKind) : undefined,
-      });
+      // A retry after a follow-up step failed below must not create the
+      // person again — reuse the id already committed on the prior attempt.
+      let personId = createdPersonIdRef.current;
+      if (!personId) {
+        const { individual } = await createIndividual(treeId, {
+          individual: {
+            givenNames: givenNames.trim(),
+            surname1: surname1.trim(),
+            surname2: surname2.trim() || undefined,
+            surname1BirthName: surname1BirthName.trim() || undefined,
+            alias: alias.trim() || undefined,
+            sex,
+            birthDateText: birthDateText.trim() || undefined,
+            birthDateValue: birthDateValue || undefined,
+            birthDatePrecision: birthDateValue ? birthDatePrecision : undefined,
+            birthPlace: birthPlace.trim() || undefined,
+            deathDateText: deathDateText.trim() || undefined,
+            deathDateValue: deathDateValue || undefined,
+            deathDatePrecision: deathDateValue ? deathDatePrecision : undefined,
+            deathPlace: deathPlace.trim() || undefined,
+            notes: notes.trim() || undefined,
+            biography: biography.trim() || undefined,
+          },
+          relationship: anchorKind ? buildRelationshipFor(anchorKind) : undefined,
+        });
+        personId = individual.id;
+        createdPersonIdRef.current = personId;
+      }
 
       // Anything else selected alongside the anchor relation is attached
       // right after creation, via the same endpoints EditPersonForm uses
       // to add a relation to an already-existing person.
       for (const kind of kinds) {
-        if (kind === anchorKind) continue;
+        if (kind === anchorKind || completedKindsRef.current.has(kind)) continue;
         if (kind === "CHILD_OF_PARENTS") {
-          if (parent1) await addParent(treeId, individual.id, parent1.id);
-          if (parent2) await addParent(treeId, individual.id, parent2.id);
+          if (parent1) await addParent(treeId, personId, parent1.id);
+          if (parent2) await addParent(treeId, personId, parent2.id);
         } else if (kind === "PARTNER" && partner) {
           await createFamily(treeId, {
-            partner1Id: individual.id,
+            partner1Id: personId,
             partner2Id: partner.id,
             unionType,
             unionStatus,
@@ -254,19 +311,31 @@ export default function AddPersonForm({ treeId, people, onCreated, onClose }: Pr
             unionPlace: unionPlace || undefined,
           });
         } else if (kind === "PARENT_OF" && child) {
-          await addParent(treeId, child.id, individual.id);
+          await addParent(treeId, child.id, personId);
         }
+        completedKindsRef.current.add(kind);
       }
 
       if (photoFile) {
         const resized = await resizeImage(photoFile, 500, 0.85);
-        await uploadPersonPhoto(treeId, individual.id, resized, photoFile.name).catch(() => {
+        await uploadPersonPhoto(treeId, personId, resized, photoFile.name).catch(() => {
           // The person is already created — a failed photo upload shouldn't
           // block finishing the form, just leave the avatar unset.
         });
       }
 
-      onCreated(individual.id);
+      if (!mediaUploadedRef.current) {
+        for (const item of [...stagedPhotos, ...stagedDocuments]) {
+          await uploadPersonMedia(treeId, personId, item.blob, item.name).catch(() => {
+            // Same reasoning as the profile photo above — the person
+            // already exists, one failed gallery item shouldn't block
+            // finishing the form.
+          });
+        }
+        mediaUploadedRef.current = true;
+      }
+
+      onCreated(personId);
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -274,15 +343,26 @@ export default function AddPersonForm({ treeId, people, onCreated, onClose }: Pr
     }
   }
 
+  // Only meaningful once "child of" parents are actually selected — see
+  // surnameSuggestions.ts for the father/mother-vs-positional logic.
+  const suggestParents = selectedKinds.has("CHILD_OF_PARENTS");
+  const surname1Suggestion = suggestParents ? surnameSuggestion(parent1, parent2, "surname1") : null;
+  const surname2Suggestion = suggestParents ? surnameSuggestion(parent1, parent2, "surname2") : null;
+
   return (
     <>
     <div className="modal-backdrop" onClick={onClose}>
       <form
-        className="modal-panel"
+        className="modal-panel modal-panel-frosted"
         onClick={(e) => e.stopPropagation()}
         onSubmit={handleSubmit}
       >
-        <h2>{t("addPerson.title")}</h2>
+        <div className="person-form-heading">
+          <h2 className="person-form-name name-text">
+            {[givenNames, surname1].filter(Boolean).join(" ") || t("addPerson.title")}
+          </h2>
+          <p className="person-form-subtitle">{t("addPerson.title")}</p>
+        </div>
 
         <fieldset>
           <legend>{t("addPerson.relationshipLegend")}</legend>
@@ -371,7 +451,7 @@ export default function AddPersonForm({ treeId, people, onCreated, onClose }: Pr
           <IOSToggle checked={noRelationKnown} onChange={selectNoRelation} label={t("addPerson.noRelation")} />
         </fieldset>
 
-        <fieldset>
+        <fieldset className="person-detail-fieldset">
           <legend>{t("addPerson.personLegend")}</legend>
           <label>
             {t("personFields.photo")}
@@ -401,13 +481,34 @@ export default function AddPersonForm({ treeId, people, onCreated, onClose }: Pr
             <input
               value={surname1}
               onChange={(e) => setSurname1(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !surname1.trim() && surname1Suggestion) {
+                  e.preventDefault();
+                  setSurname1(surname1Suggestion);
+                }
+              }}
               disabled={isUnknownPerson}
               required
             />
+            {!surname1.trim() && surname1Suggestion && (
+              <SurnameSuggestion suggestion={surname1Suggestion} onAccept={() => setSurname1(surname1Suggestion)} />
+            )}
           </label>
           <label>
             {t("personFields.surname2")}
-            <input value={surname2} onChange={(e) => setSurname2(e.target.value)} />
+            <input
+              value={surname2}
+              onChange={(e) => setSurname2(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !surname2.trim() && surname2Suggestion) {
+                  e.preventDefault();
+                  setSurname2(surname2Suggestion);
+                }
+              }}
+            />
+            {!surname2.trim() && surname2Suggestion && (
+              <SurnameSuggestion suggestion={surname2Suggestion} onAccept={() => setSurname2(surname2Suggestion)} />
+            )}
           </label>
           <label>
             {t("personFields.surname1BirthName")}
@@ -508,6 +609,16 @@ export default function AddPersonForm({ treeId, people, onCreated, onClose }: Pr
               rows={4}
             />
           </label>
+        </fieldset>
+
+        <fieldset>
+          <legend>{t("media.photosLegend")}</legend>
+          <StagedMediaTab type="PHOTO" items={stagedPhotos} onChange={setStagedPhotos} />
+        </fieldset>
+
+        <fieldset>
+          <legend>{t("media.documentsLegend")}</legend>
+          <StagedMediaTab type="DOCUMENT" items={stagedDocuments} onChange={setStagedDocuments} />
         </fieldset>
 
         {error && <p className="status status-error">{error}</p>}

@@ -6,6 +6,7 @@
     "save": "Guardar",
     "saving": "Guardando…",
     "circaYear": "c. {{year}}",
+    "circaDate": "c. {{date}}",
     "bornYear": "n. {{value}}",
     "diedYear": "† {{value}}",
     "lifespanRange": "{{birth}} – {{death}}"
@@ -87,8 +88,15 @@
   },
   "card": {
     "viewFull": "Ver ficha completa",
-    "relate": "Arrastra a otra persona para crear una relación",
+    "quickAdd": "Añadir familiar",
     "moreAncestry": "Tiene más antepasados registrados — pincha para verlos"
+  },
+  "quickAdd": {
+    "title": "¿Qué quieres añadir?",
+    "child": "Hijo/a",
+    "sibling": "Hermano/a",
+    "partner": "Cónyuge/pareja",
+    "parent": "Padre/madre"
   },
   "sex": {
     "MALE": "Hombre",
@@ -127,6 +135,8 @@
     "deletingUnion": "Eliminando…"
   },
   "media": {
+    "photosLegend": "Fotos",
+    "documentsLegend": "Documentos",
     "noPhotos": "Todavía no hay fotos.",
     "noDocuments": "Todavía no hay documentos.",
     "addPhoto": "+ Añadir foto",
@@ -147,6 +157,7 @@
     "surname2": "Segundo apellido (materno — opcional, convención española)",
     "surname1BirthName": "Primer apellido de nacimiento (si difiere del actual)",
     "surname1BirthNamePlaceholder": "ej. Kowalski",
+    "surnameSuggestion": "¿Usar «{{value}}»? (Enter)",
     "alias": "Apodo o alias (opcional)",
     "aliasPlaceholder": "ej. Boni",
     "sex": "Sexo",
@@ -196,7 +207,6 @@
   "linkPeople": {
     "title": "Crear relación entre dos personas",
     "hint": "Elige dos personas que ya existen en el árbol y cómo se relacionan entre sí.",
-    "hintFixed": "Elige cómo se relacionan entre sí estas dos personas.",
     "personA": "Persona 1",
     "personB": "Persona 2",
     "personPlaceholder": "— Elige una persona —",
@@ -225,6 +235,9 @@
     "lineagesLegend": "Ramas",
     "lineagesHint": "Se crean automáticamente a partir del apellido y el apellido de nacimiento al guardar. Puedes desmarcar las que no correspondan o añadir otras a mano.",
     "noLineages": "Todavía no hay ninguna rama creada en este árbol.",
+    "noLineagesAssigned": "Sin rama asignada.",
+    "removeLineage": "Quitar de la rama {{name}}",
+    "addExistingLineage": "+ Añadir a otra rama existente",
     "addLineage": "+ Crear rama nueva",
     "newLineagePlaceholder": "Nombre de la rama, ej. Zawadzki",
     "personLegend": "Datos de la persona",

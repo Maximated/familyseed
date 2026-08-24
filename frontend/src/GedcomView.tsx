@@ -1,6 +1,15 @@
 import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { csvExportUrl, csvTemplateUrl, gedcomExportUrl, importCsv, importGedcom, type ImportResult, type Individual } from "./api";
+import {
+  csvExportUrl,
+  csvTemplateUrl,
+  fetchTree,
+  gedcomExportUrl,
+  importCsv,
+  importGedcom,
+  type ImportResult,
+  type Individual,
+} from "./api";
 import PersonPicker from "./PersonPicker";
 import RelationshipWizard from "./RelationshipWizard";
 
@@ -44,7 +53,25 @@ export default function GedcomView({ treeId, initialPersonId, initialPersonName,
       const imported = format === "csv" ? await importCsv(treeId, file) : await importGedcom(treeId, file);
       setResult(imported);
       onImported();
-      if (imported.individualIds.length > 0) setWizardIds(imported.individualIds);
+      // Only offer the wizard for people the import genuinely left without
+      // any relationship — imported.individualIds is everyone the import
+      // touched, most of whom are usually already correctly linked to each
+      // other, so opening the wizard on the full list falsely claimed "N
+      // personas sin relación" even for a perfectly-linked import.
+      if (imported.individualIds.length > 0) {
+        const { people } = await fetchTree(treeId);
+        const importedIds = new Set(imported.individualIds);
+        const unrelatedIds = people
+          .filter(
+            (p) =>
+              importedIds.has(p.id) &&
+              p.rels.parents.length === 0 &&
+              p.rels.spouses.length === 0 &&
+              p.rels.children.length === 0,
+          )
+          .map((p) => p.id);
+        if (unrelatedIds.length > 0) setWizardIds(unrelatedIds);
+      }
     } catch (err) {
       setError((err as Error).message);
     } finally {

@@ -678,6 +678,21 @@ export default async function individualRoutes(fastify: FastifyInstance) {
                 unionPlace: relationship.unionPlace,
               });
               family = await tx.family.findUniqueOrThrow({ where: { id: attachedPartner.familyId } });
+
+              // Same "hasta que la muerte os separe" rule the PATCH route
+              // applies on an existing union (see below) — here it covers
+              // creating an already-deceased person straight into a
+              // partnered relationship, which would otherwise start life
+              // as ONGOING. Only overrides the ONGOING default; an
+              // explicitly requested DIVORCED/SEPARATED/ANNULLED status is
+              // left alone.
+              if (
+                family.unionStatus === "ONGOING" &&
+                (created.deathDateValue || created.deathDateText || partner.deathDateValue || partner.deathDateText)
+              ) {
+                family = await tx.family.update({ where: { id: family.id }, data: { unionStatus: "ENDED_BY_DEATH" } });
+              }
+
               await logChange({
                 treeId,
                 userId: request.userId ?? null,
@@ -783,7 +798,10 @@ export default async function individualRoutes(fastify: FastifyInstance) {
     // set death date closes the union); clearing a death date to fix a
     // data-entry mistake doesn't reopen it, since the status could have
     // been changed for an unrelated reason (divorce, say) in the meantime.
-    if (updates.deathDateValue) {
+    // Triggers on either the structured value or the free-text field alone
+    // — an approximate death date entered as text only (no picker value)
+    // must still close the union.
+    if (updates.deathDateValue || updates.deathDateText) {
       await prisma.family.updateMany({
         where: { treeId, unionStatus: "ONGOING", OR: [{ partner1Id: updated.id }, { partner2Id: updated.id }] },
         data: { unionStatus: "ENDED_BY_DEATH" },

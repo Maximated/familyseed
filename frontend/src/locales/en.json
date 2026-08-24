@@ -6,6 +6,7 @@
     "save": "Save",
     "saving": "Saving…",
     "circaYear": "c. {{year}}",
+    "circaDate": "c. {{date}}",
     "bornYear": "b. {{value}}",
     "diedYear": "d. {{value}}",
     "lifespanRange": "{{birth}} – {{death}}"
@@ -87,8 +88,15 @@
   },
   "card": {
     "viewFull": "View full profile",
-    "relate": "Drag to another person to create a relationship",
+    "quickAdd": "Add relative",
     "moreAncestry": "Has more recorded ancestors — click to view them"
+  },
+  "quickAdd": {
+    "title": "What do you want to add?",
+    "child": "Child",
+    "sibling": "Sibling",
+    "partner": "Spouse/partner",
+    "parent": "Parent"
   },
   "sex": {
     "MALE": "Male",
@@ -127,6 +135,8 @@
     "deletingUnion": "Deleting…"
   },
   "media": {
+    "photosLegend": "Photos",
+    "documentsLegend": "Documents",
     "noPhotos": "No photos yet.",
     "noDocuments": "No documents yet.",
     "addPhoto": "+ Add photo",
@@ -147,6 +157,7 @@
     "surname2": "Second surname (maternal — optional, Spanish naming convention)",
     "surname1BirthName": "Birth surname (if different from current)",
     "surname1BirthNamePlaceholder": "e.g. Kowalski",
+    "surnameSuggestion": "Use \"{{value}}\"? (Enter)",
     "alias": "Nickname or alias (optional)",
     "aliasPlaceholder": "e.g. Boni",
     "sex": "Sex",
@@ -196,7 +207,6 @@
   "linkPeople": {
     "title": "Link two people",
     "hint": "Select two existing people in the tree and specify how they are related.",
-    "hintFixed": "Specify how these two people are related to each other.",
     "personA": "Person 1",
     "personB": "Person 2",
     "personPlaceholder": "— Select a person —",
@@ -225,6 +235,9 @@
     "lineagesLegend": "Lineages / Branches",
     "lineagesHint": "Automatically created from surname and maiden/birth surname upon saving. You can uncheck non-matching ones or add custom ones.",
     "noLineages": "No lineages created in this tree yet.",
+    "noLineagesAssigned": "No lineage assigned.",
+    "removeLineage": "Remove from {{name}}",
+    "addExistingLineage": "+ Add to another existing lineage",
     "addLineage": "+ Create new lineage",
     "newLineagePlaceholder": "Lineage name, e.g. Zawadzki",
     "personLegend": "Person details",

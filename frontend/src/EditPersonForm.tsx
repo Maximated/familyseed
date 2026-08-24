@@ -24,11 +24,14 @@ import {
 import { resizeImage } from "./media";
 import { convertHeicIfNeeded } from "./heic";
 import PersonPicker from "./PersonPicker";
+import PersonMediaTab from "./PersonMedia";
 import PhotoCropModal from "./PhotoCropModal";
 import PhotoDropzone from "./PhotoDropzone";
 import { Trash2Icon } from "./Icons";
 import { checkParentChildWarning } from "./relationshipGuards";
 import { unknownGivenNameFor } from "./unknownPerson";
+import { surnameSuggestion } from "./surnameSuggestions";
+import SurnameSuggestion from "./SurnameSuggestion";
 import type { TreePerson } from "./api";
 
 // The backend stores full ISO timestamps (UTC midnight) for date-value
@@ -372,15 +375,26 @@ export default function EditPersonForm({ treeId, personId, people, onSaved, onDe
     }
   }
 
+  // Same father/mother-aware guess as AddPersonForm — parents[0]/[1] stand
+  // in for parent1/parent2 there, since editing has no fixed "which slot"
+  // concept, just a list. See surnameSuggestions.ts.
+  const surname1Suggestion = surnameSuggestion(parents[0], parents[1], "surname1");
+  const surname2Suggestion = surnameSuggestion(parents[0], parents[1], "surname2");
+
   return (
     <>
     <div className="modal-backdrop" onClick={onClose}>
       <form
-        className="modal-panel"
+        className="modal-panel modal-panel-frosted"
         onClick={(e) => e.stopPropagation()}
         onSubmit={handleSubmit}
       >
-        <h2>{t("editPerson.title")}</h2>
+        <div className="person-form-heading">
+          <h2 className="person-form-name name-text">
+            {[givenNames, surname1].filter(Boolean).join(" ") || t("editPerson.title")}
+          </h2>
+          <p className="person-form-subtitle">{t("editPerson.title")}</p>
+        </div>
 
         {loading ? (
           <p className="status">{t("common.loading")}</p>
@@ -536,22 +550,50 @@ export default function EditPersonForm({ treeId, personId, people, onSaved, onDe
               {lineages.length === 0 ? (
                 <p className="field-hint">{t("editPerson.noLineages")}</p>
               ) : (
-                <div className="lineage-list">
-                  {lineages.map((lineage) => {
-                    const active = lineageIds.includes(lineage.id);
-                    return (
-                      <button
-                        key={lineage.id}
-                        type="button"
-                        className={`lineage-list-item${active ? " lineage-list-item-active" : ""}`}
-                        onClick={() => toggleLineage(lineage.id)}
-                        aria-pressed={active}
-                      >
-                        {lineage.name}
-                      </button>
-                    );
-                  })}
-                </div>
+                <>
+                  {/* Only the person's own lineage(s) render as chips — a
+                      big tree can have many ramas, and showing every single
+                      one as its own button (the old design) made this
+                      fieldset unusably long. The dropdown below lists just
+                      the ones not already assigned. */}
+                  <div className="person-lineage-chips">
+                    {lineages
+                      .filter((lineage) => lineageIds.includes(lineage.id))
+                      .map((lineage) => (
+                        <button
+                          key={lineage.id}
+                          type="button"
+                          className="person-lineage-chip"
+                          onClick={() => toggleLineage(lineage.id)}
+                          title={t("editPerson.removeLineage", { name: lineage.name })}
+                        >
+                          {lineage.name}
+                          <span aria-hidden="true">×</span>
+                        </button>
+                      ))}
+                    {lineageIds.length === 0 && (
+                      <p className="field-hint">{t("editPerson.noLineagesAssigned")}</p>
+                    )}
+                  </div>
+                  {lineages.some((lineage) => !lineageIds.includes(lineage.id)) && (
+                    <select
+                      className="person-lineage-add-select"
+                      value=""
+                      onChange={(e) => {
+                        if (e.target.value) toggleLineage(e.target.value);
+                      }}
+                    >
+                      <option value="">{t("editPerson.addExistingLineage")}</option>
+                      {lineages
+                        .filter((lineage) => !lineageIds.includes(lineage.id))
+                        .map((lineage) => (
+                          <option key={lineage.id} value={lineage.id}>
+                            {lineage.name}
+                          </option>
+                        ))}
+                    </select>
+                  )}
+                </>
               )}
               {addingLineage ? (
                 <div className="field-row">
@@ -577,7 +619,7 @@ export default function EditPersonForm({ treeId, personId, people, onSaved, onDe
               {lineageError && <p className="status status-error">{lineageError}</p>}
             </fieldset>
 
-            <fieldset>
+            <fieldset className="person-detail-fieldset">
               <legend>{t("editPerson.personLegend")}</legend>
               <label>{t("personFields.photo")}</label>
               <PhotoDropzone onFile={handlePhotoFile} disabled={convertingPhoto} busyHint={t("personFields.convertingPhoto")} />
@@ -605,13 +647,34 @@ export default function EditPersonForm({ treeId, personId, people, onSaved, onDe
                 <input
                   value={surname1}
                   onChange={(e) => setSurname1(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !surname1.trim() && surname1Suggestion) {
+                      e.preventDefault();
+                      setSurname1(surname1Suggestion);
+                    }
+                  }}
                   disabled={isUnknownPerson}
                   required
                 />
+                {!surname1.trim() && surname1Suggestion && (
+                  <SurnameSuggestion suggestion={surname1Suggestion} onAccept={() => setSurname1(surname1Suggestion)} />
+                )}
               </label>
               <label>
                 {t("personFields.surname2")}
-                <input value={surname2} onChange={(e) => setSurname2(e.target.value)} />
+                <input
+                  value={surname2}
+                  onChange={(e) => setSurname2(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !surname2.trim() && surname2Suggestion) {
+                      e.preventDefault();
+                      setSurname2(surname2Suggestion);
+                    }
+                  }}
+                />
+                {!surname2.trim() && surname2Suggestion && (
+                  <SurnameSuggestion suggestion={surname2Suggestion} onAccept={() => setSurname2(surname2Suggestion)} />
+                )}
               </label>
               <label>
                 {t("personFields.surname1BirthName")}
@@ -710,6 +773,16 @@ export default function EditPersonForm({ treeId, personId, people, onSaved, onDe
                   rows={4}
                 />
               </label>
+            </fieldset>
+
+            <fieldset>
+              <legend>{t("media.photosLegend")}</legend>
+              <PersonMediaTab treeId={treeId} personId={personId} type="PHOTO" />
+            </fieldset>
+
+            <fieldset>
+              <legend>{t("media.documentsLegend")}</legend>
+              <PersonMediaTab treeId={treeId} personId={personId} type="DOCUMENT" />
             </fieldset>
 
             {error && <p className="status status-error">{error}</p>}

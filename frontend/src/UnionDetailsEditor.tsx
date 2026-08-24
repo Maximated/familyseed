@@ -1,13 +1,21 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { updateFamily, type UnionStatus, type UnionType } from "./api";
+import { updateFamily, type DatePrecision, type UnionStatus, type UnionType } from "./api";
 
 type UnionDetails = {
   unionType: UnionType;
   unionStatus: UnionStatus;
   unionDateText: string | null;
+  unionDateValue: string | null;
+  unionDatePrecision: DatePrecision | null;
   unionPlace: string | null;
 };
+
+// Same ISO-timestamp-to-`<input type="date">`-value slicing EditPersonForm
+// uses for birth/death dates.
+function toDateInputValue(iso: string | null): string {
+  return iso ? iso.slice(0, 10) : "";
+}
 
 type Props = {
   treeId: string;
@@ -27,6 +35,8 @@ export default function UnionDetailsEditor({ treeId, familyId, initial, onSaved 
   const [editing, setEditing] = useState(false);
   const [unionType, setUnionType] = useState(initial.unionType);
   const [unionStatus, setUnionStatus] = useState(initial.unionStatus);
+  const [unionDateValue, setUnionDateValue] = useState(toDateInputValue(initial.unionDateValue));
+  const [unionDatePrecision, setUnionDatePrecision] = useState<DatePrecision>(initial.unionDatePrecision ?? "EXACT");
   const [unionDateText, setUnionDateText] = useState(initial.unionDateText ?? "");
   const [unionPlace, setUnionPlace] = useState(initial.unionPlace ?? "");
   const [saving, setSaving] = useState(false);
@@ -35,10 +45,19 @@ export default function UnionDetailsEditor({ treeId, familyId, initial, onSaved 
   useEffect(() => {
     setUnionType(initial.unionType);
     setUnionStatus(initial.unionStatus);
+    setUnionDateValue(toDateInputValue(initial.unionDateValue));
+    setUnionDatePrecision(initial.unionDatePrecision ?? "EXACT");
     setUnionDateText(initial.unionDateText ?? "");
     setUnionPlace(initial.unionPlace ?? "");
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initial.unionType, initial.unionStatus, initial.unionDateText, initial.unionPlace]);
+  }, [
+    initial.unionType,
+    initial.unionStatus,
+    initial.unionDateValue,
+    initial.unionDatePrecision,
+    initial.unionDateText,
+    initial.unionPlace,
+  ]);
 
   async function handleSave() {
     setSaving(true);
@@ -47,6 +66,8 @@ export default function UnionDetailsEditor({ treeId, familyId, initial, onSaved 
       await updateFamily(treeId, familyId, {
         unionType,
         unionStatus,
+        unionDateValue: unionDateValue || null,
+        unionDatePrecision: unionDateValue ? unionDatePrecision : null,
         unionDateText: unionDateText.trim() || null,
         unionPlace: unionPlace.trim() || null,
       });
@@ -62,6 +83,8 @@ export default function UnionDetailsEditor({ treeId, familyId, initial, onSaved 
   function handleCancel() {
     setUnionType(initial.unionType);
     setUnionStatus(initial.unionStatus);
+    setUnionDateValue(toDateInputValue(initial.unionDateValue));
+    setUnionDatePrecision(initial.unionDatePrecision ?? "EXACT");
     setUnionDateText(initial.unionDateText ?? "");
     setUnionPlace(initial.unionPlace ?? "");
     setError(null);
@@ -69,6 +92,13 @@ export default function UnionDetailsEditor({ treeId, familyId, initial, onSaved 
   }
 
   if (!editing) {
+    // unionDateText (freeform) takes priority when present — same
+    // reasoning as birth/death dates: trust what was actually typed.
+    // Falling back to the structured value+precision means a date entered
+    // solely via the picker still shows here instead of "unknown".
+    const displayDate =
+      unionDateText ||
+      (unionDateValue ? (unionDatePrecision === "ABOUT" ? t("common.circaDate", { date: unionDateValue }) : unionDateValue) : "");
     // Reads local state, not the `initial` prop — see UnionNotesEditor for
     // why (the prop is a snapshot from when the panel opened and never
     // updates for an already-mounted panel).
@@ -78,7 +108,7 @@ export default function UnionDetailsEditor({ treeId, familyId, initial, onSaved 
         <ul className="info-panel-bullets">
           <li>{t("infoPanel.unionType", { value: t(`unionType.${unionType}`) })}</li>
           <li>{t("infoPanel.unionStatus", { value: t(`unionStatus.${unionStatus}`) })}</li>
-          <li>{t("infoPanel.unionDate", { value: unionDateText || t("infoPanel.unknownDate") })}</li>
+          <li>{t("infoPanel.unionDate", { value: displayDate || t("infoPanel.unknownDate") })}</li>
           {unionPlace && <li>{t("infoPanel.unionPlace", { value: unionPlace })}</li>}
         </ul>
         <button type="button" className="union-notes-edit-link" onClick={() => setEditing(true)}>
@@ -113,6 +143,19 @@ export default function UnionDetailsEditor({ treeId, familyId, initial, onSaved 
       </label>
       <label>
         {t("infoPanel.unionDateLabel")}
+        <div className="field-row">
+          <input type="date" value={unionDateValue} onChange={(e) => setUnionDateValue(e.target.value)} />
+          <select
+            value={unionDatePrecision}
+            onChange={(e) => setUnionDatePrecision(e.target.value as DatePrecision)}
+          >
+            <option value="EXACT">{t("datePrecision.EXACT")}</option>
+            <option value="ABOUT">{t("datePrecision.ABOUT")}</option>
+            <option value="BEFORE">{t("datePrecision.BEFORE")}</option>
+            <option value="AFTER">{t("datePrecision.AFTER")}</option>
+          </select>
+        </div>
+        <p className="field-hint">{t("personFields.dateValueHint")}</p>
         <input
           type="text"
           placeholder={t("addPerson.unionDatePlaceholder")}
