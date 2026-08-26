@@ -11,48 +11,78 @@
   --color-male: #c7dce4;
   --color-female: #f0cbb3;
   --color-other: #dccbea;
-  --color-amber: #e07a29;
+  /* Retuned from the original bright, saturated orange (#e07a29) toward a
+     duller antique gold — see the "bento-claude" restyle: a bright,
+     saturated accent glowing off a dark or pale ground is the generic
+     "AI dashboard" default, regardless of subject. An aged-metal gold
+     reads as archival/heirloom instead, which is what this app's actual
+     subject (a family's own history) calls for. Unlike the rest of this
+     block, --color-amber now DOES change between themes (see dark mode
+     below) — the old single fixed value couldn't hold contrast against
+     both a pale and a near-black ground at once the way a duller,
+     less-saturated color needs to. --color-amber-pale/-strong/-deep are
+     the gradient's own three stops (buttons, medallion bezels), always in
+     that light-to-dark order regardless of theme — only the base
+     --color-amber (used for text, icons, thin accents) needs a theme-
+     specific value for contrast. */
+  --color-amber: #8a642a;
+  --color-amber-pale: #e2c078;
+  --color-amber-strong: #b8863f;
+  --color-amber-deep: #8a642a;
+  --color-on-amber: #2a1a05;
+  /* The gold hairline this restyle edges panels/tiles with — a certificate
+     or plaque's own fine metal trim, not a generic 1px gray border. Two
+     stops: a stronger one for the actual visible edge, a faint one for the
+     wash in between (see the .gold-edge helper below). */
+  --color-gold-edge: rgba(138, 106, 48, 0.4);
+  --color-gold-edge-faint: rgba(138, 106, 48, 0.08);
+  /* Same base hue as --color-amber, kept as its own token since the
+     etched-line texture (.engraving below) always wants the pure color at
+     a hardcoded low opacity, never the theme-adjusted contrast value. */
+  --color-engraving: #8a642a;
   /* A punchier, more saturated version of --color-other's own violet hue —
      that pastel lavender reads fine as a soft card-ring tint, but washes
      out as a "neon" glow. Same hue family, not a new color introduced from
      nowhere. Unlike the accents above, this one's only ever used for the
      union-line highlight below, so it doesn't need its own dark-mode
-     reasoning — same logic as amber/male/female/other already not
-     changing between themes. */
+     reasoning — same logic as male/female/other already not changing
+     between themes. */
   --color-union-highlight: #a34de0;
   --color-union-hover-shadow: rgba(0, 0, 0, 0.55);
   --color-text-secondary: #374151;
   --color-tree-black: #1c1c1c;
   --timeline-width: 132px;
   color-scheme: light;
-
-  /* The statistics panel is a literal black box regardless of which app
-     theme (light/dark) is active — unlike --color-tree-black (which
-     inverts in dark mode, see below), these are intentionally NOT
-     redefined inside :root[data-theme="dark"]. #1c1c1c matches
-     --color-tree-black's own light-mode value for consistency with what
-     "black" already means elsewhere in this app. */
-  --color-panel-black-bg: #1c1c1c;
-  --color-panel-black-text: #f2f0ea;
-  --color-panel-black-border: rgba(255, 255, 255, 0.1);
 }
 
 /* Dark mode is a toggle in Settings (see ThemeSwitcher.tsx), not a
    prefers-color-scheme media query — it writes data-theme onto <html> via
-   theme.ts, and this is the only block that reacts to it. Deliberately
-   narrow in scope: a graphite (not black) page background, legible text,
-   and an inverted watermark, while every accent color (amber, the
-   male/female/other card-ring pastels, forest-light) stays exactly as-is —
-   they already read fine against a dark ground, the same way iOS keeps its
-   system accent colors unchanged between light and dark. --color-forest
-   itself has to lighten here since it doubles as this app's primary text
-   color (see `body` below), not just an accent. */
+   theme.ts, and this is the only block that reacts to it. Was a neutral
+   graphite background; now a warm near-black brown (the same "family
+   archive" material as light mode's parchment, just the dark side of it —
+   a locked ledger or a leather-bound album, not a tech-dashboard black).
+   --color-forest itself has to lighten here since it doubles as this
+   app's primary text color (see `body` below), not just an accent; the
+   male/female/other card-ring pastels stay exactly as-is, same as before
+   — they already read fine against a dark ground. --color-amber is the
+   one accent that DOES need its own dark-mode value now (see the light
+   block's own comment on why): lighter and warmer here so it still clears
+   contrast against this near-black ground, where the light-mode value
+   would read as too dark and muddy. */
 :root[data-theme="dark"] {
-  --color-bg: #2b2e2c;
-  --color-surface: #383c3a;
+  --color-bg: #18130e;
+  --color-surface: #231d16;
   --color-forest: #cfe3d8;
   --color-text-secondary: #a3b3ac;
   --color-tree-black: #e7e7e2;
+  --color-amber: #d9b06a;
+  --color-amber-pale: #ecc98a;
+  --color-amber-strong: #c99a4e;
+  --color-amber-deep: #8a642a;
+  --color-on-amber: #201200;
+  --color-gold-edge: rgba(232, 201, 138, 0.4);
+  --color-gold-edge-faint: rgba(232, 201, 138, 0.05);
+  --color-engraving: #e8c98a;
   /* The union-line hover shadow (see union-line-hover-pulse) is a dark
      shadow by design on a light ground — invisible against dark mode's own
      dark background, so it inverts to a light glow instead here. Higher
@@ -69,6 +99,52 @@ body {
   font-weight: 600;
   background: var(--color-bg);
   color: var(--color-forest);
+}
+
+/* Shared "bento-claude" restyle helpers — a fine gold hairline edge and an
+   etched certificate-style linework texture, used together across panels,
+   tiles, and cards so the whole app reads as one family archive rather
+   than a generic dashboard. Both replace this app's earlier reliance on
+   backdrop-filter for a "premium" surface (see the info-panel-union/
+   modal-panel-frosted comments elsewhere in this file for that history) —
+   neither needs blur at all, which sidesteps the GPU-compositing
+   fragility that caused the real blur bug this session traced and fixed.
+
+   .gold-edge is the two-layer background trick rather than a plain
+   `border`, because a single `background` can't hold both a flat surface
+   fill and a gradient rim at once — the first layer (padding-box) paints
+   the surface, the second (border-box) only shows through the 1px gap the
+   border leaves. Anything already setting its own `background` needs that
+   swapped for `background-image` with a fill-color first layer, or this
+   silently does nothing. */
+.gold-edge {
+  border: 1px solid transparent;
+  background-image:
+    linear-gradient(var(--color-surface), var(--color-surface)),
+    linear-gradient(155deg, var(--color-gold-edge), var(--color-gold-edge-faint) 40%, var(--color-gold-edge-faint) 60%, var(--color-gold-edge));
+  background-origin: border-box;
+  background-clip: padding-box, border-box;
+}
+
+/* A background-image layer, not an absolutely positioned overlay element
+   — deliberately, after the overlay version shipped a real bug: `inset: 0`
+   on a child sizes to the scroll container's own (visible) box, not its
+   full scrollable content height, so on anything taller than one modal's
+   worth (the create/edit person form, easily) the texture covered only
+   the first screenful and then scrolled away, leaving the rest of a long
+   form plain. A background layer doesn't have this problem — the CSS
+   default (background-attachment: scroll, despite the name) keeps a
+   background fixed to the element's own box no matter how far its
+   content scrolls, which is exactly "cover the whole panel, always"
+   without tracking content height at all. The color itself carries the
+   opacity (color-mix to a low percentage) rather than an `opacity` on a
+   wrapping element, since a background LAYER has no opacity of its own
+   to set independent of the other layers sharing the same
+   background-image list. */
+.engraving {
+  background-image:
+    repeating-radial-gradient(circle at 15% 20%, transparent 0px, transparent 3px, color-mix(in srgb, var(--color-engraving) 6%, transparent) 3px, color-mix(in srgb, var(--color-engraving) 6%, transparent) 3.6px, transparent 3.6px, transparent 9px),
+    repeating-radial-gradient(circle at 85% 85%, transparent 0px, transparent 3px, color-mix(in srgb, var(--color-engraving) 6%, transparent) 3px, color-mix(in srgb, var(--color-engraving) 6%, transparent) 3.6px, transparent 3.6px, transparent 9px);
 }
 
 /* Person and lineage names get the serif treatment everywhere — tree
@@ -408,6 +484,16 @@ body {
   transform: translateY(-1px);
 }
 
+/* The one state this shared header-icon class was missing — hover already
+   confirmed a button was interactive, but nothing acknowledged the actual
+   click itself before whatever it triggered (opening search, a menu, the
+   stats popover) finished loading. A quick press-down reads as "the app
+   caught that" the instant a finger or cursor commits to it. */
+.icon-button:not(:disabled):active {
+  transform: scale(0.92);
+  transition-duration: 80ms;
+}
+
 .icon-button-danger:not(:disabled):hover {
   color: #b00020;
 }
@@ -459,11 +545,21 @@ body {
   max-width: 320px;
   max-height: 420px;
   overflow-y: auto;
-  background: rgba(250, 246, 239, 0.18);
-  backdrop-filter: blur(14px) saturate(1.3);
+  /* Was a semi-transparent cream wash behind backdrop-filter blur — moved
+     onto the same solid gold-edge-plus-engraving surface as .modal-panel
+     (see its own comment for why the engraving lives here as background
+     layers, not a separate ::after — same reasoning, same fix, this box
+     scrolls too). */
+  border: 1px solid transparent;
+  background-image:
+    repeating-radial-gradient(circle at 15% 20%, transparent 0px, transparent 3px, color-mix(in srgb, var(--color-engraving) 6%, transparent) 3px, color-mix(in srgb, var(--color-engraving) 6%, transparent) 3.6px, transparent 3.6px, transparent 9px),
+    repeating-radial-gradient(circle at 85% 85%, transparent 0px, transparent 3px, color-mix(in srgb, var(--color-engraving) 6%, transparent) 3px, color-mix(in srgb, var(--color-engraving) 6%, transparent) 3.6px, transparent 3.6px, transparent 9px),
+    linear-gradient(var(--color-surface), var(--color-surface)),
+    linear-gradient(155deg, var(--color-gold-edge), var(--color-gold-edge-faint) 40%, var(--color-gold-edge-faint) 60%, var(--color-gold-edge));
+  background-origin: padding-box, padding-box, padding-box, border-box;
+  background-clip: padding-box, padding-box, padding-box, border-box;
   border-radius: 10px;
   box-shadow: 0 8px 24px rgba(27, 67, 50, 0.15);
-  border: 1px solid rgba(27, 67, 50, 0.12);
   padding: 0.75rem;
   transform-origin: top right;
   animation: popoverOpen 420ms cubic-bezier(0.16, 1, 0.3, 1);
@@ -471,12 +567,13 @@ body {
 
 /* Layered on top of .popover (className="popover popover-dark stats-panel")
    rather than forking its positioning/animation — only the decorative
-   surface changes. */
+   surface changes. Used to be a literal black box regardless of app
+   theme (deliberately, at the time) — retired in favor of the same
+   theme-aware surface every other panel now uses, since a hardcoded
+   black reads as a leftover dashboard fragment sitting next to this
+   restyle's warm paper/leather surfaces in light mode specifically. */
 .popover-dark {
-  background: rgba(28, 28, 28, 0.94);
-  color: var(--color-panel-black-text);
-  border-color: var(--color-panel-black-border);
-  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.35);
 }
 
 .stats-panel {
@@ -487,7 +584,7 @@ body {
 .stats-section + .stats-section {
   margin-top: 0.75rem;
   padding-top: 0.75rem;
-  border-top: 1px solid var(--color-panel-black-border);
+  border-top: 1px solid var(--color-gold-edge-faint);
 }
 
 /* The app's body sets Inter at weight 600 globally (the only weights the
@@ -516,7 +613,7 @@ body {
 }
 
 .popover-dark .stats-stat-label {
-  color: var(--color-panel-black-text);
+  color: var(--color-forest);
   opacity: 0.75;
 }
 
@@ -528,7 +625,7 @@ body {
 
 .popover-dark .stats-sentence,
 .popover-dark .field-hint {
-  color: var(--color-panel-black-text);
+  color: var(--color-forest);
   opacity: 0.75;
   font-size: 0.8rem;
   margin: 0.3rem 0;
@@ -759,6 +856,29 @@ body {
   margin: 0;
   font-size: 0.9rem;
   color: var(--color-text-secondary);
+  animation: status-in 150ms ease both;
+}
+
+/* Shared by every "loading…"/error line across the app (statistics,
+   relations, media tabs, the tree itself, ...) — each one used to just
+   appear/disappear outright as its own fetch resolved, which is the
+   "reactive update" version of the same hard-pop problem the modals and
+   level-nav buttons had: content replacing content with nothing marking
+   the change. A brief fade is enough to read as "this updated" without
+   drawing attention to a message that's often only on screen briefly. */
+@keyframes status-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .status {
+    animation: none;
+  }
 }
 
 .status-error {
@@ -881,6 +1001,26 @@ body {
   opacity: 1;
   transform: scale(1.15);
   filter: drop-shadow(0 2px 6px var(--color-union-hover-shadow));
+}
+
+.level-nav-button:active {
+  transform: scale(0.92);
+  transition-duration: 80ms;
+}
+
+/* A "+"/"-" reaching the end of the tree (fully expanded or already at 0)
+   used to disappear outright — rendered conditionally, so it just wasn't
+   there on the next render, a hard pop with nothing to indicate why the
+   button someone was about to press is suddenly gone. Always mounted now
+   (see TreeView.tsx), toggling this instead: since .level-nav-button
+   already transitions opacity/transform for its hover state, fading and
+   shrinking out reuses that same transition rather than needing a
+   separate one, and the reverse (an ancestor/descendant becoming
+   available again) fades back in the same way. */
+.level-nav-button-hidden {
+  opacity: 0;
+  transform: scale(0.6);
+  pointer-events: none;
 }
 
 .tree-container {
@@ -1432,7 +1572,15 @@ body {
   width: 48px;
   height: 48px;
   border-radius: 50%;
-  border: 3px solid;
+  /* Transparent border + the double-background trick below, not a plain
+     `border-color` — a gradient can't ride border-image on a circle
+     (border-image ignores border-radius), so this is the only way to get
+     a metallic bezel rim rather than a flat ring. The actual gradient is
+     set per gender further down; this base rule only wires up the
+     mechanism every gender's rule relies on. */
+  border: 3px solid transparent;
+  background-origin: border-box;
+  background-clip: padding-box, border-box;
   box-sizing: border-box;
   object-fit: cover;
   /* Real width/height (not a further transform: scale) so growing on
@@ -1495,37 +1643,34 @@ body {
 }
 
 /* The card's old background color moves here — a ring around the avatar
-   (cameo-brooch style) instead of filling the whole card. The area behind
-   the avatar (visible on the placeholder icon, and peeking through on the
-   ring's inner edge) gets an even lighter tint of that same color, so the
-   ring reads distinctly against its own backing rather than sitting flush
-   against it — the pairing the gender-tinted card background used to give
-   for free before it was removed. */
+   (cameo-brooch style) instead of filling the whole card, now upgraded
+   from a flat ring to a medallion bezel: a metallic gradient (lightest
+   highlight to a darker shade of the same hue) instead of one solid
+   color, so it reads as a raised, cast rim — like a locket or coin edge —
+   rather than a flat digital ring. One rule covers the real photo and the
+   placeholder icon alike: the fill layer only ever shows through on the
+   placeholder (a real photo's own pixels cover it completely), but both
+   need the same border-box/padding-box split from .card-avatar's base
+   rule to render the gradient at all. */
 .card-male .card-avatar,
 .card-male .card-avatar-placeholder {
-  border-color: var(--color-male);
-}
-
-.card-male .card-avatar-placeholder {
-  background: color-mix(in srgb, var(--color-male) 35%, white);
+  background-image:
+    linear-gradient(color-mix(in srgb, var(--color-male) 35%, white), color-mix(in srgb, var(--color-male) 35%, white)),
+    linear-gradient(150deg, color-mix(in srgb, var(--color-male) 55%, white) 0%, var(--color-male) 45%, color-mix(in srgb, var(--color-male) 55%, black) 100%);
 }
 
 .card-female .card-avatar,
 .card-female .card-avatar-placeholder {
-  border-color: var(--color-female);
-}
-
-.card-female .card-avatar-placeholder {
-  background: color-mix(in srgb, var(--color-female) 35%, white);
+  background-image:
+    linear-gradient(color-mix(in srgb, var(--color-female) 35%, white), color-mix(in srgb, var(--color-female) 35%, white)),
+    linear-gradient(150deg, color-mix(in srgb, var(--color-female) 55%, white) 0%, var(--color-female) 45%, color-mix(in srgb, var(--color-female) 55%, black) 100%);
 }
 
 .card-genderless .card-avatar,
 .card-genderless .card-avatar-placeholder {
-  border-color: var(--color-other);
-}
-
-.card-genderless .card-avatar-placeholder {
-  background: color-mix(in srgb, var(--color-other) 35%, white);
+  background-image:
+    linear-gradient(color-mix(in srgb, var(--color-other) 35%, white), color-mix(in srgb, var(--color-other) 35%, white)),
+    linear-gradient(150deg, color-mix(in srgb, var(--color-other) 55%, white) 0%, var(--color-other) 45%, color-mix(in srgb, var(--color-other) 55%, black) 100%);
 }
 
 /* All three of the above mix their ring color with a literal white, on
@@ -1893,6 +2038,7 @@ body {
   font-weight: 700;
   color: var(--color-text-secondary);
   cursor: pointer;
+  transition: color 150ms ease, border-bottom-color 150ms ease;
 }
 
 .info-panel-tab:hover {
@@ -2010,6 +2156,34 @@ body {
   flex-direction: column;
   gap: 0.9rem;
   margin-bottom: 1rem;
+}
+
+/* Wraps whichever of the five info-panel tabs is currently mounted (see
+   InfoPanel.tsx) — switching tabs used to swap this content outright, no
+   different from a page reload. Each tab is its own conditional branch
+   (only one ever mounted at a time), so React already unmounts the old
+   one and mounts the new one fresh on every switch — this just gives that
+   fresh mount something to animate in with, rather than snapping straight
+   to full opacity. */
+.info-panel-tab-content {
+  animation: info-panel-tab-content-in 180ms ease both;
+}
+
+@keyframes info-panel-tab-content-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .info-panel-tab-content {
+    animation: none;
+  }
 }
 
 .info-panel-section-heading {
@@ -2342,6 +2516,22 @@ body {
   align-items: center;
   justify-content: center;
   z-index: 10;
+  animation: modal-backdrop-in 180ms ease both;
+}
+
+@keyframes modal-backdrop-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .modal-backdrop {
+    animation: none;
+  }
 }
 
 /* A new service worker version is ready — see UpdateAvailableBanner.tsx's
@@ -2465,42 +2655,106 @@ body {
 }
 
 .modal-panel {
-  background: var(--color-surface);
+  position: relative;
+  border: 1px solid transparent;
+  /* The certificate-style engraving lives here now, as two more
+     background-image layers, not the separate absolutely-positioned
+     ::after this used to be — see the shared .engraving comment up top
+     for why: an overlay sized via `inset: 0` only covers a scrolling
+     box's own visible height, not its full scrollable content, so it
+     scrolled away partway down anything taller than one screenful (the
+     create/edit person form, reported directly). A background layer has
+     no such limit — it stays fixed to the element's own box regardless of
+     how far the content inside scrolls. Paint order matters here: the
+     engraving layers are listed first (topmost) so their faint lines show
+     over the fill, which would otherwise be painted on top and hide them
+     completely being fully opaque. */
+  background-image:
+    repeating-radial-gradient(circle at 15% 20%, transparent 0px, transparent 3px, color-mix(in srgb, var(--color-engraving) 6%, transparent) 3px, color-mix(in srgb, var(--color-engraving) 6%, transparent) 3.6px, transparent 3.6px, transparent 9px),
+    repeating-radial-gradient(circle at 85% 85%, transparent 0px, transparent 3px, color-mix(in srgb, var(--color-engraving) 6%, transparent) 3px, color-mix(in srgb, var(--color-engraving) 6%, transparent) 3.6px, transparent 3.6px, transparent 9px),
+    linear-gradient(var(--color-surface), var(--color-surface)),
+    linear-gradient(155deg, var(--color-gold-edge), var(--color-gold-edge-faint) 40%, var(--color-gold-edge-faint) 60%, var(--color-gold-edge));
+  background-origin: padding-box, padding-box, padding-box, border-box;
+  background-clip: padding-box, padding-box, padding-box, border-box;
   color: var(--color-forest);
-  border-radius: 8px;
+  border-radius: 14px;
   padding: 1.25rem 1.5rem;
   width: 480px;
   max-width: calc(100vw - 2rem);
   max-height: calc(100vh - 2rem);
   overflow-y: auto;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.28);
+  animation: modal-panel-in 220ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* Shared by every dialog in the app (info panel, edit/add forms, share,
+   merge review, ...) — a person's "ficha" or any other modal used to just
+   snap into existence with no transition at all, the one interaction this
+   app's otherwise-careful motion treatment (popovers, the photo lightbox,
+   the union marks) had skipped entirely. Opacity-only, deliberately, not
+   the scale-up this app's other entrances use (contrast .jelly-pop,
+   .modal-backdrop-in) — an earlier version animated transform too, and
+   with `both` filling the animation forever after it finishes (not just
+   during playback), that left every modal permanently holding a
+   transform, even one that visually settles to identity. Confirmed by
+   testing: the browser does NOT collapse a filling animation's resolved
+   transform back to the literal keyword `none` even when the keyframe
+   says exactly that — getComputedStyle kept reporting a matrix long after
+   the animation had visually finished. On the frosted/union variants
+   below, that same element also carries backdrop-filter plus
+   overflow-y: auto — exactly the kind of transform + backdrop-filter +
+   overflow combination this file already calls out as fragile elsewhere
+   (see the GPU-layer comments on .legend-trigger and HoverPreview), and
+   is what silently broke the blur on those panels once the animation
+   settled. Opacity never has this problem — it doesn't force a
+   persistent transform, so there's nothing to fight with backdrop-filter.
+   No exit animation — every call site closes a modal via unconditional
+   unmount, and adding one properly needs a "closing" state at each of
+   those sites; entrance alone is still the more noticeable half of the
+   two. */
+@keyframes modal-panel-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .modal-panel {
+    animation: none;
+  }
 }
 
 /* A union's own full panel (see InfoPanel.tsx), opened by clicking/tapping
-   the connecting line — same translucent, blurred look as the hover-
-   preview it grew out of, kept as its own modifier (rather than folding
-   into .modal-panel-frosted below) since the lavender tint is specifically
-   a union thing. Still a real modal underneath (the dimmed .modal-
-   backdrop, the same close/edit/delete affordances) — only the surface
-   treatment changes. No manual -webkit-backdrop-filter line here — see
-   .legend-trigger's own comment on why that silently kills this in the
-   production build. */
+   the connecting line — used to be a translucent, blurred lavender tint;
+   now a solid lavender-tinted surface, since the whole modal system
+   dropped backdrop-filter for the bento-claude restyle (see the shared
+   .gold-edge/.engraving comment up top for why: blur bought nothing this
+   material language needs, and was the actual cause of a real rendering
+   bug traced this session). Restates .modal-panel's full 4-layer
+   background-image (engraving x2, fill, gold edge) rather than just the
+   fill color — a plain `background`, or a shorter background-image list,
+   here would reset every layer to whatever this rule provides and
+   silently erase the ones it leaves out, since both classes land on the
+   same element. Only the fill layer's color actually differs. */
 .info-panel-union {
-  background: rgba(220, 203, 234, 0.35);
-  backdrop-filter: blur(14px);
-  box-shadow: 0 12px 32px rgba(27, 67, 50, 0.22);
+  background-image:
+    repeating-radial-gradient(circle at 15% 20%, transparent 0px, transparent 3px, color-mix(in srgb, var(--color-engraving) 6%, transparent) 3px, color-mix(in srgb, var(--color-engraving) 6%, transparent) 3.6px, transparent 3.6px, transparent 9px),
+    repeating-radial-gradient(circle at 85% 85%, transparent 0px, transparent 3px, color-mix(in srgb, var(--color-engraving) 6%, transparent) 3px, color-mix(in srgb, var(--color-engraving) 6%, transparent) 3.6px, transparent 3.6px, transparent 9px),
+    linear-gradient(color-mix(in srgb, var(--color-other) 22%, var(--color-surface)), color-mix(in srgb, var(--color-other) 22%, var(--color-surface))),
+    linear-gradient(155deg, var(--color-gold-edge), var(--color-gold-edge-faint) 40%, var(--color-gold-edge-faint) 60%, var(--color-gold-edge));
 }
 
 /* The neutral counterpart — a person's own full panel, the create/edit
-   forms, and the quick-add kind picker all asked for the same
-   transparency-plus-blur treatment the union panel already had, just
-   without a color tint of its own. color-mix keeps this a translucent
-   version of the theme's own surface color rather than a fixed rgba, so it
-   stays correct in both light and dark mode without a separate override
-   block. Same no-webkit-prefix note as above. */
+   forms, and the quick-add kind picker all asked for the same treatment
+   the union panel has. Now a no-op: .modal-panel's own base surface
+   already carries the gold edge and engraving these forms want, so there
+   is nothing left for this modifier to add. Kept (rather than stripped
+   from its ~6 call sites) so none of them need a change just because this
+   rule became empty. */
 .modal-panel-frosted {
-  background: color-mix(in srgb, var(--color-surface) 62%, transparent);
-  backdrop-filter: blur(14px);
-  box-shadow: 0 12px 32px rgba(27, 67, 50, 0.18);
 }
 
 .modal-panel h2 {
@@ -2810,11 +3064,11 @@ body {
   font-weight: 700;
   padding: 0.5rem 1.25rem;
   border-radius: 999px;
-  border: 1.5px solid #ccc;
+  border: 1.5px solid var(--color-gold-edge);
   cursor: pointer;
   background: var(--color-surface);
   color: var(--color-forest);
-  transition: background 150ms ease, border-color 150ms ease, color 150ms ease, box-shadow 150ms ease;
+  transition: background 150ms ease, border-color 150ms ease, color 150ms ease, box-shadow 150ms ease, transform 150ms ease, filter 150ms ease;
 }
 
 .modal-actions button:hover:not(:disabled),
@@ -2825,27 +3079,39 @@ body {
   box-shadow: 0 2px 8px rgba(27, 67, 50, 0.12);
 }
 
+/* The main action of a form/modal — was a flat forest-green fill; now the
+   same gold gradient the tree's own medallion bezels and CTA tiles use
+   (see .gold-edge/.engraving up top), so "the one button that matters
+   here" reads consistently across the whole app, not just in the tree
+   view. --color-on-amber (near-black in both themes) is a fixed dark
+   text color rather than the usual white, since the gradient's own
+   midtone is too light for white text to clear contrast against. */
 .modal-actions button[type="submit"],
 .home-create-form button[type="submit"],
 .union-notes-actions button[type="submit"],
 .field-row button[type="submit"],
 button.btn-primary {
-  background: var(--color-forest-light);
-  border-color: var(--color-forest-light);
-  color: #fff;
+  background-image: linear-gradient(160deg, var(--color-amber-pale) 0%, var(--color-amber-strong) 55%, var(--color-amber-deep) 100%);
+  border-color: transparent;
+  color: var(--color-on-amber);
+  box-shadow: 0 6px 16px -4px rgba(138, 106, 48, 0.4);
 }
 
 .modal-actions button[type="submit"]:hover:not(:disabled),
 .home-create-form button[type="submit"]:hover:not(:disabled),
 .union-notes-actions button[type="submit"]:hover:not(:disabled),
 .field-row button[type="submit"]:hover:not(:disabled),
+button.btn-primary:hover:not(:disabled) {
+  transform: translateY(-1px);
+  filter: brightness(1.05);
+  box-shadow: 0 8px 20px -4px rgba(138, 106, 48, 0.48);
+}
+
 .modal-actions button[type="submit"]:active:not(:disabled),
 .home-create-form button[type="submit"]:active:not(:disabled),
-button.btn-primary:hover:not(:disabled),
 button.btn-primary:active:not(:disabled) {
-  background: var(--color-forest);
-  border-color: var(--color-forest);
-  box-shadow: 0 3px 10px rgba(27, 67, 50, 0.25);
+  transform: translateY(0) scale(0.98);
+  filter: brightness(0.98);
 }
 
 button.btn-outline {

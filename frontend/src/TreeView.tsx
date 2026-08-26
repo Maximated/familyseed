@@ -3028,56 +3028,60 @@ function App() {
               time. Fixed at the canvas edges rather than pinned to the
               selected card (by request), so they live here as canvas
               overlay chrome, not inside family-chart's own container. */}
-          {mainPersonId && (canExpandAncestors || canCollapseAncestors) && (
+          {/* Both buttons in each row are always mounted, with visibility
+              toggled by a CSS class (level-nav-button-hidden) instead of
+              conditional rendering — reaching either end of the tree used
+              to make the relevant button disappear outright between one
+              render and the next, a hard pop with no acknowledgment of
+              why it vanished. Fading/shrinking it out (and back in, if
+              more room opens up again) reads as the button responding to
+              its own state instead of glitching away. */}
+          {mainPersonId && (
             <div className="level-nav-row level-nav-top">
-              {canCollapseAncestors && (
-                <button
-                  type="button"
-                  className="level-nav-button"
-                  onClick={() => handleAncestorLevelsChange(-1)}
-                  aria-label={t("app.collapseAncestors")}
-                  title={t("app.collapseAncestors")}
-                >
-                  <MinusIcon size={28} />
-                </button>
-              )}
-              {canExpandAncestors && (
-                <button
-                  type="button"
-                  className="level-nav-button"
-                  onClick={() => handleAncestorLevelsChange(1)}
-                  aria-label={t("app.expandAncestors")}
-                  title={t("app.expandAncestors")}
-                >
-                  <PlusIcon size={28} />
-                </button>
-              )}
+              <button
+                type="button"
+                className={`level-nav-button${canCollapseAncestors ? "" : " level-nav-button-hidden"}`}
+                onClick={() => handleAncestorLevelsChange(-1)}
+                aria-label={t("app.collapseAncestors")}
+                title={t("app.collapseAncestors")}
+                disabled={!canCollapseAncestors}
+              >
+                <MinusIcon size={28} />
+              </button>
+              <button
+                type="button"
+                className={`level-nav-button${canExpandAncestors ? "" : " level-nav-button-hidden"}`}
+                onClick={() => handleAncestorLevelsChange(1)}
+                aria-label={t("app.expandAncestors")}
+                title={t("app.expandAncestors")}
+                disabled={!canExpandAncestors}
+              >
+                <PlusIcon size={28} />
+              </button>
             </div>
           )}
-          {mainPersonId && (canExpandDescendants || canCollapseDescendants) && (
+          {mainPersonId && (
             <div className="level-nav-row level-nav-bottom">
-              {canCollapseDescendants && (
-                <button
-                  type="button"
-                  className="level-nav-button"
-                  onClick={() => handleDescendantLevelsChange(-1)}
-                  aria-label={t("app.collapseDescendants")}
-                  title={t("app.collapseDescendants")}
-                >
-                  <MinusIcon size={28} />
-                </button>
-              )}
-              {canExpandDescendants && (
-                <button
-                  type="button"
-                  className="level-nav-button"
-                  onClick={() => handleDescendantLevelsChange(1)}
-                  aria-label={t("app.expandDescendants")}
-                  title={t("app.expandDescendants")}
-                >
-                  <PlusIcon size={28} />
-                </button>
-              )}
+              <button
+                type="button"
+                className={`level-nav-button${canCollapseDescendants ? "" : " level-nav-button-hidden"}`}
+                onClick={() => handleDescendantLevelsChange(-1)}
+                aria-label={t("app.collapseDescendants")}
+                title={t("app.collapseDescendants")}
+                disabled={!canCollapseDescendants}
+              >
+                <MinusIcon size={28} />
+              </button>
+              <button
+                type="button"
+                className={`level-nav-button${canExpandDescendants ? "" : " level-nav-button-hidden"}`}
+                onClick={() => handleDescendantLevelsChange(1)}
+                aria-label={t("app.expandDescendants")}
+                title={t("app.expandDescendants")}
+                disabled={!canExpandDescendants}
+              >
+                <PlusIcon size={28} />
+              </button>
             </div>
           )}
         </div>

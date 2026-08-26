@@ -115,7 +115,7 @@ export default function InfoPanel({ treeId, data, onClose, onNavigateToPerson, o
         )}
 
         {tab === "ficha" && (
-          <div className="info-panel-sections">
+          <div className="info-panel-sections info-panel-tab-content">
             {/* A union's own equivalent of this same read-only content also
                 lives in `data.sections` (see buildUnionInfoPanel) — that
                 copy is for the hover-preview, which never renders these
@@ -179,16 +179,24 @@ export default function InfoPanel({ treeId, data, onClose, onNavigateToPerson, o
           </div>
         )}
         {tab === "relaciones" && data.personId && (
-          <RelationsTab treeId={treeId} personId={data.personId} onNavigate={onNavigateToPerson} />
+          <div className="info-panel-tab-content">
+            <RelationsTab treeId={treeId} personId={data.personId} onNavigate={onNavigateToPerson} />
+          </div>
         )}
         {tab === "estadisticas" && data.personId && (
-          <PersonStatisticsTab treeId={treeId} personId={data.personId} />
+          <div className="info-panel-tab-content">
+            <PersonStatisticsTab treeId={treeId} personId={data.personId} />
+          </div>
         )}
         {tab === "fotos" && data.personId && (
-          <PersonMediaTab treeId={treeId} personId={data.personId} type="PHOTO" editable={false} />
+          <div className="info-panel-tab-content">
+            <PersonMediaTab treeId={treeId} personId={data.personId} type="PHOTO" editable={false} />
+          </div>
         )}
         {tab === "documentos" && data.personId && (
-          <PersonMediaTab treeId={treeId} personId={data.personId} type="DOCUMENT" editable={false} />
+          <div className="info-panel-tab-content">
+            <PersonMediaTab treeId={treeId} personId={data.personId} type="DOCUMENT" editable={false} />
+          </div>
         )}
 
         <div className="modal-actions">
