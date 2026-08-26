@@ -40,7 +40,7 @@ import {
   LinkIcon,
   MaximizeIcon,
   MinusIcon,
-  PencilIcon,
+  MoreIcon,
   PlusIcon,
   SearchIcon,
   ShareIcon,
@@ -777,8 +777,8 @@ function App() {
   const pendingLevelsRef = useRef<{ ancestorLevels: number; descendantLevels: number } | null>(null);
   const lineageMenuRef = useRef<HTMLDivElement>(null);
   const statsMenuRef = useRef<HTMLDivElement>(null);
-  const editMenuRef = useRef<HTMLDivElement>(null);
-  const editMenuCloseTimerRef = useRef<number | undefined>(undefined);
+  const moreMenuRef = useRef<HTMLDivElement>(null);
+  const moreMenuCloseTimerRef = useRef<number | undefined>(undefined);
   const statsHoverTimerRef = useRef<number | undefined>(undefined);
 
   const [error, setError] = useState<string | null>(null);
@@ -851,7 +851,7 @@ function App() {
   const titleMeasureRef = useRef<HTMLSpanElement>(null);
   const [showLineageMenu, setShowLineageMenu] = useState(false);
   const [showStatsPanel, setShowStatsPanel] = useState(false);
-  const [editMenuOpen, setEditMenuOpen] = useState(false);
+  const [moreMenuOpen, setMoreMenuOpen] = useState(false);
   const [orientation, setOrientation] = useState<"vertical" | "horizontal">(getDefaultOrientation);
   // wireCardAndUnionClicks (below) is a long-lived useCallback that doesn't
   // list `orientation` as a dependency — correctLinkTextTransform's settle
@@ -2145,18 +2145,18 @@ function App() {
   }, [showStatsPanel]);
 
   useEffect(() => {
-    if (!editMenuOpen) return;
+    if (!moreMenuOpen) return;
 
     function handlePointerDown(event: PointerEvent) {
       const target = event.target as Node;
-      if (editMenuRef.current && !editMenuRef.current.contains(target)) {
-        setEditMenuOpen(false);
+      if (moreMenuRef.current && !moreMenuRef.current.contains(target)) {
+        setMoreMenuOpen(false);
       }
     }
 
     document.addEventListener("pointerdown", handlePointerDown);
     return () => document.removeEventListener("pointerdown", handlePointerDown);
-  }, [editMenuOpen]);
+  }, [moreMenuOpen]);
 
   useEffect(() => {
     if (!editingTitle) return;
@@ -2640,17 +2640,17 @@ function App() {
   // that CSS pseudo-class path entirely — real mouseenter/mouseleave
   // events instead, with a short delay bridging the moment the pointer
   // crosses from the trigger onto the row.
-  function revealEditMenu() {
-    window.clearTimeout(editMenuCloseTimerRef.current);
-    setEditMenuOpen(true);
+  function revealMoreMenu() {
+    window.clearTimeout(moreMenuCloseTimerRef.current);
+    setMoreMenuOpen(true);
   }
-  function scheduleHideEditMenu() {
-    window.clearTimeout(editMenuCloseTimerRef.current);
-    editMenuCloseTimerRef.current = window.setTimeout(() => setEditMenuOpen(false), 150);
+  function scheduleHideMoreMenu() {
+    window.clearTimeout(moreMenuCloseTimerRef.current);
+    moreMenuCloseTimerRef.current = window.setTimeout(() => setMoreMenuOpen(false), 150);
   }
-  function toggleEditMenu() {
-    window.clearTimeout(editMenuCloseTimerRef.current);
-    setEditMenuOpen((v) => !v);
+  function toggleMoreMenu() {
+    window.clearTimeout(moreMenuCloseTimerRef.current);
+    setMoreMenuOpen((v) => !v);
   }
 
   // Opens the stats panel after a 1s hover, in addition to the button's own
@@ -2796,10 +2796,13 @@ function App() {
         )}
 
         {/* Every action lives in this single top-aligned row now, in a
-            fixed order (see the plain-language spec this was built from):
-            search, lineages, edit (the only collapsible one — a pencil
-            dropdown for the person-editing actions), export/GEDCOM, share,
-            orientation, statistics. No hamburger anymore. */}
+            fixed order: search, lineages, add person, share, then one
+            overflow ("more") menu for everything used less often —
+            person-editing tools (duplicates, unrelated, link, trash),
+            then a divider, then GEDCOM/orientation/statistics. Only this
+            one icon ever expands, instead of the pencil being the sole
+            icon among plain single-action ones that secretly opened a
+            submenu. No hamburger. */}
         <div className="header-right-actions">
           <button
             type="button"
@@ -2849,36 +2852,50 @@ function App() {
             )}
           </div>
 
-          {/* The only collapsible menu left — everything about adding or
-              relating people, behind one pencil icon. Same hover/click/
-              focus reveal mechanics the old hamburger used (see
-              revealEditMenu), just scoped to a shorter list and opening
-              straight down instead of flying out sideways. */}
-          <div className={`edit-menu${editMenuOpen ? " edit-menu-open" : ""}`} ref={editMenuRef}>
+          <button
+            type="button"
+            className="icon-button"
+            onClick={() => setShowAddForm(true)}
+            disabled={treeRole === "VIEWER"}
+            aria-label={t("app.addPerson")}
+            title={t("app.addPerson")}
+          >
+            <UserPlusIcon />
+          </button>
+
+          {treeRole === "OWNER" && (
             <button
               type="button"
-              className="icon-button edit-menu-trigger"
-              onClick={toggleEditMenu}
-              onMouseEnter={revealEditMenu}
-              onMouseLeave={scheduleHideEditMenu}
-              onFocus={revealEditMenu}
-              aria-label={t("app.edit")}
-              aria-expanded={editMenuOpen}
-              title={t("app.edit")}
+              className="icon-button icon-button-badged"
+              onClick={() => setShowShareModal(true)}
+              aria-label={treeMemberCount > 1 ? t("app.manageGuests", { count: treeMemberCount - 1 }) : t("app.share")}
+              title={treeMemberCount > 1 ? t("app.manageGuests", { count: treeMemberCount - 1 }) : t("app.share")}
             >
-              <PencilIcon />
+              <ShareIcon />
+              {treeMemberCount > 1 && <span className="icon-button-badge">{treeMemberCount - 1}</span>}
             </button>
-            <div className="edit-menu-items" onMouseEnter={revealEditMenu} onMouseLeave={scheduleHideEditMenu}>
-              <button
-                type="button"
-                className="icon-button"
-                onClick={() => setShowAddForm(true)}
-                disabled={treeRole === "VIEWER"}
-                aria-label={t("app.addPerson")}
-                title={t("app.addPerson")}
-              >
-                <UserPlusIcon />
-              </button>
+          )}
+
+          {/* The one collapsible menu left — everything used occasionally
+              rather than every session, behind a single "more" (···)
+              trigger instead of overloading the pencil that used to sit
+              here. Same hover/click/focus reveal mechanics as before (see
+              revealMoreMenu). */}
+          <div className={`more-menu${moreMenuOpen ? " more-menu-open" : ""}`} ref={moreMenuRef}>
+            <button
+              type="button"
+              className="icon-button more-menu-trigger"
+              onClick={toggleMoreMenu}
+              onMouseEnter={revealMoreMenu}
+              onMouseLeave={scheduleHideMoreMenu}
+              onFocus={revealMoreMenu}
+              aria-label={t("app.more")}
+              aria-expanded={moreMenuOpen}
+              title={t("app.more")}
+            >
+              <MoreIcon />
+            </button>
+            <div className="more-menu-items" onMouseEnter={revealMoreMenu} onMouseLeave={scheduleHideMoreMenu}>
               <button
                 type="button"
                 className="icon-button"
@@ -2918,61 +2935,53 @@ function App() {
               >
                 <Trash2Icon />
               </button>
+
+              <div className="more-menu-divider" role="separator" />
+
+              <button
+                type="button"
+                className="icon-button"
+                onClick={() => setShowGedcom(true)}
+                aria-label={t("app.gedcom")}
+                title={t("app.gedcom")}
+              >
+                <ArrowUpDownIcon />
+              </button>
+              <button
+                type="button"
+                className="icon-button"
+                onClick={handleToggleOrientation}
+                aria-label={orientation === "vertical" ? t("app.orientationHorizontal") : t("app.orientationVertical")}
+                title={orientation === "vertical" ? t("app.orientationHorizontal") : t("app.orientationVertical")}
+              >
+                <SwitchOrientationIcon />
+              </button>
+              <div
+                className="popover-anchor"
+                ref={statsMenuRef}
+                onMouseEnter={revealStatsPanel}
+                onMouseLeave={cancelRevealStatsPanel}
+              >
+                <button
+                  type="button"
+                  className="icon-button"
+                  onClick={() => setShowStatsPanel((v) => !v)}
+                  aria-label={t("app.statistics")}
+                  aria-expanded={showStatsPanel}
+                  title={t("app.statistics")}
+                >
+                  <BarChartIcon />
+                </button>
+                {showStatsPanel && treeId && (
+                  <StatisticsPanel
+                    treeId={treeId}
+                    selectedPersonId={mainPersonId}
+                    selectedPersonName={mainPersonName}
+                    onClose={() => setShowStatsPanel(false)}
+                  />
+                )}
+              </div>
             </div>
-          </div>
-
-          <button
-            type="button"
-            className="icon-button"
-            onClick={() => setShowGedcom(true)}
-            aria-label={t("app.gedcom")}
-            title={t("app.gedcom")}
-          >
-            <ArrowUpDownIcon />
-          </button>
-
-          {treeRole === "OWNER" && (
-            <button
-              type="button"
-              className="icon-button icon-button-badged"
-              onClick={() => setShowShareModal(true)}
-              aria-label={treeMemberCount > 1 ? t("app.manageGuests", { count: treeMemberCount - 1 }) : t("app.share")}
-              title={treeMemberCount > 1 ? t("app.manageGuests", { count: treeMemberCount - 1 }) : t("app.share")}
-            >
-              <ShareIcon />
-              {treeMemberCount > 1 && <span className="icon-button-badge">{treeMemberCount - 1}</span>}
-            </button>
-          )}
-
-          <button
-            type="button"
-            className="icon-button"
-            onClick={handleToggleOrientation}
-            aria-label={orientation === "vertical" ? t("app.orientationHorizontal") : t("app.orientationVertical")}
-            title={orientation === "vertical" ? t("app.orientationHorizontal") : t("app.orientationVertical")}
-          >
-            <SwitchOrientationIcon />
-          </button>
-
-          <div className="popover-anchor" ref={statsMenuRef} onMouseEnter={revealStatsPanel} onMouseLeave={cancelRevealStatsPanel}>
-            <button
-              type="button"
-              className="icon-button"
-              onClick={() => setShowStatsPanel((v) => !v)}
-              aria-label={t("app.statistics")}
-              aria-expanded={showStatsPanel}
-              title={t("app.statistics")}
-            >
-              <BarChartIcon />
-            </button>
-            {showStatsPanel && treeId && (
-              <StatisticsPanel
-                treeId={treeId}
-                selectedPersonId={mainPersonId}
-                selectedPersonName={mainPersonName}
-                onClose={() => setShowStatsPanel(false)}
-              />
-            )}
           </div>
         </div>
       </header>

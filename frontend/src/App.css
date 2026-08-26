@@ -40,6 +40,17 @@
      etched-line texture (.engraving below) always wants the pure color at
      a hardcoded low opacity, never the theme-adjusted contrast value. */
   --color-engraving: #8a642a;
+  /* The card avatar's own interior, behind a placeholder icon — a small
+     cast well the bezel ring sits on, same "medallion" idea as the rest
+     of this restyle. Unlike the button/gold-edge hardware, this one DOES
+     flip per theme (see the dark override below) rather than staying
+     fixed — a near-black well reads as a lit recess against light mode's
+     pale canvas, but the exact same near-black well against dark mode's
+     own near-black canvas just reads as a hole with no medallion in it.
+     Each theme gets the well tone that actually contrasts with its own
+     canvas, the same way the rest of dark mode is composed on purpose
+     rather than a mechanical light-theme inversion. */
+  --color-avatar-well: #1c1712;
   /* A punchier, more saturated version of --color-other's own violet hue —
      that pastel lavender reads fine as a soft card-ring tint, but washes
      out as a "neon" glow. Same hue family, not a new color introduced from
@@ -83,6 +94,13 @@
   --color-gold-edge: rgba(232, 201, 138, 0.4);
   --color-gold-edge-faint: rgba(232, 201, 138, 0.05);
   --color-engraving: #e8c98a;
+  /* Parchment/ivory, not white — reads as the same "cast material" family
+     as the gold hardware around it rather than a plain light-mode swap.
+     See --color-avatar-well's own comment in :root for why this flips at
+     all: a near-black well only reads as a medallion recess against a
+     pale canvas, so dark mode needs a well tone light enough to contrast
+     with its own near-black canvas instead. */
+  --color-avatar-well: #e6dcc7;
   /* The union-line hover shadow (see union-line-hover-pulse) is a dark
      shadow by design on a light ground — invisible against dark mode's own
      dark background, so it inverts to a light glow instead here. Higher
@@ -292,7 +310,7 @@ body {
 }
 
 /* The edit menu: same JS-owned hover/focus reveal the old hamburger used
-   (see revealEditMenu in TreeView.tsx — real mouseenter/mouseleave with a
+   (see revealMoreMenu in TreeView.tsx — real mouseenter/mouseleave with a
    grace delay proved more reliable than a plain :hover rule; :focus-within
    stays as a keyboard fallback). On touch/PWA (base rules) it flies out to
    the left of the trigger, same side the row of top-level icons it sits
@@ -303,11 +321,11 @@ body {
    the screen (see .header-right-actions) and centering would push items
    above the viewport. The hover-capable override further down switches it
    to a vertical dropdown straight below instead. */
-.edit-menu {
+.more-menu {
   position: relative;
 }
 
-.edit-menu-items {
+.more-menu-items {
   position: absolute;
   top: 0;
   right: calc(100% + 0.4rem);
@@ -329,13 +347,13 @@ body {
   z-index: 20;
 }
 
-.edit-menu-open .edit-menu-items,
-.edit-menu:focus-within .edit-menu-items {
+.more-menu-open .more-menu-items,
+.more-menu:focus-within .more-menu-items {
   opacity: 1;
   pointer-events: auto;
 }
 
-.edit-menu-items .icon-button {
+.more-menu-items .icon-button {
   display: flex;
   /* .icon-button's own base rule fixes a bare 36px square (right for an
      icon-only button everywhere else in the app) — overridden here since
@@ -353,29 +371,47 @@ body {
   transform: scale(0.3);
 }
 
-.edit-menu-open .edit-menu-items .icon-button,
-.edit-menu:focus-within .edit-menu-items .icon-button {
+.more-menu-open .more-menu-items .icon-button,
+.more-menu:focus-within .more-menu-items .icon-button {
   animation: jelly-pop 460ms cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
 }
 
-.edit-menu-items .icon-button:nth-child(1) { animation-delay: 0ms; }
-.edit-menu-items .icon-button:nth-child(2) { animation-delay: 30ms; }
-.edit-menu-items .icon-button:nth-child(3) { animation-delay: 60ms; }
-.edit-menu-items .icon-button:nth-child(4) { animation-delay: 90ms; }
-.edit-menu-items .icon-button:nth-child(5) { animation-delay: 120ms; }
+.more-menu-items .icon-button:nth-child(1) { animation-delay: 0ms; }
+.more-menu-items .icon-button:nth-child(2) { animation-delay: 30ms; }
+.more-menu-items .icon-button:nth-child(3) { animation-delay: 60ms; }
+.more-menu-items .icon-button:nth-child(4) { animation-delay: 90ms; }
+.more-menu-items .icon-button:nth-child(5) { animation-delay: 120ms; }
+/* The divider between the two item groups (see .more-menu-divider below)
+   is itself child #5, pushing GEDCOM/orientation to #6/#7 — the last
+   item (statistics) sits inside its own .popover-anchor wrapper for the
+   click-outside-to-close handling that panel needs, so it's never a
+   direct child here and just falls back to the unstaggered base
+   animation instead of a numbered delay, same as an unmatched item
+   always would. */
+.more-menu-items .icon-button:nth-child(6) { animation-delay: 150ms; }
+.more-menu-items .icon-button:nth-child(7) { animation-delay: 180ms; }
 
-.edit-menu-items .icon-button:hover {
+.more-menu-items .icon-button:hover {
   background: rgba(27, 67, 50, 0.06);
 }
 
-.edit-menu-items .icon-button svg {
+.more-menu-items .icon-button svg {
   flex-shrink: 0;
+}
+
+/* Separates "editing tools" (duplicates, unrelated, link, trash) from
+   "view/settings" (GEDCOM, orientation, statistics) without needing two
+   visually distinct menus — one hairline reads as "these are a different
+   kind of action" without the weight of a section heading. */
+.more-menu-divider {
+  border-top: 1px solid var(--color-gold-edge-faint);
+  margin: 0.3rem 0.2rem;
 }
 
 /* The explanatory label — kept visible by default (touch/PWA, no hover to
    reveal the title as a native tooltip instead). Removed entirely by the
    hover-capable override below. */
-.edit-menu-items .icon-button::after {
+.more-menu-items .icon-button::after {
   content: attr(title);
   font-family: var(--font-ui);
   font-size: 0.9rem;
@@ -384,7 +420,7 @@ body {
 
 /* Real mouse/trackpad devices: the top-level actions collapse back into
    one plain horizontal row in normal flow, top-aligned with home/back/
-   fit-all, and the edit menu becomes a vertical dropdown straight below
+   fit-all, and the more menu becomes a vertical dropdown straight below
    its trigger, icon-only — hovering each item already surfaces its title
    as a native tooltip, so the inline label would just be redundant. */
 @media (hover: hover) and (pointer: fine) {
@@ -403,7 +439,7 @@ body {
      width. Vertical instead of that original's horizontal flyout, since
      it's opening downward from a trigger that's one item in a plain row
      now instead of tucked in a far corner. */
-  .edit-menu-items {
+  .more-menu-items {
     top: calc(100% + 0.4rem);
     right: 0;
     left: auto;
@@ -422,13 +458,13 @@ body {
     padding: 0;
   }
 
-  .edit-menu-items .icon-button {
+  .more-menu-items .icon-button {
     width: 36px;
     height: 36px;
     justify-content: center;
   }
 
-  .edit-menu-items .icon-button::after {
+  .more-menu-items .icon-button::after {
     content: none;
   }
 }
@@ -967,7 +1003,6 @@ body {
   left: 50%;
   transform: translateX(-50%);
   display: flex;
-  gap: 0.75rem;
   z-index: 5;
   pointer-events: none;
 }
@@ -980,6 +1015,15 @@ body {
   bottom: 0.75rem;
 }
 
+/* Width/height pinned to the icon's own size (see PlusIcon/MinusIcon's
+   size={28} in TreeView.tsx) rather than left implicit — a CSS transition
+   needs two concrete numbers to animate between, and .level-nav-button-
+   hidden below transitions this same width down to 0. Margin (not the
+   row's old `gap`) carries the spacing between the two buttons, for the
+   same reason: `gap` still reserves its space between flex items
+   regardless of how small either item's own box gets, which is exactly
+   what kept the surviving "+"/"-" off-center once its sibling collapsed
+   to nothing — margin transitions away along with it instead. */
 .level-nav-button {
   pointer-events: auto;
   display: flex;
@@ -987,13 +1031,17 @@ body {
   justify-content: center;
   background: none;
   border: none;
+  width: 28px;
+  height: 28px;
   padding: 0.35rem;
-  margin: 0;
+  margin: 0 0.375rem;
+  overflow: hidden;
   color: var(--color-forest);
   opacity: 0.55;
   cursor: pointer;
   filter: drop-shadow(0 1px 3px var(--color-union-hover-shadow));
-  transition: opacity 150ms ease, transform 150ms ease, filter 150ms ease;
+  transition: opacity 150ms ease, transform 150ms ease, filter 150ms ease, width 150ms ease,
+    margin 150ms ease, padding 150ms ease;
 }
 
 .level-nav-button:hover,
@@ -1016,11 +1064,23 @@ body {
    already transitions opacity/transform for its hover state, fading and
    shrinking out reuses that same transition rather than needing a
    separate one, and the reverse (an ancestor/descendant becoming
-   available again) fades back in the same way. */
+   available again) fades back in the same way.
+
+   Also collapses width/margin/padding to 0, not just opacity/scale — left
+   at their normal size, the hidden button still held its full slot in
+   the row's flex layout (invisible but still taking up space), so the
+   one surviving "+" or "-" sat off to whichever side it already
+   occupied instead of at the row's true center. Collapsing this one's
+   box to nothing lets the row (centered as a whole via .level-nav-row's
+   own left: 50%) shrink to just the visible button, which centers it
+   for free. */
 .level-nav-button-hidden {
   opacity: 0;
   transform: scale(0.6);
   pointer-events: none;
+  width: 0;
+  margin: 0;
+  padding: 0.35rem 0;
 }
 
 .tree-container {
@@ -1501,11 +1561,15 @@ body {
 /* A quick read-only peek at a card's extended info, shown after hovering
    it for a second (see the timer in wireCardAndUnionClicks). Deliberately
    borderless and roomy enough to spill over neighboring cards — it's a
-   glance, not a panel meant to coexist with the tree around it. Same
-   translucency + blur treatment as the legend (see its own comment on
-   why that alpha is what it is), but in --color-other (lavender) rather
-   than the forest/amber/beige already carrying every other meaning in
-   the app.
+   glance, not a panel meant to coexist with the tree around it.
+
+   Same --color-surface family every opaque panel in this restyle uses
+   (see .gold-edge), tinted translucent instead of solid, rather than the
+   old fixed lavender — this is the one panel in the app that keeps the
+   pre-restyle translucency + blur treatment on purpose (see the comment
+   on .modal-panel-frosted for why every *other* panel dropped blur):
+   a glance-and-gone peek reads well as glass in a way something meant to
+   be read and worked in for a while doesn't.
 
    position: fixed (not absolute) because this is portaled to document.body
    — see HoverPreview.tsx for why: backdrop-filter can't blur across the
@@ -1523,9 +1587,9 @@ body {
   max-width: calc(100vw - 32px);
   padding: 0.85rem 1rem;
   border-radius: 14px;
-  background: rgba(220, 203, 234, 0.35);
+  background: color-mix(in srgb, var(--color-surface) 55%, transparent);
   backdrop-filter: blur(14px);
-  box-shadow: 0 12px 32px rgba(27, 67, 50, 0.22);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.28);
   pointer-events: none;
   transform: translate(-50%, calc(-100% - 16px));
   animation: hover-preview-fade-in 160ms ease both;
@@ -1568,7 +1632,17 @@ body {
   position: absolute;
   top: 50%;
   left: 50%;
-  transform: translate(-50%, -50%);
+  /* translateZ(0) forces this circle onto its own GPU layer, rasterized
+     at its own resolution instead of inheriting family-chart's zoom
+     transform on an ancestor — without it, zooming the tree in scales up
+     an already-rasterized round mask, and the connecting SVG line behind
+     it (drawn in the same zoomed coordinate space, so it's always exactly
+     centered on this circle) shows through as a thin seam right at the
+     bezel ring where that scaled-up mask's edge turns soft. Reported as
+     the ancestor/union lines becoming visible through a selected card's
+     avatar when zoomed in — invisible at rest-size zoom, where the same
+     soft edge is only a sub-pixel sliver. */
+  transform: translate(-50%, -50%) translateZ(0);
   width: 48px;
   height: 48px;
   border-radius: 50%;
@@ -1651,38 +1725,62 @@ body {
    placeholder icon alike: the fill layer only ever shows through on the
    placeholder (a real photo's own pixels cover it completely), but both
    need the same border-box/padding-box split from .card-avatar's base
-   rule to render the gradient at all. */
+   rule to render the gradient at all. The fill itself is --color-avatar-
+   well, not a gender tint — an empty slot reads as an engraved well
+   behind the bezel (matching the "medallion" mockup this restyle is
+   built from), with the gender hue carried entirely by the bezel ring
+   and the icon's own stroke color below. */
 .card-male .card-avatar,
 .card-male .card-avatar-placeholder {
   background-image:
-    linear-gradient(color-mix(in srgb, var(--color-male) 35%, white), color-mix(in srgb, var(--color-male) 35%, white)),
+    linear-gradient(var(--color-avatar-well), var(--color-avatar-well)),
     linear-gradient(150deg, color-mix(in srgb, var(--color-male) 55%, white) 0%, var(--color-male) 45%, color-mix(in srgb, var(--color-male) 55%, black) 100%);
 }
 
 .card-female .card-avatar,
 .card-female .card-avatar-placeholder {
   background-image:
-    linear-gradient(color-mix(in srgb, var(--color-female) 35%, white), color-mix(in srgb, var(--color-female) 35%, white)),
+    linear-gradient(var(--color-avatar-well), var(--color-avatar-well)),
     linear-gradient(150deg, color-mix(in srgb, var(--color-female) 55%, white) 0%, var(--color-female) 45%, color-mix(in srgb, var(--color-female) 55%, black) 100%);
 }
 
 .card-genderless .card-avatar,
 .card-genderless .card-avatar-placeholder {
   background-image:
-    linear-gradient(color-mix(in srgb, var(--color-other) 35%, white), color-mix(in srgb, var(--color-other) 35%, white)),
+    linear-gradient(var(--color-avatar-well), var(--color-avatar-well)),
     linear-gradient(150deg, color-mix(in srgb, var(--color-other) 55%, white) 0%, var(--color-other) 45%, color-mix(in srgb, var(--color-other) 55%, black) 100%);
 }
 
-/* All three of the above mix their ring color with a literal white, on
-   purpose — that pastel-on-white ring is the same regardless of theme, per
-   the same "accent colors stay put" rule the rest of dark mode follows.
-   But the icon itself is `color: inherit`, which does follow the theme —
-   it picks up dark mode's lightened --color-forest, landing a light
-   stroke on a ring that's still light too. Dark mode gets the icon's own
-   color pinned back to the light-mode --color-forest value here so it
-   keeps reading against a ring that never got dark to match it. */
-:root[data-theme="dark"] .card-avatar-placeholder {
-  color: #1b4332;
+/* The placeholder icon's stroke — a tint of its own gender hue, so it
+   reads as the same cast object as the bezel ring rather than borrowing
+   the page's own theme-driven text color. Lightened toward white in
+   light mode, where the well is near-black; darkened toward black in
+   dark mode, where the well flips to parchment (see --color-avatar-well)
+   — the icon always needs to sit on the *opposite* end of the ring's own
+   light↔dark gradient from whichever end the well matches, in both
+   themes, or it disappears into its own fill. */
+.card-male .card-avatar-placeholder {
+  color: color-mix(in srgb, var(--color-male) 70%, white);
+}
+
+.card-female .card-avatar-placeholder {
+  color: color-mix(in srgb, var(--color-female) 70%, white);
+}
+
+.card-genderless .card-avatar-placeholder {
+  color: color-mix(in srgb, var(--color-other) 70%, white);
+}
+
+:root[data-theme="dark"] .card-male .card-avatar-placeholder {
+  color: color-mix(in srgb, var(--color-male) 55%, black);
+}
+
+:root[data-theme="dark"] .card-female .card-avatar-placeholder {
+  color: color-mix(in srgb, var(--color-female) 55%, black);
+}
+
+:root[data-theme="dark"] .card-genderless .card-avatar-placeholder {
+  color: color-mix(in srgb, var(--color-other) 55%, black);
 }
 
 .card-avatar-placeholder svg {
