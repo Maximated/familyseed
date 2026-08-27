@@ -1065,6 +1065,21 @@ body {
   --text-color: var(--color-forest);
 }
 
+/* family-chart's own genealogical-loop hover highlight (hovering one
+   occurrence of a person who appears twice in the tree outlines every
+   other occurrence) defaults to a cream outline — almost the same tone
+   as this app's light-theme background, so it barely reads against it.
+   Swapped for the palette's own lavender there; dark mode keeps the
+   library's original cream, which already has enough contrast against
+   its own near-black canvas. */
+.f3 .f3-card-duplicate-hover div.card-inner {
+  outline-color: var(--color-other);
+}
+
+:root[data-theme="dark"] .f3 .f3-card-duplicate-hover div.card-inner {
+  outline-color: rgb(255, 251, 220);
+}
+
 /* No card rectangle at all anymore — just the avatar ring and text floating
    directly on the canvas (and its watermark). Overrides family-chart's own
    gender-tinted `.card-inner` background (same selector shape/specificity,
