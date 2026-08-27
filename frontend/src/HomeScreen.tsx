@@ -8,7 +8,8 @@ import RelationshipWizard from "./RelationshipWizard";
 import TreeReportModal from "./TreeReportModal";
 import ShareTreeModal from "./ShareTreeModal";
 import DeleteTreeModal from "./DeleteTreeModal";
-import { ArrowUpDownIcon, FileTextIcon, PencilIcon, ShareIcon, Trash2Icon, UserIcon } from "./Icons";
+import TreeStatsView from "./TreeStatsView";
+import { ArrowUpDownIcon, BarChartIcon, FileTextIcon, PencilIcon, ShareIcon, Trash2Icon, UserIcon } from "./Icons";
 import { APP_COMMIT, checkForUpdate } from "./version";
 
 function TreeRow({
@@ -17,6 +18,7 @@ function TreeRow({
   onGedcom,
   onReport,
   onShare,
+  onStats,
   onDelete,
   onRenamed,
 }: {
@@ -25,6 +27,7 @@ function TreeRow({
   onGedcom: (id: string) => void;
   onReport: (id: string) => void;
   onShare: (id: string) => void;
+  onStats: (id: string) => void;
   onDelete: (id: string) => void;
   onRenamed: (id: string, name: string) => void;
 }) {
@@ -112,6 +115,18 @@ function TreeRow({
         >
           <FileTextIcon />
         </button>
+        <button
+          type="button"
+          className="icon-button"
+          aria-label={t("treeStats.openLabel")}
+          title={t("treeStats.openLabel")}
+          onClick={(e) => {
+            e.stopPropagation();
+            onStats(tree.id);
+          }}
+        >
+          <BarChartIcon />
+        </button>
         {tree.role === "OWNER" && (
           <button
             type="button"
@@ -165,6 +180,7 @@ export default function HomeScreen() {
   const [gedcomTreeId, setGedcomTreeId] = useState<string | null>(null);
   const [reportTreeId, setReportTreeId] = useState<string | null>(null);
   const [shareTreeId, setShareTreeId] = useState<string | null>(null);
+  const [statsTreeId, setStatsTreeId] = useState<string | null>(null);
   const [deleteTreeId, setDeleteTreeId] = useState<string | null>(null);
   const [updateAvailable, setUpdateAvailable] = useState(false);
 
@@ -308,6 +324,7 @@ export default function HomeScreen() {
                     onGedcom={setGedcomTreeId}
                     onReport={setReportTreeId}
                     onShare={setShareTreeId}
+                    onStats={setStatsTreeId}
                     onDelete={setDeleteTreeId}
                     onRenamed={handleRenamed}
                   />
@@ -330,6 +347,7 @@ export default function HomeScreen() {
                     onGedcom={setGedcomTreeId}
                     onReport={setReportTreeId}
                     onShare={setShareTreeId}
+                    onStats={setStatsTreeId}
                     onDelete={setDeleteTreeId}
                     onRenamed={handleRenamed}
                   />
@@ -413,6 +431,14 @@ export default function HomeScreen() {
       )}
       {reportTreeId && <TreeReportModal treeId={reportTreeId} onClose={() => setReportTreeId(null)} />}
       {shareTreeId && <ShareTreeModal treeId={shareTreeId} onClose={() => setShareTreeId(null)} />}
+      {statsTreeId &&
+        (() => {
+          const tree = [...owned, ...shared].find((t) => t.id === statsTreeId);
+          if (!tree) return null;
+          return (
+            <TreeStatsView treeId={tree.id} treeName={tree.name} onClose={() => setStatsTreeId(null)} />
+          );
+        })()}
       {deleteTreeId &&
         (() => {
           const tree = owned.find((t) => t.id === deleteTreeId);

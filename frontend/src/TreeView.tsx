@@ -21,7 +21,6 @@ import {
 import AddPersonForm, { type QuickAddInitialRelation } from "./AddPersonForm";
 import QuickAddKindPicker, { type QuickAddPickerKind } from "./QuickAddKindPicker";
 import EditPersonForm from "./EditPersonForm";
-import TrashView from "./TrashView";
 import IndividualsSearchView from "./IndividualsSearchView";
 import LineageChips from "./LineageChips";
 import Legend from "./Legend";
@@ -33,29 +32,21 @@ import {
   ArrowLeftIcon,
   ArrowUpDownIcon,
   BarChartIcon,
-  DuplicatesIcon,
-  UnresolvedIcon,
   GitBranchIcon,
   HomeIcon,
   LinkIcon,
   MaximizeIcon,
   MinusIcon,
-  MoreIcon,
   PlusIcon,
   SearchIcon,
-  ShareIcon,
   SwitchOrientationIcon,
-  Trash2Icon,
   UserIcon,
   UserPlusIcon,
 } from "./Icons";
-import ShareTreeModal from "./ShareTreeModal";
-import DuplicatesView from "./DuplicatesView";
 import LinkPeopleModal from "./LinkPeopleModal";
 import LineagesManageView from "./LineagesManageView";
 import PhotoLightbox from "./PhotoLightbox";
 import GedcomView from "./GedcomView";
-import RelationshipWizard from "./RelationshipWizard";
 import { getDefaultOrientation } from "./preferences";
 
 // Generous enough that a realistic family tree's every reachable ancestor/
@@ -777,8 +768,6 @@ function App() {
   const pendingLevelsRef = useRef<{ ancestorLevels: number; descendantLevels: number } | null>(null);
   const lineageMenuRef = useRef<HTMLDivElement>(null);
   const statsMenuRef = useRef<HTMLDivElement>(null);
-  const moreMenuRef = useRef<HTMLDivElement>(null);
-  const moreMenuCloseTimerRef = useRef<number | undefined>(undefined);
   const statsHoverTimerRef = useRef<number | undefined>(undefined);
 
   const [error, setError] = useState<string | null>(null);
@@ -786,17 +775,12 @@ function App() {
   const [canGoBack, setCanGoBack] = useState(false);
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingPersonId, setEditingPersonId] = useState<string | null>(null);
-  const [showTrash, setShowTrash] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
   const [showLineagesManage, setShowLineagesManage] = useState(false);
   const [derivingLineages, setDerivingLineages] = useState(false);
   const [deriveLineagesMessage, setDeriveLineagesMessage] = useState<string | null>(null);
-  const [showShareModal, setShowShareModal] = useState(false);
-  const [showDuplicates, setShowDuplicates] = useState(false);
   const [showLinkPeople, setShowLinkPeople] = useState(false);
   const [showGedcom, setShowGedcom] = useState(false);
-  const [wizardIds, setWizardIds] = useState<string[] | null>(null);
-  const [noUnrelatedMessage, setNoUnrelatedMessage] = useState(false);
   // The card's own "+" corner button (see QUICKADD_ICON_SVG) — a click
   // opens a small kind picker (child/spouse/parent) for that card's
   // person, then AddPersonForm with that relation and person already
@@ -832,7 +816,6 @@ function App() {
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
   const [treeName, setTreeName] = useState("");
   const [treeRole, setTreeRole] = useState<TreeRole | null>(null);
-  const [treeMemberCount, setTreeMemberCount] = useState(1);
   // Single shared source of truth for "who is the current user, within this
   // tree" — both EditPersonForm's toggle (checked state) and the
   // statistics panel (Section B) read from this, so flipping the toggle on
@@ -851,7 +834,6 @@ function App() {
   const titleMeasureRef = useRef<HTMLSpanElement>(null);
   const [showLineageMenu, setShowLineageMenu] = useState(false);
   const [showStatsPanel, setShowStatsPanel] = useState(false);
-  const [moreMenuOpen, setMoreMenuOpen] = useState(false);
   const [orientation, setOrientation] = useState<"vertical" | "horizontal">(getDefaultOrientation);
   // wireCardAndUnionClicks (below) is a long-lived useCallback that doesn't
   // list `orientation` as a dependency — correctLinkTextTransform's settle
@@ -1844,14 +1826,13 @@ function App() {
   const loadTree = useCallback(
     async (recenterOnId?: string) => {
       if (!treeId) return;
-      const [{ name, role, memberCount, people, unions }, identity] = await Promise.all([
+      const [{ name, role, people, unions }, identity] = await Promise.all([
         fetchTree(treeId),
         fetchMyIdentity(treeId),
       ]);
       if (!containerRef.current) return;
       setTreeName(name);
       setTreeRole(role);
-      setTreeMemberCount(memberCount);
       setMyIdentityPersonId(identity.individualId);
       if (!people.length) {
         setError(t("app.noIndividuals"));
@@ -2143,20 +2124,6 @@ function App() {
     document.addEventListener("pointerdown", handlePointerDown);
     return () => document.removeEventListener("pointerdown", handlePointerDown);
   }, [showStatsPanel]);
-
-  useEffect(() => {
-    if (!moreMenuOpen) return;
-
-    function handlePointerDown(event: PointerEvent) {
-      const target = event.target as Node;
-      if (moreMenuRef.current && !moreMenuRef.current.contains(target)) {
-        setMoreMenuOpen(false);
-      }
-    }
-
-    document.addEventListener("pointerdown", handlePointerDown);
-    return () => document.removeEventListener("pointerdown", handlePointerDown);
-  }, [moreMenuOpen]);
 
   useEffect(() => {
     if (!editingTitle) return;
@@ -2612,47 +2579,6 @@ function App() {
     chart.updateTree({ tree_position: "fit" });
   }
 
-  // Re-opens the same wizard shown right after an import, for anyone still
-  // missing every relationship — covers closing it by accident mid-import,
-  // as well as any other stray unlinked person (manual entry, an older
-  // import from before the wizard existed, etc), not just the last batch.
-  function handleOpenUnrelatedWizard() {
-    const unrelatedIds = treeData
-      .filter((p) => p.rels.parents.length === 0 && p.rels.spouses.length === 0 && p.rels.children.length === 0)
-      .map((p) => p.id);
-    if (unrelatedIds.length === 0) {
-      setNoUnrelatedMessage(true);
-      window.setTimeout(() => setNoUnrelatedMessage(false), 3000);
-      return;
-    }
-    setWizardIds(unrelatedIds);
-  }
-
-  // The header menu used to reveal purely via CSS :hover/:focus-within — a
-  // real mouse crossing the gap between the trigger and the revealed row
-  // (or from the row onto the nested lineages popover) could leave the
-  // hover region for an instant and collapse the whole thing, reported as
-  // "closes again as soon as I try to reach lineages" and specific to one
-  // external monitor's exact scaled resolution in Safari, suggesting the
-  // browser's own :hover matching was the flaky part, not the DOM
-  // structure. Same JS-owned open state + grace-delay pattern as the
-  // Legend panel (see its own comment for the full reasoning) sidesteps
-  // that CSS pseudo-class path entirely — real mouseenter/mouseleave
-  // events instead, with a short delay bridging the moment the pointer
-  // crosses from the trigger onto the row.
-  function revealMoreMenu() {
-    window.clearTimeout(moreMenuCloseTimerRef.current);
-    setMoreMenuOpen(true);
-  }
-  function scheduleHideMoreMenu() {
-    window.clearTimeout(moreMenuCloseTimerRef.current);
-    moreMenuCloseTimerRef.current = window.setTimeout(() => setMoreMenuOpen(false), 150);
-  }
-  function toggleMoreMenu() {
-    window.clearTimeout(moreMenuCloseTimerRef.current);
-    setMoreMenuOpen((v) => !v);
-  }
-
   // Opens the stats panel after a 1s hover, in addition to the button's own
   // plain click toggle — long enough that just passing the cursor over the
   // icon on the way elsewhere doesn't pop it open uninvited.
@@ -2732,10 +2658,6 @@ function App() {
     loadTree().catch((err: Error) => setError(err.message));
   }
 
-  function handleTrashRestored() {
-    loadTree().catch((err: Error) => setError(err.message));
-  }
-
   if (!treeId) return null;
 
   const mainPerson = treeData.find((person) => person.id === mainPersonId) ?? null;
@@ -2795,14 +2717,17 @@ function App() {
           </h1>
         )}
 
-        {/* Every action lives in this single top-aligned row now, in a
-            fixed order: search, lineages, add person, share, then one
-            overflow ("more") menu for everything used less often —
-            person-editing tools (duplicates, unrelated, link, trash),
-            then a divider, then GEDCOM/orientation/statistics. Only this
-            one icon ever expands, instead of the pencil being the sole
-            icon among plain single-action ones that secretly opened a
-            submenu. No hamburger. */}
+        {/* A fixed vertical rail down the right edge of the canvas, always
+            — search, lineages, add person, create relationship, GEDCOM,
+            orientation, statistics, in that order. No overflow menu: once
+            duplicates/unrelated/trash/share moved to the tree's own
+            statistics screen on the home list (see TreeStatsView), these
+            seven are the only actions left and all fit as plain icons.
+            Bare icon-only buttons floating on the canvas, no plate behind
+            the column — same reasoning as .level-nav-button's own
+            no-box treatment, and it's what keeps this from becoming a
+            horizontal band competing with the title for width the way a
+            row of 7+ icons would on a narrow PWA install. */}
         <div className="header-right-actions">
           <button
             type="button"
@@ -2863,130 +2788,65 @@ function App() {
             <UserPlusIcon />
           </button>
 
-          {treeRole === "OWNER" && (
+          <button
+            type="button"
+            className="icon-button"
+            onClick={() => setShowLinkPeople(true)}
+            disabled={treeRole === "VIEWER"}
+            aria-label={t("app.linkPeople")}
+            title={t("app.linkPeople")}
+          >
+            <LinkIcon />
+          </button>
+
+          <button
+            type="button"
+            className="icon-button"
+            onClick={() => setShowGedcom(true)}
+            aria-label={t("app.gedcom")}
+            title={t("app.gedcom")}
+          >
+            <ArrowUpDownIcon />
+          </button>
+
+          <button
+            type="button"
+            className="icon-button"
+            onClick={handleToggleOrientation}
+            aria-label={orientation === "vertical" ? t("app.orientationHorizontal") : t("app.orientationVertical")}
+            title={orientation === "vertical" ? t("app.orientationHorizontal") : t("app.orientationVertical")}
+          >
+            <SwitchOrientationIcon />
+          </button>
+
+          <div
+            className="popover-anchor"
+            ref={statsMenuRef}
+            onMouseEnter={revealStatsPanel}
+            onMouseLeave={cancelRevealStatsPanel}
+          >
             <button
               type="button"
-              className="icon-button icon-button-badged"
-              onClick={() => setShowShareModal(true)}
-              aria-label={treeMemberCount > 1 ? t("app.manageGuests", { count: treeMemberCount - 1 }) : t("app.share")}
-              title={treeMemberCount > 1 ? t("app.manageGuests", { count: treeMemberCount - 1 }) : t("app.share")}
+              className="icon-button"
+              onClick={() => setShowStatsPanel((v) => !v)}
+              aria-label={t("app.statistics")}
+              aria-expanded={showStatsPanel}
+              title={t("app.statistics")}
             >
-              <ShareIcon />
-              {treeMemberCount > 1 && <span className="icon-button-badge">{treeMemberCount - 1}</span>}
+              <BarChartIcon />
             </button>
-          )}
-
-          {/* The one collapsible menu left — everything used occasionally
-              rather than every session, behind a single "more" (···)
-              trigger instead of overloading the pencil that used to sit
-              here. Same hover/click/focus reveal mechanics as before (see
-              revealMoreMenu). */}
-          <div className={`more-menu${moreMenuOpen ? " more-menu-open" : ""}`} ref={moreMenuRef}>
-            <button
-              type="button"
-              className="icon-button more-menu-trigger"
-              onClick={toggleMoreMenu}
-              onMouseEnter={revealMoreMenu}
-              onMouseLeave={scheduleHideMoreMenu}
-              onFocus={revealMoreMenu}
-              aria-label={t("app.more")}
-              aria-expanded={moreMenuOpen}
-              title={t("app.more")}
-            >
-              <MoreIcon />
-            </button>
-            <div className="more-menu-items" onMouseEnter={revealMoreMenu} onMouseLeave={scheduleHideMoreMenu}>
-              <button
-                type="button"
-                className="icon-button"
-                onClick={() => setShowDuplicates(true)}
-                disabled={treeRole === "VIEWER"}
-                aria-label={t("app.duplicates")}
-                title={t("app.duplicates")}
-              >
-                <DuplicatesIcon />
-              </button>
-              <button
-                type="button"
-                className="icon-button"
-                onClick={handleOpenUnrelatedWizard}
-                disabled={treeRole === "VIEWER"}
-                aria-label={t("app.unrelatedWizard")}
-                title={t("app.unrelatedWizard")}
-              >
-                <UnresolvedIcon />
-              </button>
-              <button
-                type="button"
-                className="icon-button"
-                onClick={() => setShowLinkPeople(true)}
-                disabled={treeRole === "VIEWER"}
-                aria-label={t("app.linkPeople")}
-                title={t("app.linkPeople")}
-              >
-                <LinkIcon />
-              </button>
-              <button
-                type="button"
-                className="icon-button"
-                onClick={() => setShowTrash(true)}
-                aria-label={t("app.trash")}
-                title={t("app.trash")}
-              >
-                <Trash2Icon />
-              </button>
-
-              <div className="more-menu-divider" role="separator" />
-
-              <button
-                type="button"
-                className="icon-button"
-                onClick={() => setShowGedcom(true)}
-                aria-label={t("app.gedcom")}
-                title={t("app.gedcom")}
-              >
-                <ArrowUpDownIcon />
-              </button>
-              <button
-                type="button"
-                className="icon-button"
-                onClick={handleToggleOrientation}
-                aria-label={orientation === "vertical" ? t("app.orientationHorizontal") : t("app.orientationVertical")}
-                title={orientation === "vertical" ? t("app.orientationHorizontal") : t("app.orientationVertical")}
-              >
-                <SwitchOrientationIcon />
-              </button>
-              <div
-                className="popover-anchor"
-                ref={statsMenuRef}
-                onMouseEnter={revealStatsPanel}
-                onMouseLeave={cancelRevealStatsPanel}
-              >
-                <button
-                  type="button"
-                  className="icon-button"
-                  onClick={() => setShowStatsPanel((v) => !v)}
-                  aria-label={t("app.statistics")}
-                  aria-expanded={showStatsPanel}
-                  title={t("app.statistics")}
-                >
-                  <BarChartIcon />
-                </button>
-                {showStatsPanel && treeId && (
-                  <StatisticsPanel
-                    treeId={treeId}
-                    selectedPersonId={mainPersonId}
-                    selectedPersonName={mainPersonName}
-                    onClose={() => setShowStatsPanel(false)}
-                  />
-                )}
-              </div>
-            </div>
+            {showStatsPanel && treeId && (
+              <StatisticsPanel
+                treeId={treeId}
+                selectedPersonId={mainPersonId}
+                selectedPersonName={mainPersonName}
+                onClose={() => setShowStatsPanel(false)}
+              />
+            )}
           </div>
         </div>
       </header>
       {error && <p className="status status-error">{error}</p>}
-      {noUnrelatedMessage && <p className="status">{t("relationshipWizard.noneUnrelated")}</p>}
       <div className="main-area">
         <div className="tree-canvas-wrap">
           {/* A union line's stroke is painted with one of these two tiled
@@ -3133,17 +2993,6 @@ function App() {
           }}
         />
       )}
-      {showTrash && (
-        <TrashView treeId={treeId} onRestored={handleTrashRestored} onClose={() => setShowTrash(false)} />
-      )}
-      {showShareModal && <ShareTreeModal treeId={treeId} onClose={() => setShowShareModal(false)} />}
-      {showDuplicates && (
-        <DuplicatesView
-          treeId={treeId}
-          onClose={() => setShowDuplicates(false)}
-          onMerged={() => loadTree().catch((err: Error) => setError(err.message))}
-        />
-      )}
       {showGedcom && (
         <GedcomView
           treeId={treeId}
@@ -3155,17 +3004,6 @@ function App() {
           currentOrientation={orientation}
           exportingImage={exportingImage}
           onExportImage={handleExportTreeImage}
-        />
-      )}
-      {wizardIds && (
-        <RelationshipWizard
-          treeId={treeId}
-          personIds={wizardIds}
-          onFinished={() => {
-            loadTree().catch((err: Error) => setError(err.message));
-            fetchLineages(treeId).then(setLineages).catch(() => {});
-          }}
-          onClose={() => setWizardIds(null)}
         />
       )}
       {showSearch && (

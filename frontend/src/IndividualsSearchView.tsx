@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { fetchIndividuals, fetchLineages, type Individual, type Lineage } from "./api";
+import { fetchIndividuals, fetchLineages, type Individual, type IndividualFilters, type Lineage, type Sex } from "./api";
 import { PencilIcon } from "./Icons";
 import SwipeRow from "./SwipeRow";
 
@@ -14,6 +14,16 @@ type Props = {
   // no relationships), not navigating to them.
   onEditPerson?: (personId: string) => void;
   onClose: () => void;
+  // Preseeds the visible filters (sex, lineage, place, birth years) and
+  // swaps the generic "Buscar personas" heading for something naming what
+  // the caller already knows this list is — e.g. TreeStatsView opening
+  // straight into "Hombres" instead of a blank search a visitor has to
+  // reconstruct by hand. missingBirth/missingDeath have no matching
+  // control (a one-off drill-down from a statistic, not a filter worth a
+  // permanent dropdown) — they're merged into every fetch as a fixed
+  // extra condition instead, on top of whatever the visible filters change.
+  initialFilters?: IndividualFilters;
+  title?: string;
 };
 
 function personLine(p: Individual): string {
@@ -22,13 +32,26 @@ function personLine(p: Individual): string {
   return `${[p.givenNames, surname].filter(Boolean).join(" ")}${year}`;
 }
 
-export default function IndividualsSearchView({ treeId, onNavigateToPerson, onEditPerson, onClose }: Props) {
+export default function IndividualsSearchView({
+  treeId,
+  onNavigateToPerson,
+  onEditPerson,
+  onClose,
+  initialFilters,
+  title,
+}: Props) {
   const { t } = useTranslation();
-  const [search, setSearch] = useState("");
-  const [lineageId, setLineageId] = useState("");
-  const [birthYearFrom, setBirthYearFrom] = useState("");
-  const [birthYearTo, setBirthYearTo] = useState("");
-  const [place, setPlace] = useState("");
+  const [search, setSearch] = useState(initialFilters?.search ?? "");
+  const [lineageId, setLineageId] = useState(initialFilters?.lineageId ?? "");
+  const [birthYearFrom, setBirthYearFrom] = useState(initialFilters?.birthYearFrom?.toString() ?? "");
+  const [birthYearTo, setBirthYearTo] = useState(initialFilters?.birthYearTo?.toString() ?? "");
+  const [place, setPlace] = useState(initialFilters?.place ?? "");
+  const [sex, setSex] = useState<Sex | "">(initialFilters?.sex ?? "");
+  // Locked extras, not surfaced as a control (see the Props comment above)
+  // — read directly off the prop rather than copied into state, since
+  // nothing in this component ever changes them after mount.
+  const missingBirth = initialFilters?.missingBirth;
+  const missingDeath = initialFilters?.missingDeath;
 
   const [lineages, setLineages] = useState<Lineage[]>([]);
   const [results, setResults] = useState<Individual[]>([]);
@@ -53,6 +76,9 @@ export default function IndividualsSearchView({ treeId, onNavigateToPerson, onEd
         birthYearFrom: birthYearFrom ? Number(birthYearFrom) : undefined,
         birthYearTo: birthYearTo ? Number(birthYearTo) : undefined,
         place: place.trim() || undefined,
+        sex: sex || undefined,
+        missingBirth,
+        missingDeath,
       })
         .then((people) => {
           if (!cancelled) setResults(people);
@@ -68,12 +94,12 @@ export default function IndividualsSearchView({ treeId, onNavigateToPerson, onEd
       cancelled = true;
       clearTimeout(timeout);
     };
-  }, [treeId, search, lineageId, birthYearFrom, birthYearTo, place]);
+  }, [treeId, search, lineageId, birthYearFrom, birthYearTo, place, sex, missingBirth, missingDeath]);
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal-panel" onClick={(e) => e.stopPropagation()}>
-        <h2>{t("search.title")}</h2>
+        <h2>{title ?? t("search.title")}</h2>
 
         <fieldset>
           <legend>{t("search.title")}</legend>
@@ -91,6 +117,12 @@ export default function IndividualsSearchView({ treeId, onNavigateToPerson, onEd
                 {lineage.name}
               </option>
             ))}
+          </select>
+          <select value={sex} onChange={(e) => setSex(e.target.value as Sex | "")}>
+            <option value="">{t("search.sexAll")}</option>
+            <option value="MALE">{t("statistics.sexMale")}</option>
+            <option value="FEMALE">{t("statistics.sexFemale")}</option>
+            <option value="UNKNOWN">{t("statistics.sexUnknown")}</option>
           </select>
           <div className="search-year-range">
             <span>{t("search.birthFrom")}</span>

@@ -279,25 +279,28 @@ body {
   gap: 0.4rem;
 }
 
-/* All right-side header actions — search, lineages, edit (the one
-   collapsible menu), export/GEDCOM, share, orientation, statistics, in
-   that fixed order. No hamburger: only the edit menu still collapses, and
-   only the person-editing actions (add, duplicates, unrelated, link,
-   trash) live inside it.
+/* All right-side header actions — search, lineages, add person, create
+   relationship, GEDCOM, orientation, statistics, in that fixed order. No
+   overflow menu any more: duplicates/unrelated/trash/share moved to the
+   tree's own statistics screen off the home list (see TreeStatsView),
+   leaving exactly these seven, few enough to all sit as plain icons.
 
-   Base rules here target touch/no-real-hover devices — in practice this
-   is a PWA install, per the user's own framing: without hover there's no
-   native title tooltip, so a bare icon is more ambiguous, and a wide
-   horizontal strip of 7 icons is a worse fit on a phone-width screen than
-   a vertical rail. Positioned out of flow (like the header-quick-actions
-   it replaces) rather than stacked in normal flow, so .app-header's own
+   Always a vertical rail down the canvas's right edge, in every viewport
+   — not just touch/PWA, the way this used to collapse back into a
+   horizontal row for real mouse/trackpad devices. A horizontal row of
+   7 icons is a worse fit than a vertical one on a phone-width PWA
+   install regardless of input method, and the previous two-layout split
+   only existed to make room for the old collapsible edit menu's own
+   hover-vs-touch behavior, which no longer exists. One layout everywhere
+   is simpler and, per the user's own request, keeps this column out of
+   the title's own horizontal space entirely instead of competing with it
+   for width. Positioned out of flow (like the header-quick-actions it
+   replaces) rather than stacked in normal flow, so .app-header's own
    height never grows to fit it — the earlier bug where that inflated
-   header cut into the tree canvas underneath it. top matches .app-header's
-   own top padding (see .app-header) rather than top: 100% (this column
-   used to sit below the whole header) — reported as sitting too low,
-   not level with home/back/fit-all/the title on the left. The
-   @media (hover: hover) block further down overrides this back to the
-   single horizontal row for real mouse/trackpad devices. */
+   header cut into the tree canvas underneath it. No background of its
+   own — bare .icon-button squares floating directly on the canvas, same
+   as .level-nav-button's own no-plate treatment, so this never reads as
+   a solid band sitting over the title or the tree behind it. */
 .header-right-actions {
   position: absolute;
   top: 0.75rem;
@@ -307,187 +310,6 @@ body {
   align-items: center;
   gap: 0.3rem;
   z-index: 15;
-}
-
-/* The edit menu: same JS-owned hover/focus reveal the old hamburger used
-   (see revealMoreMenu in TreeView.tsx — real mouseenter/mouseleave with a
-   grace delay proved more reliable than a plain :hover rule; :focus-within
-   stays as a keyboard fallback). On touch/PWA (base rules) it flies out to
-   the left of the trigger, same side the row of top-level icons it sits
-   inside opens toward — but as its own vertical list (a horizontal row of
-   5 labeled items needed horizontal scrolling to fit a phone-width screen,
-   reported as impractical), stacked downward from the trigger's own top
-   rather than centered on it, since the trigger now sits near the top of
-   the screen (see .header-right-actions) and centering would push items
-   above the viewport. The hover-capable override further down switches it
-   to a vertical dropdown straight below instead. */
-.more-menu {
-  position: relative;
-}
-
-.more-menu-items {
-  position: absolute;
-  top: 0;
-  right: calc(100% + 0.4rem);
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 0.3rem;
-  width: max-content;
-  max-width: calc(100vw - 2rem);
-  max-height: calc(100vh - 2rem);
-  overflow-y: auto;
-  background: var(--color-surface);
-  border-radius: 10px;
-  box-shadow: 0 8px 24px rgba(27, 67, 50, 0.2);
-  padding: 0.4rem;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 120ms ease;
-  z-index: 20;
-}
-
-.more-menu-open .more-menu-items,
-.more-menu:focus-within .more-menu-items {
-  opacity: 1;
-  pointer-events: auto;
-}
-
-.more-menu-items .icon-button {
-  display: flex;
-  /* .icon-button's own base rule fixes a bare 36px square (right for an
-     icon-only button everywhere else in the app) — overridden here since
-     this one also carries a text label, sized by its content instead. */
-  width: auto;
-  height: auto;
-  align-items: center;
-  justify-content: flex-start;
-  gap: 0.6rem;
-  padding: 0.5rem 0.7rem;
-  border-radius: 6px;
-  white-space: nowrap;
-  flex-shrink: 0;
-  opacity: 0;
-  transform: scale(0.3);
-}
-
-.more-menu-open .more-menu-items .icon-button,
-.more-menu:focus-within .more-menu-items .icon-button {
-  animation: jelly-pop 460ms cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
-}
-
-.more-menu-items .icon-button:nth-child(1) { animation-delay: 0ms; }
-.more-menu-items .icon-button:nth-child(2) { animation-delay: 30ms; }
-.more-menu-items .icon-button:nth-child(3) { animation-delay: 60ms; }
-.more-menu-items .icon-button:nth-child(4) { animation-delay: 90ms; }
-.more-menu-items .icon-button:nth-child(5) { animation-delay: 120ms; }
-/* The divider between the two item groups (see .more-menu-divider below)
-   is itself child #5, pushing GEDCOM/orientation to #6/#7 — the last
-   item (statistics) sits inside its own .popover-anchor wrapper for the
-   click-outside-to-close handling that panel needs, so it's never a
-   direct child here and just falls back to the unstaggered base
-   animation instead of a numbered delay, same as an unmatched item
-   always would. */
-.more-menu-items .icon-button:nth-child(6) { animation-delay: 150ms; }
-.more-menu-items .icon-button:nth-child(7) { animation-delay: 180ms; }
-
-.more-menu-items .icon-button:hover {
-  background: rgba(27, 67, 50, 0.06);
-}
-
-.more-menu-items .icon-button svg {
-  flex-shrink: 0;
-}
-
-/* Separates "editing tools" (duplicates, unrelated, link, trash) from
-   "view/settings" (GEDCOM, orientation, statistics) without needing two
-   visually distinct menus — one hairline reads as "these are a different
-   kind of action" without the weight of a section heading. */
-.more-menu-divider {
-  border-top: 1px solid var(--color-gold-edge-faint);
-  margin: 0.3rem 0.2rem;
-}
-
-/* The explanatory label — kept visible by default (touch/PWA, no hover to
-   reveal the title as a native tooltip instead). Removed entirely by the
-   hover-capable override below. */
-.more-menu-items .icon-button::after {
-  content: attr(title);
-  font-family: var(--font-ui);
-  font-size: 0.9rem;
-  font-weight: 600;
-}
-
-/* Real mouse/trackpad devices: the top-level actions collapse back into
-   one plain horizontal row in normal flow, top-aligned with home/back/
-   fit-all, and the more menu becomes a vertical dropdown straight below
-   its trigger, icon-only — hovering each item already surfaces its title
-   as a native tooltip, so the inline label would just be redundant. */
-@media (hover: hover) and (pointer: fine) {
-  .header-right-actions {
-    position: static;
-    margin-left: auto;
-    margin-top: 0;
-    flex-direction: row;
-  }
-
-  /* Matches the old hamburger dropdown's own look exactly (see the
-     removed .header-menu-items rule this was ported from) — no plate/pill
-     behind the row, same as the bare person-card icons elsewhere: just
-     .icon-button's own natural 36px squares with a gap between them, no
-     background/border-radius/box-shadow/padding and no reserved label
-     width. Vertical instead of that original's horizontal flyout, since
-     it's opening downward from a trigger that's one item in a plain row
-     now instead of tucked in a far corner. */
-  .more-menu-items {
-    top: calc(100% + 0.4rem);
-    right: 0;
-    left: auto;
-    bottom: auto;
-    transform: none;
-    flex-direction: column;
-    align-items: center;
-    gap: 0.3rem;
-    width: auto;
-    max-width: none;
-    max-height: none;
-    overflow: visible;
-    background: none;
-    border-radius: 0;
-    box-shadow: none;
-    padding: 0;
-  }
-
-  .more-menu-items .icon-button {
-    width: 36px;
-    height: 36px;
-    justify-content: center;
-  }
-
-  .more-menu-items .icon-button::after {
-    content: none;
-  }
-}
-
-@keyframes jelly-pop {
-  0% {
-    opacity: 0;
-    transform: scale(0.3);
-  }
-  55% {
-    opacity: 1;
-    transform: scale(1.18);
-  }
-  75% {
-    transform: scale(0.9);
-  }
-  90% {
-    transform: scale(1.05);
-  }
-  100% {
-    opacity: 1;
-    transform: scale(1);
-  }
 }
 
 /* Bare icon, no circular stroke/background — a soft shadow + slight lift on
@@ -617,6 +439,40 @@ body {
   max-width: 360px;
 }
 
+/* One column, not a wrapped row — a single-column grid track sized to
+   `max-content` takes on the widest button's own natural width, and grid
+   items default to `justify-items: stretch`, so every button then
+   stretches to match that width instead of staying its own (shorter)
+   size. A flex column with `align-items: stretch` would only stretch to
+   the *container's* width, not to the widest sibling's — grid is what
+   actually ties every row's width to one another's content. */
+.tree-stats-management-actions {
+  display: grid;
+  grid-template-columns: max-content;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+/* Same glyphs these three actions already wear elsewhere in the app
+   (DuplicatesIcon, UnresolvedIcon, Trash2Icon) — a plain text pill worked
+   but broke the icon vocabulary this app otherwise keeps consistent for
+   the same action wherever it shows up (see operate.md's "same icon
+   style" principle). Share itself doesn't live here — it's already one
+   click away on this same tree's own home-screen row, and a second copy
+   inside this modal was redundant rather than convenient. .btn-outline
+   itself has no `display` of its own (a bare <button> defaults to
+   inline-block), so this is purely additive: lay the icon and label out
+   side by side without touching the pill shape/color it already has.
+   justify-content: flex-start keeps the icon+label pair pinned to the
+   left even once the grid above stretches the button itself wider than
+   its own content. */
+.tree-stats-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0.5rem;
+}
+
 .stats-section + .stats-section {
   margin-top: 0.75rem;
   padding-top: 0.75rem;
@@ -657,6 +513,26 @@ body {
   font-variant-numeric: tabular-nums;
   text-align: right;
   font-weight: 600;
+}
+
+/* A stat whose value drills into an editable list (see TreeStatsView) —
+   same tabular/weight treatment .stats-stat-value already sets on its
+   wrapping span (inherited via `font`), just recolored and underlined to
+   read as tappable instead of restyling the whole row. */
+.stats-stat-link {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: var(--color-amber);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.stats-stat-link:hover {
+  color: var(--color-amber-strong);
 }
 
 .popover-dark .stats-sentence,
@@ -1317,9 +1193,9 @@ body {
   animation: union-mark-bubble-in 420ms cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
 }
 
-/* Bounces past its own final size before settling — same spirit as the
-   header menu's jelly-pop reveal — and settles bigger (1.3x) than the
-   icons ever rendered before this, by request. */
+/* Bounces past its own final size before settling — a springy overshoot
+   reveal — and settles bigger (1.3x) than the icons ever rendered before
+   this, by request. */
 @keyframes union-mark-bubble-in {
   0% {
     opacity: 0;
@@ -2790,8 +2666,8 @@ body {
    snap into existence with no transition at all, the one interaction this
    app's otherwise-careful motion treatment (popovers, the photo lightbox,
    the union marks) had skipped entirely. Opacity-only, deliberately, not
-   the scale-up this app's other entrances use (contrast .jelly-pop,
-   .modal-backdrop-in) — an earlier version animated transform too, and
+   the scale-up this app's other entrances use (contrast
+   .union-mark-bubble-in, .modal-backdrop-in) — an earlier version animated transform too, and
    with `both` filling the animation forever after it finishes (not just
    during playback), that left every modal permanently holding a
    transform, even one that visually settles to identity. Confirmed by

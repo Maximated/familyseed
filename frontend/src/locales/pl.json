@@ -27,7 +27,6 @@
     "lineages": "Lonie / Gałęzie",
     "statistics": "Statystyki",
     "edit": "Edytuj",
-    "more": "Więcej opcji",
     "trash": "Kosz",
     "addPerson": "Dodaj osobę",
     "user": "Użytkownik",
@@ -290,6 +289,7 @@
     "title": "Szukaj osób",
     "namePlaceholder": "Imię lub nazwisko…",
     "lineageAll": "— Wszystkie gałęzie —",
+    "sexAll": "— Wszyscy —",
     "birthFrom": "Urodzony od",
     "birthTo": "do",
     "placePlaceholder": "Miejsce urodzenia lub zgonu…",
@@ -558,5 +558,11 @@
     "meNotSet": "Zaznacz kogoś jako \"Osoba centralna\" na jego karcie, aby zobaczyć pokrewieństwo i pokolenie względne.",
     "relationshipDisconnected": "Brak znanego pokrewieństwa krwi",
     "relationshipSelf": "To ty"
+  },
+  "treeStats": {
+    "openLabel": "Statystyki i zarządzanie",
+    "title": "Statystyki — {{name}}",
+    "managementHeading": "Zarządzanie drzewem",
+    "lineagesLink": "Zobacz gałęzie"
   }
 }

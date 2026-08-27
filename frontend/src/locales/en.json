@@ -27,7 +27,6 @@
     "lineages": "Lineages",
     "statistics": "Statistics",
     "edit": "Edit",
-    "more": "More options",
     "trash": "Trash",
     "addPerson": "Add person",
     "user": "User",
@@ -290,6 +289,7 @@
     "title": "Search people",
     "namePlaceholder": "First name or surname…",
     "lineageAll": "— All lineages —",
+    "sexAll": "— All —",
     "birthFrom": "Born from",
     "birthTo": "to",
     "placePlaceholder": "Place of birth or death…",
@@ -558,5 +558,11 @@
     "meNotSet": "Mark someone as \"Central person\" on their record to see the relationship and relative generation.",
     "relationshipDisconnected": "No known blood relationship",
     "relationshipSelf": "That's you"
+  },
+  "treeStats": {
+    "openLabel": "Statistics and management",
+    "title": "Statistics — {{name}}",
+    "managementHeading": "Tree management",
+    "lineagesLink": "View lineages"
   }
 }

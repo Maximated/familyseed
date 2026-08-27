@@ -27,7 +27,6 @@
     "lineages": "Linajes",
     "statistics": "Estadísticas",
     "edit": "Editar",
-    "more": "Más opciones",
     "trash": "Papelera",
     "addPerson": "Añadir persona",
     "user": "Usuario",
@@ -290,6 +289,7 @@
     "title": "Buscar personas",
     "namePlaceholder": "Nombre o apellido…",
     "lineageAll": "— Todos los linajes —",
+    "sexAll": "— Todos los sexos —",
     "birthFrom": "Nacido desde",
     "birthTo": "hasta",
     "placePlaceholder": "Lugar de nacimiento o defunción…",
@@ -558,5 +558,11 @@
     "meNotSet": "Marca a alguien como \"Persona central\" en su ficha para ver el parentesco y la generación relativa.",
     "relationshipDisconnected": "Sin parentesco de sangre conocido",
     "relationshipSelf": "Esta eres tú"
+  },
+  "treeStats": {
+    "openLabel": "Estadísticas y gestión",
+    "title": "Estadísticas — {{name}}",
+    "managementHeading": "Gestión del árbol",
+    "lineagesLink": "Ver linajes"
   }
 }

@@ -395,12 +395,18 @@ export type IndividualFilters = {
   birthYearFrom?: number;
   birthYearTo?: number;
   place?: string;
+  sex?: Sex;
+  missingBirth?: boolean;
+  missingDeath?: boolean;
 };
 
 export async function fetchIndividuals(treeId: string, filters?: IndividualFilters): Promise<Individual[]> {
   const params = new URLSearchParams();
   if (filters?.search) params.set("search", filters.search);
   if (filters?.lineageId) params.set("lineageId", filters.lineageId);
+  if (filters?.sex) params.set("sex", filters.sex);
+  if (filters?.missingBirth) params.set("missingBirth", "true");
+  if (filters?.missingDeath) params.set("missingDeath", "true");
   if (filters?.birthYearFrom) params.set("birthYearFrom", String(filters.birthYearFrom));
   if (filters?.birthYearTo) params.set("birthYearTo", String(filters.birthYearTo));
   if (filters?.place) params.set("place", filters.place);

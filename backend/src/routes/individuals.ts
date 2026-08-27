@@ -396,14 +396,18 @@ export default async function individualRoutes(fastify: FastifyInstance) {
   // exposes (lineage chips, birth years for the timeline) — this is a
   // second view over that data, not a new filtering concept.
   fastify.get("/", async (request) => {
-    const { search, trashed, lineageId, birthYearFrom, birthYearTo, place } = request.query as {
-      search?: string;
-      trashed?: string;
-      lineageId?: string;
-      birthYearFrom?: string;
-      birthYearTo?: string;
-      place?: string;
-    };
+    const { search, trashed, lineageId, birthYearFrom, birthYearTo, place, sex, missingBirth, missingDeath } =
+      request.query as {
+        search?: string;
+        trashed?: string;
+        lineageId?: string;
+        birthYearFrom?: string;
+        birthYearTo?: string;
+        place?: string;
+        sex?: string;
+        missingBirth?: string;
+        missingDeath?: string;
+      };
     const treeId = request.treeId!;
 
     const and: Array<Record<string, unknown>> = [];
@@ -428,6 +432,18 @@ export default async function individualRoutes(fastify: FastifyInstance) {
     }
     if (birthYearTo) {
       and.push({ birthDateValue: { lte: new Date(Date.UTC(Number(birthYearTo), 11, 31, 23, 59, 59)) } });
+    }
+    if (sex && (SEX_VALUES as readonly string[]).includes(sex)) {
+      and.push({ sex });
+    }
+    // Matches statistics.ts's own "hasBirth"/"hasDeath" definition — either
+    // the free-text date or the parsed value counts as "has a date", so
+    // "missing" needs both columns null, not just the parsed one.
+    if (missingBirth === "true") {
+      and.push({ birthDateText: null, birthDateValue: null });
+    }
+    if (missingDeath === "true") {
+      and.push({ deathDateText: null, deathDateValue: null });
     }
 
     const rows = await prisma.individual.findMany({
