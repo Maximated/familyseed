@@ -308,3 +308,17 @@ export function ArrowRightIcon({ size }: IconProps) {
     </Svg>
   );
 }
+
+// Same glyph as TreeView.tsx's own EXPAND_ICON_SVG (a card's "view full
+// record" corner button) — this React version is for CardActionBubble,
+// which renders real React elements rather than the raw HTML string
+// family-chart's own card template needs.
+export function ExpandIcon({ size }: IconProps) {
+  return (
+    <Svg size={size}>
+      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+      <path d="M7 8h10" />
+      <path d="M7 12h6" />
+    </Svg>
+  );
+}

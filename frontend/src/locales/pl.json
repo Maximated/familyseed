@@ -64,7 +64,8 @@
     "expandDescendants": "Pokaż więcej potomków",
     "collapseDescendants": "Pokaż mniej potomków",
     "role": "Rola: {{role}}",
-    "selfHostedHint": "Tryb własnego serwera: pojedynczy użytkownik."
+    "selfHostedHint": "Tryb własnego serwera: pojedynczy użytkownik.",
+    "moreActions": "Więcej opcji"
   },
   "roles": {
     "OWNER": "Właściciel",
@@ -237,6 +238,8 @@
     "partnersLegend": "Małżonkowie / Partnerzy",
     "noPartners": "Brak zarejestrowanych małżonków lub partnerów.",
     "addPartner": "+ Połącz z istniejącym małżonkiem / partnerem",
+    "removePartner": "Usuń związek",
+    "removePartnerWarning": "Tej operacji nie można cofnąć. Jeśli ten związek ma zarejestrowane dzieci, przestaną być one powiązane z tymi rodzicami (ale nie zostaną usunięte).",
     "childrenLegend": "Dzieci",
     "noChildren": "Brak zarejestrowanych dzieci.",
     "addChild": "+ Połącz z istniejącym dzieckiem",
@@ -443,7 +446,39 @@
     "exportAncestorsOfCsv": "Eksportuj przodków osoby {{name}} (.csv)",
     "exportDescendantsOfCsv": "Eksportuj potomków osoby {{name}} (.csv)",
     "exportHint": "Format GEDCOM jest zgodny z Gramps, Webtrees i innymi narzędziami genealogicznymi. Format CSV jest własnym formatem FamilySeed, przeznaczonym do ręcznego wypełniania w arkuszu kalkulacyjnym.",
-    "csvTemplateLink": "Pobierz pusty szablon CSV"
+    "csvTemplateLink": "Pobierz pusty szablon CSV",
+    "openGridLink": "+ Wpisuj bezpośrednio w arkuszu (jak w Excelu)"
+  },
+  "csvGrid": {
+    "title": "Wprowadź osoby w arkuszu",
+    "hint": "Wpisuj dane jak w arkuszu kalkulacyjnym: Tab przechodzi do następnej komórki, można też wkleić kilka komórek skopiowanych z Excela/Sheets naraz. Kolumna „ID” to tylko numer wiersza, dzięki któremu inne wiersze mogą się do niego odwołać przez „ID ojca”, „ID matki” lub „ID małżonka” — sama nie jest zapisywana.",
+    "addRow": "+ Dodaj wiersz",
+    "removeRow": "Usuń wiersz",
+    "import": "Importuj",
+    "emptyError": "Wypełnij przynajmniej jeden wiersz jakimiś danymi.",
+    "columns": {
+      "id": "ID",
+      "given_names": "Imię/imiona",
+      "surname1": "Nazwisko 1",
+      "surname2": "Nazwisko 2",
+      "surname1_birth_name": "Nazwisko rodowe",
+      "alias": "Przezwisko",
+      "sex": "Płeć (M/F)",
+      "birth_date": "Data ur.",
+      "birth_place": "Miejsce ur.",
+      "death_date": "Data zg.",
+      "death_place": "Miejsce zg.",
+      "notes": "Notatki",
+      "biography": "Biografia",
+      "father_id": "ID ojca",
+      "mother_id": "ID matki",
+      "spouse_id": "ID małżonka",
+      "union_type": "Typ związku",
+      "union_status": "Stan związku",
+      "union_date": "Data związku",
+      "union_place": "Miejsce związku",
+      "union_notes": "Notatki związku"
+    }
   },
   "timeline": {
     "century": "wiek {{roman}}"

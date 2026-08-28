@@ -1,14 +1,10 @@
 import { useRef, useState } from "react";
+import { isHoverCapable } from "./input";
 
 // A mouse has no "swipe" gesture — dragging a row with one is an unusual
 // enough motion that a desktop user just clicks instead, which (with the
 // touch-only version below) did nothing at all: a real reported bug, not
-// just an awkward interaction. Checked once, not reactively — the input
-// method a session started with is what its interactions should match for
-// its whole lifetime, and a live media-query listener here would only add
-// complexity for the edge case of switching mid-session.
-const isHoverCapable =
-  typeof window !== "undefined" && window.matchMedia("(hover: hover) and (pointer: fine)").matches;
+// just an awkward interaction.
 
 // Wide enough for one or two icon buttons by default — the actions
 // revealed by the swipe render at exactly this width, so the drag

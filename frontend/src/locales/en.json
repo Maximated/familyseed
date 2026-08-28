@@ -64,7 +64,8 @@
     "expandDescendants": "Show more descendants",
     "collapseDescendants": "Show fewer descendants",
     "role": "Role: {{role}}",
-    "selfHostedHint": "Self-hosted mode: single user."
+    "selfHostedHint": "Self-hosted mode: single user.",
+    "moreActions": "More actions"
   },
   "roles": {
     "OWNER": "Owner",
@@ -237,6 +238,8 @@
     "partnersLegend": "Spouses/partners",
     "noPartners": "No recorded spouses or partners yet.",
     "addPartner": "+ Link existing spouse/partner",
+    "removePartner": "Delete union",
+    "removePartnerWarning": "This action cannot be undone. If this union has recorded children, they will no longer be linked to these two parents (though they will not be deleted).",
     "childrenLegend": "Children",
     "noChildren": "No recorded children yet.",
     "addChild": "+ Link existing child",
@@ -443,7 +446,39 @@
     "exportAncestorsOfCsv": "Export ancestors of {{name}} (.csv)",
     "exportDescendantsOfCsv": "Export descendants of {{name}} (.csv)",
     "exportHint": "GEDCOM is compatible with Gramps, Webtrees, and other genealogy tools. CSV is a custom FamilySeed format designed to be edited manually in a spreadsheet.",
-    "csvTemplateLink": "Download blank CSV template"
+    "csvTemplateLink": "Download blank CSV template",
+    "openGridLink": "+ Type directly into a grid (like Excel)"
+  },
+  "csvGrid": {
+    "title": "Enter people in a grid",
+    "hint": "Type data like a spreadsheet: press Tab to move to the next cell, or paste several cells copied from Excel/Sheets directly. The \"ID\" column is just a row number so other rows can reference it via \"Father ID\", \"Mother ID\", or \"Spouse ID\" — it isn't stored as such.",
+    "addRow": "+ Add row",
+    "removeRow": "Remove row",
+    "import": "Import",
+    "emptyError": "Fill in at least one row with some data.",
+    "columns": {
+      "id": "ID",
+      "given_names": "First name(s)",
+      "surname1": "Surname 1",
+      "surname2": "Surname 2",
+      "surname1_birth_name": "Birth surname",
+      "alias": "Nickname",
+      "sex": "Sex (M/F)",
+      "birth_date": "Birth date",
+      "birth_place": "Birth place",
+      "death_date": "Death date",
+      "death_place": "Death place",
+      "notes": "Notes",
+      "biography": "Biography",
+      "father_id": "Father ID",
+      "mother_id": "Mother ID",
+      "spouse_id": "Spouse ID",
+      "union_type": "Union type",
+      "union_status": "Union status",
+      "union_date": "Union date",
+      "union_place": "Union place",
+      "union_notes": "Union notes"
+    }
   },
   "timeline": {
     "century": "{{roman}} century"

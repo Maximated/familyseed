@@ -312,6 +312,120 @@ body {
   z-index: 15;
 }
 
+/* Touch/PWA's own replacement for .header-right-actions above (see
+   isHoverCapable in TreeView.tsx) — the same 7 actions, collapsed behind
+   one thumb-reachable button in the bottom corner instead of a rail next
+   to the title. Fixed to the viewport, not the canvas, so panning/zooming
+   the tree never moves it — same reasoning as .card-action-bubble-anchor.
+   env() insets keep it clear of a notch/home-indicator on an installed
+   PWA; the plain 1.25rem fallback covers browsers without them. */
+.canvas-fab {
+  position: fixed;
+  right: max(1.25rem, env(safe-area-inset-right));
+  bottom: max(1.25rem, env(safe-area-inset-bottom));
+  z-index: 25;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: var(--color-forest);
+  color: var(--color-bg);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.28);
+  cursor: pointer;
+  transition: background 150ms ease, transform 150ms ease;
+}
+
+.canvas-fab:active {
+  background: var(--color-amber);
+  transform: scale(0.92);
+}
+
+.mobile-actions-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 24;
+  background: rgba(0, 0, 0, 0.35);
+  animation: modal-backdrop-in 180ms ease both;
+}
+
+/* A real bottom sheet (per adapt.md's own guidance for this exact kind of
+   layout call) rather than a dropdown off the FAB — full-width, anchored
+   to the bottom edge, big enough rows for a thumb. Reuses the exact same
+   button markup as .header-right-actions (see treeActionButtons in
+   TreeView.tsx), just re-flowed into a wrapping grid and enlarged below. */
+.mobile-actions-sheet {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 25;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  padding: 1.5rem 1.25rem calc(1.5rem + env(safe-area-inset-bottom));
+  border-radius: 20px 20px 0 0;
+  background: var(--color-surface);
+  border-top: 1px solid var(--color-gold-edge);
+  box-shadow: 0 -10px 28px rgba(0, 0, 0, 0.28);
+  animation: mobile-sheet-in 220ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes mobile-sheet-in {
+  from {
+    opacity: 0;
+    transform: translateY(100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mobile-actions-backdrop,
+  .mobile-actions-sheet {
+    animation: none;
+  }
+}
+
+/* Bigger than the desktop rail's own 36px .icon-button — this is the same
+   44px thumb-friendly target CardActionBubble already settled on. */
+.mobile-actions-sheet .icon-button {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: var(--color-forest);
+  color: var(--color-bg);
+}
+
+.mobile-actions-sheet .icon-button:not(:disabled):hover {
+  color: var(--color-bg);
+  box-shadow: none;
+  transform: none;
+}
+
+.mobile-actions-sheet .icon-button:not(:disabled):active {
+  background: var(--color-amber);
+}
+
+.mobile-actions-sheet .icon-button:disabled {
+  background: color-mix(in srgb, var(--color-forest) 40%, transparent);
+}
+
+/* Lineages/statistics still open their existing .popover from within the
+   sheet — anchored to their own button same as on desktop, just possibly
+   overhanging the sheet's own rounded edge, which is an acceptable trade
+   for not building a second, sheet-specific popover layout. */
+.mobile-actions-sheet .popover-anchor {
+  display: flex;
+}
+
 /* Bare icon, no circular stroke/background — a soft shadow + slight lift on
    hover instead, the same idea as the person-card hover effect (see
    family-chart's own `.f3 div.card:hover .card-inner` rule) scaled down for
@@ -1501,6 +1615,73 @@ body {
   }
 }
 
+/* Touch/PWA's replacement for the hover-revealed corner buttons (see
+   .card-expand-toggle's own comment) — portaled to document.body exactly
+   like .hover-preview, and for the same reason: outside the canvas's own
+   zoom transform, so this reads at one fixed size regardless of how
+   zoomed in/out the tree is, big enough for a thumb (44px targets) rather
+   than shrinking along with the card that spawned it. The anchor only
+   carries positioning; the bubble inside it carries the pop-in animation
+   (see that div split's own comment in CardActionBubble.tsx). */
+.card-action-bubble-anchor {
+  position: fixed;
+  z-index: 25;
+  transform: translate(-50%, 0);
+}
+
+.card-action-bubble {
+  display: flex;
+  gap: 0.6rem;
+  padding: 0.5rem;
+  border-radius: 999px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-gold-edge);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.28);
+  transform-origin: top center;
+  animation: card-action-bubble-in 320ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+@keyframes card-action-bubble-in {
+  0% {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(1.08);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card-action-bubble {
+    animation: none;
+  }
+}
+
+.card-action-bubble-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: var(--color-forest);
+  color: var(--color-bg);
+  cursor: pointer;
+  transition: background 150ms ease, transform 150ms ease;
+}
+
+.card-action-bubble-button:active {
+  background: var(--color-amber);
+  transform: scale(0.92);
+}
+
 /* Compact tree card: name + optional birth surname/alias + a lifespan
    line, plus a small toggle that opens the full record instead of
    growing the card in place (which would overlap its neighbors in the
@@ -1829,24 +2010,45 @@ body {
    to go looking for, so it stays visible on its own whenever it applies;
    its `display` is toggled per-card in wireCardAndUnionClicks, since
    unlike the other three it only applies to cards with real, undrawn
-   parent data. */
+   parent data.
+
+   Hidden by default (touch/PWA) — CardActionBubble is that same trio's
+   own touch replacement (see wireCardAndUnionClicks' isHoverCapable
+   branch): fixed-size, portaled out of the canvas's own zoom transform,
+   and revealed by a tap instead of a hover a touchscreen can't produce
+   cleanly. Restored to the original hover-revealed corner treatment
+   below, for pointers that actually have a hover to reveal them with. */
 .card-expand-toggle,
 .card-edit-toggle,
 .card-quickadd-toggle {
-  position: absolute;
-  width: 20px;
-  height: 20px;
-  padding: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-  border: 1px solid var(--color-bg);
-  background: var(--color-forest);
-  color: var(--color-bg);
-  cursor: pointer;
-  opacity: 0;
-  transition: opacity 150ms ease, background 150ms ease, transform 150ms ease;
+  display: none;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .card-expand-toggle,
+  .card-edit-toggle,
+  .card-quickadd-toggle {
+    position: absolute;
+    width: 20px;
+    height: 20px;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    border: 1px solid var(--color-bg);
+    background: var(--color-forest);
+    color: var(--color-bg);
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 150ms ease, background 150ms ease, transform 150ms ease;
+  }
+
+  .card:hover .card-expand-toggle,
+  .card:hover .card-edit-toggle,
+  .card:hover .card-quickadd-toggle {
+    opacity: 1;
+  }
 }
 
 .card-ancestry-toggle {
@@ -1906,12 +2108,6 @@ body {
 .card-ancestry-toggle {
   bottom: -6px;
   left: -6px;
-}
-
-.card:hover .card-expand-toggle,
-.card:hover .card-edit-toggle,
-.card:hover .card-quickadd-toggle {
-  opacity: 1;
 }
 
 .card-expand-toggle svg,
@@ -2352,6 +2548,76 @@ body {
 
 .merge-review-panel {
   width: 640px;
+}
+
+/* CsvGridImport: the 21-column grid needs far more width than any other
+   modal in the app — still capped by .modal-panel's own
+   max-width: calc(100vw - 2rem), so it just shrinks to that on a narrow
+   screen and relies on .csv-grid-wrap's own horizontal scroll below. */
+.csv-grid-panel {
+  width: 1180px;
+}
+
+.csv-grid-wrap {
+  max-height: 55vh;
+  overflow: auto;
+  border: 1px solid var(--color-gold-edge-faint);
+  border-radius: 8px;
+  margin: 0.75rem 0;
+}
+
+.csv-grid-table {
+  border-collapse: collapse;
+}
+
+/* Sticky so the column titles stay visible while scrolling down a long
+   grid — explicitly requested: the headers have to stay legible, not
+   scroll away the moment there's more than a screenful of rows. */
+.csv-grid-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--color-surface);
+  border-bottom: 2px solid var(--color-gold-edge);
+}
+
+.csv-grid-table th,
+.csv-grid-table td {
+  padding: 0.3rem 0.4rem;
+  border: 1px solid var(--color-gold-edge-faint);
+  text-align: left;
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
+
+.csv-grid-row-handle {
+  width: 32px;
+  padding: 0.2rem !important;
+  text-align: center !important;
+}
+
+.csv-grid-table input {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  padding: 0.25rem 0.35rem;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--color-forest);
+  font-size: 0.78rem;
+  font-family: inherit;
+}
+
+.csv-grid-table input:focus {
+  outline: none;
+  border-color: var(--color-amber);
+  background: var(--color-bg);
+}
+
+.csv-grid-toolbar {
+  display: flex;
+  justify-content: flex-start;
 }
 
 .merge-review-columns {

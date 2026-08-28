@@ -6,6 +6,7 @@ import {
   clearMyIdentity,
   createFamily,
   createLineage,
+  deleteFamily,
   deleteIndividual,
   fetchIndividualRelations,
   fetchLineages,
@@ -142,6 +143,11 @@ export default function EditPersonForm({
   const [partnerships, setPartnerships] = useState<Partnership[]>([]);
   const [addingPartner, setAddingPartner] = useState(false);
   const [partnerError, setPartnerError] = useState<string | null>(null);
+  // Deleting a union is more consequential than unlinking a parent/child
+  // (see deleteFamily's own comment in api.ts — any children recorded
+  // under it stop being linked to these two partners) — confirmed first,
+  // same delete-confirm pattern used elsewhere in this form.
+  const [pendingRemovePartner, setPendingRemovePartner] = useState<Partnership | null>(null);
 
   const [lineages, setLineages] = useState<Lineage[]>([]);
   const [lineageIds, setLineageIds] = useState<string[]>([]);
@@ -296,6 +302,19 @@ export default function EditPersonForm({
       const { partnerships: updatedPartnerships } = await fetchIndividualRelations(treeId, personId);
       setPartnerships(updatedPartnerships);
       setAddingPartner(false);
+      onRelationsChanged();
+    } catch (err) {
+      setPartnerError((err as Error).message);
+    }
+  }
+
+  async function handleRemovePartner(familyId: string) {
+    setPartnerError(null);
+    try {
+      await deleteFamily(treeId, familyId);
+      const { partnerships: updatedPartnerships } = await fetchIndividualRelations(treeId, personId);
+      setPartnerships(updatedPartnerships);
+      setPendingRemovePartner(null);
       onRelationsChanged();
     } catch (err) {
       setPartnerError((err as Error).message);
@@ -506,6 +525,15 @@ export default function EditPersonForm({
                       partnership.partner && (
                         <li key={partnership.familyId}>
                           <span>{`${partnership.partner.givenNames} ${partnership.partner.surname1}`}</span>
+                          <button
+                            type="button"
+                            className="icon-button"
+                            onClick={() => setPendingRemovePartner(partnership)}
+                            aria-label={t("editPerson.removePartner")}
+                            title={t("editPerson.removePartner")}
+                          >
+                            <Trash2Icon size={14} />
+                          </button>
                         </li>
                       ),
                   )}
@@ -524,6 +552,19 @@ export default function EditPersonForm({
                 </button>
               )}
               {partnerError && <p className="status status-error">{partnerError}</p>}
+              {pendingRemovePartner && (
+                <div className="delete-confirm">
+                  <p>{t("editPerson.removePartnerWarning")}</p>
+                  <div className="modal-actions">
+                    <button type="button" onClick={() => setPendingRemovePartner(null)}>
+                      {t("common.cancel")}
+                    </button>
+                    <button type="button" onClick={() => handleRemovePartner(pendingRemovePartner.familyId)}>
+                      {t("editPerson.confirmYes")}
+                    </button>
+                  </div>
+                </div>
+              )}
             </fieldset>
 
             <fieldset>

@@ -64,7 +64,8 @@
     "expandDescendants": "Mostrar más descendientes",
     "collapseDescendants": "Mostrar menos descendientes",
     "role": "Rol: {{role}}",
-    "selfHostedHint": "Modo autohospedado: un único usuario."
+    "selfHostedHint": "Modo autohospedado: un único usuario.",
+    "moreActions": "Más acciones"
   },
   "roles": {
     "OWNER": "Propietario",
@@ -237,6 +238,8 @@
     "partnersLegend": "Cónyuges/pareja",
     "noPartners": "Sin cónyuges o parejas registradas todavía.",
     "addPartner": "+ Vincular cónyuge/pareja existente",
+    "removePartner": "Eliminar unión",
+    "removePartnerWarning": "Esta acción no se puede deshacer. Si esta unión tiene hijos registrados, dejarán de estar vinculados a estos dos progenitores (pero no se eliminarán).",
     "childrenLegend": "Hijos",
     "noChildren": "Sin hijos registrados todavía.",
     "addChild": "+ Vincular hijo/a existente",
@@ -443,7 +446,39 @@
     "exportAncestorsOfCsv": "Exportar ascendientes de {{name}} (.csv)",
     "exportDescendantsOfCsv": "Exportar descendientes de {{name}} (.csv)",
     "exportHint": "GEDCOM es compatible con Gramps, Webtrees y otras herramientas de genealogía. El formato CSV es propio de FamilySeed, pensado para rellenarlo a mano en una hoja de cálculo.",
-    "csvTemplateLink": "Descargar plantilla CSV en blanco"
+    "csvTemplateLink": "Descargar plantilla CSV en blanco",
+    "openGridLink": "+ Escribir directamente en una cuadrícula (como en Excel)"
+  },
+  "csvGrid": {
+    "title": "Introducir personas en cuadrícula",
+    "hint": "Escribe los datos como en una hoja de cálculo: pulsa Tab para pasar a la siguiente celda, o pega directamente varias celdas copiadas de Excel/Sheets. La columna «ID» es solo un número de fila para poder referenciarla desde «ID padre», «ID madre» o «ID cónyuge» de otra fila — no se guarda como tal.",
+    "addRow": "+ Añadir fila",
+    "removeRow": "Quitar fila",
+    "import": "Importar",
+    "emptyError": "Rellena al menos una fila con algún dato.",
+    "columns": {
+      "id": "ID",
+      "given_names": "Nombre",
+      "surname1": "Apellido 1",
+      "surname2": "Apellido 2",
+      "surname1_birth_name": "Apellido de soltero/a",
+      "alias": "Apodo",
+      "sex": "Sexo (M/F)",
+      "birth_date": "F. nacimiento",
+      "birth_place": "Lugar nacimiento",
+      "death_date": "F. defunción",
+      "death_place": "Lugar defunción",
+      "notes": "Notas",
+      "biography": "Biografía",
+      "father_id": "ID padre",
+      "mother_id": "ID madre",
+      "spouse_id": "ID cónyuge",
+      "union_type": "Tipo unión",
+      "union_status": "Estado unión",
+      "union_date": "F. unión",
+      "union_place": "Lugar unión",
+      "union_notes": "Notas unión"
+    }
   },
   "timeline": {
     "century": "S. {{roman}}"

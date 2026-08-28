@@ -13,6 +13,7 @@ import {
 import PersonPicker from "./PersonPicker";
 import RelationshipWizard from "./RelationshipWizard";
 import ExportImagePanel, { type ExportImageOptions } from "./ExportImagePanel";
+import CsvGridImport from "./CsvGridImport";
 
 type FileFormat = "ged" | "csv";
 
@@ -58,6 +59,34 @@ export default function GedcomView({
   const [personId, setPersonId] = useState<string | null>(initialPersonId ?? null);
   const [personName, setPersonName] = useState<string | null>(initialPersonName ?? null);
   const [wizardIds, setWizardIds] = useState<string[] | null>(null);
+  const [showGrid, setShowGrid] = useState(false);
+
+  // Shared by both import paths (file upload below and CsvGridImport) so
+  // they can't drift apart — same success message, same "offer the
+  // unrelated-people wizard" follow-up either way.
+  async function handleImportResult(imported: ImportResult) {
+    setResult(imported);
+    onImported();
+    // Only offer the wizard for people the import genuinely left without
+    // any relationship — imported.individualIds is everyone the import
+    // touched, most of whom are usually already correctly linked to each
+    // other, so opening the wizard on the full list falsely claimed "N
+    // personas sin relación" even for a perfectly-linked import.
+    if (imported.individualIds.length > 0) {
+      const { people } = await fetchTree(treeId);
+      const importedIds = new Set(imported.individualIds);
+      const unrelatedIds = people
+        .filter(
+          (p) =>
+            importedIds.has(p.id) &&
+            p.rels.parents.length === 0 &&
+            p.rels.spouses.length === 0 &&
+            p.rels.children.length === 0,
+        )
+        .map((p) => p.id);
+      if (unrelatedIds.length > 0) setWizardIds(unrelatedIds);
+    }
+  }
 
   async function handleFile(file: File) {
     const name = file.name.toLowerCase();
@@ -71,27 +100,7 @@ export default function GedcomView({
     setResult(null);
     try {
       const imported = format === "csv" ? await importCsv(treeId, file) : await importGedcom(treeId, file);
-      setResult(imported);
-      onImported();
-      // Only offer the wizard for people the import genuinely left without
-      // any relationship — imported.individualIds is everyone the import
-      // touched, most of whom are usually already correctly linked to each
-      // other, so opening the wizard on the full list falsely claimed "N
-      // personas sin relación" even for a perfectly-linked import.
-      if (imported.individualIds.length > 0) {
-        const { people } = await fetchTree(treeId);
-        const importedIds = new Set(imported.individualIds);
-        const unrelatedIds = people
-          .filter(
-            (p) =>
-              importedIds.has(p.id) &&
-              p.rels.parents.length === 0 &&
-              p.rels.spouses.length === 0 &&
-              p.rels.children.length === 0,
-          )
-          .map((p) => p.id);
-        if (unrelatedIds.length > 0) setWizardIds(unrelatedIds);
-      }
+      await handleImportResult(imported);
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -107,6 +116,24 @@ export default function GedcomView({
         onFinished={onImported}
         onClose={onClose}
       />
+    );
+  }
+
+  if (showGrid) {
+    return (
+      <div className="modal-backdrop" onClick={onClose}>
+        <div className="modal-panel csv-grid-panel" onClick={(e) => e.stopPropagation()}>
+          <h2>{t("csvGrid.title")}</h2>
+          <CsvGridImport
+            treeId={treeId}
+            onBack={() => setShowGrid(false)}
+            onImported={(imported) => {
+              setShowGrid(false);
+              handleImportResult(imported);
+            }}
+          />
+        </div>
+      </div>
     );
   }
 
@@ -144,6 +171,11 @@ export default function GedcomView({
             {!importing && <p className="field-hint">{t("gedcom.dropHintOrBrowse")}</p>}
           </div>
           <input ref={fileInputRef} type="file" accept=".ged,.csv" onChange={handleInputChange} style={{ display: "none" }} />
+          <p className="field-hint">
+            <button type="button" className="union-notes-edit-link" onClick={() => setShowGrid(true)}>
+              {t("gedcom.openGridLink")}
+            </button>
+          </p>
 
           {result && (
             <p className="status">{t("gedcom.importSuccess", { individuals: result.individuals, families: result.families })}</p>

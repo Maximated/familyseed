@@ -25,6 +25,8 @@ import IndividualsSearchView from "./IndividualsSearchView";
 import LineageChips from "./LineageChips";
 import Legend from "./Legend";
 import HoverPreview from "./HoverPreview";
+import CardActionBubble from "./CardActionBubble";
+import { isHoverCapable } from "./input";
 import InfoPanel, { type InfoPanelData, type InfoPanelSection } from "./InfoPanel";
 import StatisticsPanel from "./StatisticsPanel";
 import { unionMarkMarkup, UnionMarkIcon } from "./unionMarkIcons";
@@ -36,6 +38,7 @@ import {
   HomeIcon,
   LinkIcon,
   MaximizeIcon,
+  MenuIcon,
   MinusIcon,
   PlusIcon,
   SearchIcon,
@@ -834,6 +837,12 @@ function App() {
   const titleMeasureRef = useRef<HTMLSpanElement>(null);
   const [showLineageMenu, setShowLineageMenu] = useState(false);
   const [showStatsPanel, setShowStatsPanel] = useState(false);
+  // Touch/PWA only (see isHoverCapable below, where the rail vs. FAB choice
+  // is actually made) — the same 7 actions collapsed behind one floating
+  // button instead of a permanent vertical rail, since that rail was the
+  // one thing about the canvas that kept "looking wrong" on a phone: fine
+  // real estate on desktop, cramped and title-adjacent on a narrow install.
+  const [showMobileActions, setShowMobileActions] = useState(false);
   const [orientation, setOrientation] = useState<"vertical" | "horizontal">(getDefaultOrientation);
   // wireCardAndUnionClicks (below) is a long-lived useCallback that doesn't
   // list `orientation` as a dependency — correctLinkTextTransform's settle
@@ -849,6 +858,16 @@ function App() {
     null,
   );
   const hoverTimerRef = useRef<number | undefined>(undefined);
+  // Touch/PWA's own replacement for the hover-revealed corner buttons (see
+  // CardActionBubble) — which person's actions are open, and where to
+  // portal the popup. null when closed.
+  const [cardActions, setCardActions] = useState<{ personId: string; x: number; y: number } | null>(null);
+  // Set synchronously on tap, read back once the tap's own re-center has
+  // actually finished moving cards around (see scheduleAncestryUpdate's
+  // settle callback below) — measuring the tapped card's rect any earlier
+  // would catch it mid-transition, anchoring the bubble to wherever it
+  // used to be rather than where it's about to settle.
+  const pendingCardActionsPersonIdRef = useRef<string | null>(null);
 
   const runHighlight = useCallback(() => {
     if (!containerRef.current) return;
@@ -936,46 +955,71 @@ function App() {
       };
     });
 
-    // A quick, read-only peek at a card's extended info after the pointer
-    // rests on it for a second — mouseenter/mouseleave only, so it never
-    // fires on touch (where "hovering" isn't a real gesture anyway). Any
-    // pending timer or open preview is torn down whenever the tree
-    // re-renders (this whole function reruns), since the card it was
-    // anchored to may have moved or been replaced.
     window.clearTimeout(hoverTimerRef.current);
     setHoverPreview(null);
-    container.querySelectorAll<HTMLElement>(".card-inner[data-person-id]").forEach((card) => {
-      const personId = card.dataset.personId;
-      card.onmouseenter = () => {
-        window.clearTimeout(hoverTimerRef.current);
-        hoverTimerRef.current = window.setTimeout(() => {
-          const person = personId ? treeDataRef.current.find((p) => p.id === personId) : undefined;
-          const containerEl = containerRef.current;
-          if (!person || !containerEl) return;
-          const cardRect = card.getBoundingClientRect();
-          const containerRect = containerEl.getBoundingClientRect();
-          const relativeTop = cardRect.top - containerRect.top;
-          setHoverPreview({
-            data: buildPersonInfoPanel(person),
-            // Viewport-absolute, not container-relative — see HoverPreview.tsx:
-            // it's portaled to document.body and positioned with `fixed`.
-            x: cardRect.left + cardRect.width / 2,
-            y: cardRect.top,
-            // Not enough room above the card to grow upward without
-            // clipping out of view — anchor below it instead.
-            flip: relativeTop < 220,
-          });
-        }, 1000);
-      };
-      card.onmouseleave = () => {
-        window.clearTimeout(hoverTimerRef.current);
-        setHoverPreview(null);
-      };
-      card.onmousedown = () => {
-        window.clearTimeout(hoverTimerRef.current);
-        setHoverPreview(null);
-      };
-    });
+    setCardActions(null);
+
+    if (isHoverCapable) {
+      // A quick, read-only peek at a card's extended info after the
+      // pointer rests on it for a second — mouseenter/mouseleave only, a
+      // real hover gesture a touch/PWA session never produces (see the
+      // touch branch below for its own equivalent). Any pending timer or
+      // open preview was already torn down above, since the card it was
+      // anchored to may have moved or been replaced by this same re-render.
+      container.querySelectorAll<HTMLElement>(".card-inner[data-person-id]").forEach((card) => {
+        const personId = card.dataset.personId;
+        card.onmouseenter = () => {
+          window.clearTimeout(hoverTimerRef.current);
+          hoverTimerRef.current = window.setTimeout(() => {
+            const person = personId ? treeDataRef.current.find((p) => p.id === personId) : undefined;
+            const containerEl = containerRef.current;
+            if (!person || !containerEl) return;
+            const cardRect = card.getBoundingClientRect();
+            const containerRect = containerEl.getBoundingClientRect();
+            const relativeTop = cardRect.top - containerRect.top;
+            setHoverPreview({
+              data: buildPersonInfoPanel(person),
+              // Viewport-absolute, not container-relative — see HoverPreview.tsx:
+              // it's portaled to document.body and positioned with `fixed`.
+              x: cardRect.left + cardRect.width / 2,
+              y: cardRect.top,
+              // Not enough room above the card to grow upward without
+              // clipping out of view — anchor below it instead.
+              flip: relativeTop < 220,
+            });
+          }, 1000);
+        };
+        card.onmouseleave = () => {
+          window.clearTimeout(hoverTimerRef.current);
+          setHoverPreview(null);
+        };
+        card.onmousedown = () => {
+          window.clearTimeout(hoverTimerRef.current);
+          setHoverPreview(null);
+        };
+      });
+    } else {
+      // Touch/PWA: tapping a card already re-centers it via family-chart's
+      // own click handler (attached separately, on .card itself) — this
+      // just also opens CardActionBubble for it. The actual measuring
+      // happens later, in scheduleAncestryUpdate's settle callback below
+      // (once this same tap's re-center has actually finished moving
+      // cards around — a plain click's own transition_time defaults to a
+      // full second, so reading the rect here would almost always catch
+      // it mid-flight and anchor the bubble to wherever the card used to
+      // be). HoverPreview has no equivalent wiring here — see
+      // isHoverCapable's own reasoning in input.ts for why a hover-only
+      // affordance never applied to touch anyway, and the user-facing
+      // redundancy with this same bubble's own "view full" button is
+      // reason enough not to bring it over.
+      container.querySelectorAll<HTMLElement>(".card-inner[data-person-id]").forEach((card) => {
+        const personId = card.dataset.personId;
+        card.onclick = () => {
+          if (!personId) return;
+          pendingCardActionsPersonIdRef.current = personId;
+        };
+      });
+    }
 
     linkTextCleanupRef.current.forEach((cleanup) => cleanup());
     linkTextCleanupRef.current = [];
@@ -1040,6 +1084,24 @@ function App() {
         // (also watched below), so the pan bounds need recomputing here
         // too, not just when cards are actually added or removed.
         applyPanBounds(container);
+        // Touch's CardActionBubble (see the card.onclick wiring above):
+        // this fires 150ms after the *last* style mutation, which during
+        // a multi-frame re-center transition keeps getting pushed back
+        // until the animation actually finishes — exactly "wait until
+        // this card has stopped moving" without hardcoding a duration
+        // that'd drift out of sync with family-chart's own transition
+        // time (or a plain click's own transition_time default, since a
+        // card that was already centered never mutates at all and this
+        // fires almost immediately instead).
+        const pendingPersonId = pendingCardActionsPersonIdRef.current;
+        if (pendingPersonId) {
+          pendingCardActionsPersonIdRef.current = null;
+          const card = container.querySelector<HTMLElement>(`.card-inner[data-person-id="${pendingPersonId}"]`);
+          if (card) {
+            const rect = card.getBoundingClientRect();
+            setCardActions({ personId: pendingPersonId, x: rect.left + rect.width / 2, y: rect.bottom + 10 });
+          }
+        }
       }, 150);
     };
     scheduleAncestryUpdate();
@@ -1543,12 +1605,32 @@ function App() {
       // closure's own elements (real element references, not a selector)
       // can't cross-match another union's elements.
       const handleEnter = () => {
-        findMarkGroup()?.classList.add("union-mark-visible");
+        const markGroup = findMarkGroup();
+        markGroup?.classList.add("union-mark-visible");
         p.classList.add("union-line-glow");
+        // Same read-only info HoverPreview already shows for a person card
+        // (see buildUnionInfoPanel above) — reused as-is rather than a
+        // second, text-only popup, since it already includes exactly what
+        // was missing here (date, place) alongside type/status. No delay,
+        // matching the icon reveal above (by request, unlike the 1s-hover
+        // person-card version below).
+        const anchor = markGroup ?? hit;
+        const containerEl = containerRef.current;
+        if (!containerEl) return;
+        const rect = anchor.getBoundingClientRect();
+        const containerRect = containerEl.getBoundingClientRect();
+        const relativeTop = rect.top - containerRect.top;
+        setHoverPreview({
+          data: buildUnionInfoPanel(union, treeDataRef.current),
+          x: rect.left + rect.width / 2,
+          y: rect.top,
+          flip: relativeTop < 220,
+        });
       };
       const handleLeave = () => {
         findMarkGroup()?.classList.remove("union-mark-visible");
         p.classList.remove("union-line-glow");
+        setHoverPreview(null);
       };
       hit.onclick = handleClick;
       hit.onmouseenter = handleEnter;
@@ -2126,6 +2208,41 @@ function App() {
   }, [showStatsPanel]);
 
   useEffect(() => {
+    if (!showMobileActions) return;
+
+    function handlePointerDown(event: PointerEvent) {
+      const target = event.target as HTMLElement;
+      if (!target.closest(".mobile-actions-sheet, .canvas-fab")) {
+        setShowMobileActions(false);
+      }
+    }
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    return () => document.removeEventListener("pointerdown", handlePointerDown);
+  }, [showMobileActions]);
+
+  // Touch has no "move the pointer elsewhere without touching anything" —
+  // the equivalent of a desktop hover ending is starting to touch
+  // somewhere else, so a fresh pointerdown outside the bubble (checked via
+  // .closest rather than a ref, since CardActionBubble is portaled to
+  // document.body and never sits inside this component's own tree) closes
+  // it, the same as panning the canvas would (that also starts with a
+  // pointerdown, so this covers it for free).
+  useEffect(() => {
+    if (!cardActions) return;
+
+    function handlePointerDown(event: PointerEvent) {
+      const target = event.target as HTMLElement;
+      if (!target.closest(".card-action-bubble")) {
+        setCardActions(null);
+      }
+    }
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    return () => document.removeEventListener("pointerdown", handlePointerDown);
+  }, [cardActions]);
+
+  useEffect(() => {
     if (!editingTitle) return;
     const span = titleMeasureRef.current;
     if (!span) return;
@@ -2667,6 +2784,147 @@ function App() {
   const canExpandDescendants = mainPersonId ? hasMoreDescendants(mainPersonId, descendantLevels, treeData) : false;
   const canCollapseDescendants = descendantLevels > 0;
 
+  // Search, lineages, add person, create relationship, GEDCOM, orientation,
+  // statistics — the same 7 actions either way. Desktop renders them as a
+  // permanent vertical rail (see isHoverCapable below); touch/PWA collapses
+  // them behind a single FAB instead (see .canvas-fab/.mobile-actions-sheet)
+  // — kept as one shared block rather than two copies so the two layouts
+  // can't drift out of sync with each other.
+  const treeActionButtons = (
+    <>
+      <button
+        type="button"
+        className="icon-button"
+        onClick={() => {
+          setShowSearch(true);
+          setShowMobileActions(false);
+        }}
+        aria-label={t("app.search")}
+        title={t("app.search")}
+      >
+        <SearchIcon />
+      </button>
+
+      <div className="popover-anchor" ref={lineageMenuRef}>
+        <button
+          type="button"
+          className="icon-button"
+          onClick={() => setShowLineageMenu((v) => !v)}
+          aria-label={t("app.lineages")}
+          aria-expanded={showLineageMenu}
+          title={t("app.lineages")}
+        >
+          <GitBranchIcon />
+        </button>
+        {showLineageMenu && (
+          <div className="popover lineage-popover">
+            <LineageChips lineages={lineages} activeId={activeLineageId} onSelect={handleLineageClick} />
+            <button
+              type="button"
+              className="union-notes-edit-link"
+              onClick={() => {
+                setShowLineageMenu(false);
+                setShowLineagesManage(true);
+              }}
+            >
+              {t("lineagesManage.manageLink")}
+            </button>
+            <button
+              type="button"
+              className="union-notes-edit-link"
+              onClick={handleDeriveLineages}
+              disabled={derivingLineages}
+              title={t("lineagesManage.deriveHint")}
+            >
+              {derivingLineages ? t("lineagesManage.deriving") : t("lineagesManage.deriveLink")}
+            </button>
+            {deriveLineagesMessage && <p className="field-hint">{deriveLineagesMessage}</p>}
+          </div>
+        )}
+      </div>
+
+      <button
+        type="button"
+        className="icon-button"
+        onClick={() => {
+          setShowAddForm(true);
+          setShowMobileActions(false);
+        }}
+        disabled={treeRole === "VIEWER"}
+        aria-label={t("app.addPerson")}
+        title={t("app.addPerson")}
+      >
+        <UserPlusIcon />
+      </button>
+
+      <button
+        type="button"
+        className="icon-button"
+        onClick={() => {
+          setShowLinkPeople(true);
+          setShowMobileActions(false);
+        }}
+        disabled={treeRole === "VIEWER"}
+        aria-label={t("app.linkPeople")}
+        title={t("app.linkPeople")}
+      >
+        <LinkIcon />
+      </button>
+
+      <button
+        type="button"
+        className="icon-button"
+        onClick={() => {
+          setShowGedcom(true);
+          setShowMobileActions(false);
+        }}
+        aria-label={t("app.gedcom")}
+        title={t("app.gedcom")}
+      >
+        <ArrowUpDownIcon />
+      </button>
+
+      <button
+        type="button"
+        className="icon-button"
+        onClick={() => {
+          handleToggleOrientation();
+          setShowMobileActions(false);
+        }}
+        aria-label={orientation === "vertical" ? t("app.orientationHorizontal") : t("app.orientationVertical")}
+        title={orientation === "vertical" ? t("app.orientationHorizontal") : t("app.orientationVertical")}
+      >
+        <SwitchOrientationIcon />
+      </button>
+
+      <div
+        className="popover-anchor"
+        ref={statsMenuRef}
+        onMouseEnter={revealStatsPanel}
+        onMouseLeave={cancelRevealStatsPanel}
+      >
+        <button
+          type="button"
+          className="icon-button"
+          onClick={() => setShowStatsPanel((v) => !v)}
+          aria-label={t("app.statistics")}
+          aria-expanded={showStatsPanel}
+          title={t("app.statistics")}
+        >
+          <BarChartIcon />
+        </button>
+        {showStatsPanel && treeId && (
+          <StatisticsPanel
+            treeId={treeId}
+            selectedPersonId={mainPersonId}
+            selectedPersonName={mainPersonName}
+            onClose={() => setShowStatsPanel(false)}
+          />
+        )}
+      </div>
+    </>
+  );
+
   return (
     <div className={`app${orientation === "horizontal" ? " app-orientation-horizontal" : ""}`}>
       <header className="app-header">
@@ -2717,134 +2975,42 @@ function App() {
           </h1>
         )}
 
-        {/* A fixed vertical rail down the right edge of the canvas, always
-            — search, lineages, add person, create relationship, GEDCOM,
-            orientation, statistics, in that order. No overflow menu: once
-            duplicates/unrelated/trash/share moved to the tree's own
-            statistics screen on the home list (see TreeStatsView), these
-            seven are the only actions left and all fit as plain icons.
-            Bare icon-only buttons floating on the canvas, no plate behind
-            the column — same reasoning as .level-nav-button's own
-            no-box treatment, and it's what keeps this from becoming a
-            horizontal band competing with the title for width the way a
-            row of 7+ icons would on a narrow PWA install. */}
-        <div className="header-right-actions">
-          <button
-            type="button"
-            className="icon-button"
-            onClick={() => setShowSearch(true)}
-            aria-label={t("app.search")}
-            title={t("app.search")}
-          >
-            <SearchIcon />
-          </button>
-
-          <div className="popover-anchor" ref={lineageMenuRef}>
+        {isHoverCapable ? (
+          // A fixed vertical rail down the right edge of the canvas, always
+          // — search, lineages, add person, create relationship, GEDCOM,
+          // orientation, statistics, in that order. No overflow menu: once
+          // duplicates/unrelated/trash/share moved to the tree's own
+          // statistics screen on the home list (see TreeStatsView), these
+          // seven are the only actions left and all fit as plain icons.
+          // Bare icon-only buttons floating on the canvas, no plate behind
+          // the column — same reasoning as .level-nav-button's own
+          // no-box treatment.
+          <div className="header-right-actions">{treeActionButtons}</div>
+        ) : (
+          // Touch/PWA: the same rail felt cramped and sat right next to the
+          // title on a narrow install — collapsed behind one thumb-reachable
+          // FAB in the bottom corner instead, opening a bottom sheet with
+          // the same 7 actions (adapt.md's own guidance: bottom sheets over
+          // dropdowns, controls within thumb reach, for exactly this kind
+          // of touch layout call).
+          <>
             <button
               type="button"
-              className="icon-button"
-              onClick={() => setShowLineageMenu((v) => !v)}
-              aria-label={t("app.lineages")}
-              aria-expanded={showLineageMenu}
-              title={t("app.lineages")}
+              className="canvas-fab"
+              onClick={() => setShowMobileActions((v) => !v)}
+              aria-label={t("app.moreActions")}
+              aria-expanded={showMobileActions}
             >
-              <GitBranchIcon />
+              <MenuIcon size={24} />
             </button>
-            {showLineageMenu && (
-              <div className="popover lineage-popover">
-                <LineageChips lineages={lineages} activeId={activeLineageId} onSelect={handleLineageClick} />
-                <button
-                  type="button"
-                  className="union-notes-edit-link"
-                  onClick={() => {
-                    setShowLineageMenu(false);
-                    setShowLineagesManage(true);
-                  }}
-                >
-                  {t("lineagesManage.manageLink")}
-                </button>
-                <button
-                  type="button"
-                  className="union-notes-edit-link"
-                  onClick={handleDeriveLineages}
-                  disabled={derivingLineages}
-                  title={t("lineagesManage.deriveHint")}
-                >
-                  {derivingLineages ? t("lineagesManage.deriving") : t("lineagesManage.deriveLink")}
-                </button>
-                {deriveLineagesMessage && <p className="field-hint">{deriveLineagesMessage}</p>}
-              </div>
+            {showMobileActions && (
+              <>
+                <div className="mobile-actions-backdrop" />
+                <div className="mobile-actions-sheet">{treeActionButtons}</div>
+              </>
             )}
-          </div>
-
-          <button
-            type="button"
-            className="icon-button"
-            onClick={() => setShowAddForm(true)}
-            disabled={treeRole === "VIEWER"}
-            aria-label={t("app.addPerson")}
-            title={t("app.addPerson")}
-          >
-            <UserPlusIcon />
-          </button>
-
-          <button
-            type="button"
-            className="icon-button"
-            onClick={() => setShowLinkPeople(true)}
-            disabled={treeRole === "VIEWER"}
-            aria-label={t("app.linkPeople")}
-            title={t("app.linkPeople")}
-          >
-            <LinkIcon />
-          </button>
-
-          <button
-            type="button"
-            className="icon-button"
-            onClick={() => setShowGedcom(true)}
-            aria-label={t("app.gedcom")}
-            title={t("app.gedcom")}
-          >
-            <ArrowUpDownIcon />
-          </button>
-
-          <button
-            type="button"
-            className="icon-button"
-            onClick={handleToggleOrientation}
-            aria-label={orientation === "vertical" ? t("app.orientationHorizontal") : t("app.orientationVertical")}
-            title={orientation === "vertical" ? t("app.orientationHorizontal") : t("app.orientationVertical")}
-          >
-            <SwitchOrientationIcon />
-          </button>
-
-          <div
-            className="popover-anchor"
-            ref={statsMenuRef}
-            onMouseEnter={revealStatsPanel}
-            onMouseLeave={cancelRevealStatsPanel}
-          >
-            <button
-              type="button"
-              className="icon-button"
-              onClick={() => setShowStatsPanel((v) => !v)}
-              aria-label={t("app.statistics")}
-              aria-expanded={showStatsPanel}
-              title={t("app.statistics")}
-            >
-              <BarChartIcon />
-            </button>
-            {showStatsPanel && treeId && (
-              <StatisticsPanel
-                treeId={treeId}
-                selectedPersonId={mainPersonId}
-                selectedPersonName={mainPersonName}
-                onClose={() => setShowStatsPanel(false)}
-              />
-            )}
-          </div>
-        </div>
+          </>
+        )}
       </header>
       {error && <p className="status status-error">{error}</p>}
       <div className="main-area">
@@ -2890,6 +3056,26 @@ function App() {
           <Legend />
           {hoverPreview && (
             <HoverPreview data={hoverPreview.data} x={hoverPreview.x} y={hoverPreview.y} flip={hoverPreview.flip} />
+          )}
+          {cardActions && (
+            <CardActionBubble
+              x={cardActions.x}
+              y={cardActions.y}
+              labels={{ expand: t("card.viewFull"), edit: t("app.edit"), quickAdd: t("card.quickAdd") }}
+              onExpand={() => {
+                const person = treeDataRef.current.find((p) => p.id === cardActions.personId);
+                if (person) setInfoPanel(buildPersonInfoPanel(person));
+                setCardActions(null);
+              }}
+              onEdit={() => {
+                setEditingPersonId(cardActions.personId);
+                setCardActions(null);
+              }}
+              onQuickAdd={() => {
+                handleQuickAddClick(cardActions.personId);
+                setCardActions(null);
+              }}
+            />
           )}
           {/* Level-navigation buttons for whoever's currently selected —
               arriba/abajo widen or narrow the ascendant/descendant window
