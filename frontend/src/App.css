@@ -317,12 +317,16 @@ body {
    one thumb-reachable button in the bottom corner instead of a rail next
    to the title. Fixed to the viewport, not the canvas, so panning/zooming
    the tree never moves it — same reasoning as .card-action-bubble-anchor.
-   env() insets keep it clear of a notch/home-indicator on an installed
-   PWA; the plain 1.25rem fallback covers browsers without them. */
+   bottom/right add real margin *on top of* the safe-area inset rather than
+   just taking whichever is bigger (was max(1.25rem, inset)) — on a
+   notched iPhone that previously landed the button flush against the
+   home-indicator's own gesture strip, easy to trigger "swipe up to exit"
+   by mistake reaching for it. Same formula .legend-toggle uses, so the
+   two stay aligned. */
 .canvas-fab {
   position: fixed;
-  right: max(1.25rem, env(safe-area-inset-right));
-  bottom: max(1.25rem, env(safe-area-inset-bottom));
+  right: calc(env(safe-area-inset-right) + 1.25rem);
+  bottom: calc(env(safe-area-inset-bottom) + 1.25rem);
   z-index: 25;
   display: flex;
   align-items: center;
@@ -419,11 +423,43 @@ body {
 }
 
 /* Lineages/statistics still open their existing .popover from within the
-   sheet — anchored to their own button same as on desktop, just possibly
-   overhanging the sheet's own rounded edge, which is an acceptable trade
-   for not building a second, sheet-specific popover layout. */
+   sheet — anchored to their own button same as on desktop. */
 .mobile-actions-sheet .popover-anchor {
   display: flex;
+}
+
+/* The sheet itself is anchored to the bottom of the screen — .popover's own
+   default (opens *below* its anchor, right-aligned, see its own top/right/
+   transform-origin rules) would render entirely off the bottom of the
+   viewport from here, making the panel completely unreachable (reported:
+   "sus paneles son inaccesibles"). Flipped to open upward, and centered
+   under its own anchor rather than right-aligned — the sheet's buttons
+   sit wherever a wrapping, centered flex row puts them, and a 220–320px
+   panel right-aligned to a button near the *left* edge of a narrow phone
+   (found while verifying the fix above) pushed just as far off the
+   opposite side instead. max-width caps against the viewport itself, not
+   just a fixed px value, so this holds on any phone width. */
+.mobile-actions-sheet .popover {
+  top: auto;
+  right: auto;
+  left: 50%;
+  bottom: calc(100% + 8px);
+  max-width: min(300px, calc(100vw - 2rem));
+  transform-origin: bottom center;
+  animation-name: popoverOpenUpCentered;
+}
+
+@keyframes popoverOpenUpCentered {
+  from {
+    opacity: 0;
+    max-height: 0;
+    transform: translateX(-50%) translateY(6px);
+  }
+  to {
+    opacity: 1;
+    max-height: 420px;
+    transform: translateX(-50%) translateY(0);
+  }
 }
 
 /* Bare icon, no circular stroke/background — a soft shadow + slight lift on
@@ -1489,6 +1525,33 @@ body {
    (closing) once the panel is actually open. */
 .legend-toggle-open .legend-trigger {
   transform: rotate(180deg);
+}
+
+/* Touch/PWA: matches .canvas-fab exactly — same size, same fixed-to-
+   viewport positioning formula (so the two sit level with each other
+   instead of drifting out of alignment), same extra margin above the
+   safe-area inset. Reported: the two "deberían tener el mismo tamaño y
+   estar bien alineados", and both needed to move up off a notched
+   iPhone's own home-indicator gesture strip, not just this one. Left as
+   the smaller, absolutely-positioned 36px desktop version otherwise —
+   there's no adjacent menu FAB to line up with there, and no gesture zone
+   to avoid either. */
+@media (hover: none) {
+  .legend-toggle {
+    position: fixed;
+    left: calc(env(safe-area-inset-left) + 1.25rem);
+    bottom: calc(env(safe-area-inset-bottom) + 1.25rem);
+  }
+
+  .legend-trigger {
+    width: 56px;
+    height: 56px;
+  }
+
+  .legend-trigger svg {
+    width: 24px;
+    height: 24px;
+  }
 }
 
 /* Anchored to the same corner the trigger sits in, growing up and to the
