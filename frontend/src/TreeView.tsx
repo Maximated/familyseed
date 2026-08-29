@@ -2476,6 +2476,44 @@ function App() {
         });
       });
 
+      // Date/place only ever shows on hover on screen (see HoverPreview's
+      // own union panel) — a static export can't hover, so this is the one
+      // place that information would otherwise be lost entirely from a
+      // printed/shared tree image. A plain <text> appended above each
+      // union's icon row, export-only (removed again below): as a direct
+      // child of .union-mark-icons it's already picked up by the position-
+      // folding loop further down (its selector already lists
+      // ".union-mark-icons > text"), so it lands correctly with no extra
+      // positioning work here. Above the icons (negative y), not below —
+      // the icon row's own local origin already sits well above the actual
+      // connecting line (that's how it avoids the line while looking
+      // anchored to it), so going further up stays clear of the line by
+      // the same margin; the first attempt placed this below the icons
+      // instead and it visibly crossed straight through the line.
+      {
+        const unionById = new Map(
+          [...unionsByPairKeyRef.current.values()].map((union) => [union.id, union]),
+        );
+        container.querySelectorAll<SVGGElement>("g.link-text[data-family-id]").forEach((linkText) => {
+          const familyId = linkText.getAttribute("data-family-id");
+          const union = familyId ? unionById.get(familyId) : undefined;
+          const markGroup = linkText.querySelector<SVGGElement>(".union-mark-icons");
+          if (!union || !markGroup) return;
+          const dateText = union.unionDateText || (union.unionDateValue ? union.unionDateValue.slice(0, 10) : "");
+          const label = [dateText, union.unionPlace].filter(Boolean).join(" · ");
+          if (!label) return;
+          const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+          text.setAttribute("x", "0");
+          text.setAttribute("y", "-26");
+          text.setAttribute("text-anchor", "middle");
+          text.setAttribute("font-size", "11");
+          text.setAttribute("fill", "#000000");
+          text.textContent = label;
+          markGroup.appendChild(text);
+          exportDomRestores.push(() => text.remove());
+        });
+      }
+
       // html-to-image clones the DOM and inlines each *HTML* element's
       // computed style onto its clone, but never does that for SVG-namespace
       // elements — so the connecting lines and union marks, which only get

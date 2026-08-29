@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import puppeteer from "puppeteer";
-import type { TreePerson } from "./tree-data.js";
+import type { TreePerson, TreeUnion } from "./tree-data.js";
 import { walkGraph } from "./tree-data.js";
 import { uploadsRoot } from "./uploads.js";
 
@@ -60,7 +60,25 @@ async function avatarDataUri(url: string | undefined): Promise<string | null> {
 
 const PERSON_ICON_SVG = `<svg viewBox="0 0 24 24" fill="none" stroke="#1b4332" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21a8 8 0 0 0-16 0"/><circle cx="12" cy="7" r="4"/></svg>`;
 
-async function personCardHtml(person: TreePerson): Promise<string> {
+// Only shows if `union`'s date/place doesn't resolve to nothing at all —
+// same "still say who, even with no date on record" fallback the CSV/GEDCOM
+// exports already apply, so a childless marriage (the only way a union
+// exists without ever showing up elsewhere in this report) doesn't vanish
+// from the document entirely just because it has no dated event.
+function unionLine(union: TreeUnion, selfId: string, peopleById: Map<string, TreePerson>): string | null {
+  const spouseId = union.partner1Id === selfId ? union.partner2Id : union.partner1Id;
+  const spouse = spouseId ? peopleById.get(spouseId) : undefined;
+  if (!spouse) return null;
+  const dateText = union.unionDateText || (union.unionDateValue ? union.unionDateValue.slice(0, 10) : "");
+  const details = [dateText, union.unionPlace].filter(Boolean).join(" · ");
+  return details ? `⚭ ${personName(spouse)} — ${details}` : `⚭ ${personName(spouse)}`;
+}
+
+async function personCardHtml(
+  person: TreePerson,
+  unions: TreeUnion[],
+  peopleById: Map<string, TreePerson>,
+): Promise<string> {
   const avatar = await avatarDataUri(person.data.avatar);
   const avatarHtml = avatar
     ? `<img class="avatar" src="${avatar}" alt="" />`
@@ -68,6 +86,14 @@ async function personCardHtml(person: TreePerson): Promise<string> {
   const span = lifespan(person);
   const place = [person.data["birth place"], person.data["death place"]].filter(Boolean).join(" · ");
   const alias = person.data.alias ? `<span class="alias">«${escapeHtml(String(person.data.alias))}»</span>` : "";
+  const unionLines = unions
+    .filter((u) => u.partner1Id === person.id || u.partner2Id === person.id)
+    .map((u) => unionLine(u, person.id, peopleById))
+    .filter((line): line is string => Boolean(line));
+  const unionsHtml =
+    unionLines.length > 0
+      ? `<div class="person-unions">${unionLines.map((line) => `<div class="person-union">${escapeHtml(line)}</div>`).join("")}</div>`
+      : "";
 
   return `
     <div class="person-card">
@@ -76,6 +102,7 @@ async function personCardHtml(person: TreePerson): Promise<string> {
         <div class="person-name">${escapeHtml(personName(person))} ${alias}</div>
         ${span ? `<div class="person-lifespan">${escapeHtml(span)}</div>` : ""}
         ${place ? `<div class="person-place">${escapeHtml(place)}</div>` : ""}
+        ${unionsHtml}
       </div>
     </div>`;
 }
@@ -83,8 +110,10 @@ async function personCardHtml(person: TreePerson): Promise<string> {
 async function generationSectionHtml(
   generation: number,
   people: TreePerson[],
+  unions: TreeUnion[],
+  peopleById: Map<string, TreePerson>,
 ): Promise<string> {
-  const cards = await Promise.all(people.map(personCardHtml));
+  const cards = await Promise.all(people.map((p) => personCardHtml(p, unions, peopleById)));
   return `
     <section class="generation">
       <h2>${escapeHtml(generationLabel(generation))}</h2>
@@ -92,8 +121,12 @@ async function generationSectionHtml(
     </section>`;
 }
 
-async function rootSectionHtml(root: TreePerson): Promise<string> {
-  const card = await personCardHtml(root);
+async function rootSectionHtml(
+  root: TreePerson,
+  unions: TreeUnion[],
+  peopleById: Map<string, TreePerson>,
+): Promise<string> {
+  const card = await personCardHtml(root, unions, peopleById);
   return `
     <section class="generation root-section">
       <h2 class="root-heading">${escapeHtml(personName(root))}</h2>
@@ -132,6 +165,8 @@ function mergeWalks(
 async function generationSections(
   merged: Map<string, { person: TreePerson; generation: number }>,
   sortAscending: boolean,
+  unions: TreeUnion[],
+  peopleById: Map<string, TreePerson>,
 ): Promise<string[]> {
   const byGeneration = new Map<number, TreePerson[]>();
   for (const { person, generation } of merged.values()) {
@@ -142,13 +177,14 @@ async function generationSections(
   const sections: string[] = [];
   for (const generation of generations) {
     const group = byGeneration.get(generation)!.sort((a, b) => personName(a).localeCompare(personName(b)));
-    sections.push(await generationSectionHtml(generation, group));
+    sections.push(await generationSectionHtml(generation, group, unions, peopleById));
   }
   return sections;
 }
 
 export async function renderReportHtml(
   people: TreePerson[],
+  unions: TreeUnion[],
   rootIds: string[],
   treeName: string,
   direction: ReportDirection,
@@ -159,6 +195,7 @@ export async function renderReportHtml(
     if (!person) throw new Error(`No existe el individuo ${id}`);
     return person;
   });
+  const peopleById = new Map(people.map((p) => [p.id, p]));
 
   // "descending" only changes generation order (youngest-first instead of
   // oldest-first) — it's the same two sort calls the single-root version
@@ -167,14 +204,16 @@ export async function renderReportHtml(
 
   const sections: string[] = [];
   if (direction === "ancestors" || direction === "both") {
-    sections.push(...(await generationSections(mergeWalks(people, rootIds, "up"), !ascendingSort)));
+    sections.push(...(await generationSections(mergeWalks(people, rootIds, "up"), !ascendingSort, unions, peopleById)));
   }
 
-  const rootSections = await Promise.all(roots.map(rootSectionHtml));
+  const rootSections = await Promise.all(roots.map((root) => rootSectionHtml(root, unions, peopleById)));
 
   const descendantSections: string[] = [];
   if (direction === "descendants" || direction === "both") {
-    descendantSections.push(...(await generationSections(mergeWalks(people, rootIds, "down"), ascendingSort)));
+    descendantSections.push(
+      ...(await generationSections(mergeWalks(people, rootIds, "down"), ascendingSort, unions, peopleById)),
+    );
   }
 
   const title =
@@ -311,6 +350,13 @@ export async function renderReportHtml(
   .person-place {
     font-size: 11px;
     color: var(--color-text-secondary);
+  }
+  .person-unions {
+    margin-top: 2px;
+  }
+  .person-union {
+    font-size: 11px;
+    color: var(--color-forest);
   }
 </style>
 </head>

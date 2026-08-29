@@ -154,7 +154,9 @@
     "addDocument": "+ Add document",
     "uploading": "Uploading…",
     "deletePhoto": "Delete photo",
-    "deleteDocument": "Delete document"
+    "deleteDocument": "Delete document",
+    "previousPhoto": "Previous photo",
+    "nextPhoto": "Next photo"
   },
   "personFields": {
     "photo": "Photo",
@@ -451,11 +453,18 @@
   },
   "csvGrid": {
     "title": "Enter people in a grid",
-    "hint": "Type data like a spreadsheet: press Tab to move to the next cell, or paste several cells copied from Excel/Sheets directly. The \"ID\" column is just a row number so other rows can reference it via \"Father ID\", \"Mother ID\", or \"Spouse ID\" — it isn't stored as such.",
+    "hint": "Type data like a spreadsheet: press Tab to move to the next cell, or paste several cells copied from Excel/Sheets directly. The \"ID\" column is just a row number so other rows can reference it via \"Father ID\", \"Mother ID\", or \"Spouse ID\" — it isn't stored as such. In those three columns, use the search button to pick someone already in your tree, or another row in this same grid, instead of typing an ID by hand.",
     "addRow": "+ Add row",
     "removeRow": "Remove row",
     "import": "Import",
     "emptyError": "Fill in at least one row with some data.",
+    "datePlaceholder": "YYYY-MM-DD, ~1930, <1930, >1930",
+    "dateHint": "Exact date (YYYY-MM-DD or DD/MM/YYYY), or just a year. Optional prefixes: ~ about, < before, > after.",
+    "blankOption": "— Not specified —",
+    "pickPerson": "Search for a person",
+    "pickExistingHint": "Choose someone already in your tree:",
+    "pickRowHint": "Or choose another row from this same grid:",
+    "unnamedRow": "Row {{n}} (no name yet)",
     "columns": {
       "id": "ID",
       "given_names": "First name(s)",

@@ -29,7 +29,7 @@ export default function PersonMediaTab({ treeId, personId, type, editable = true
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -85,12 +85,12 @@ export default function PersonMediaTab({ treeId, personId, type, editable = true
         <p className="status">{t("common.loading")}</p>
       ) : type === "PHOTO" ? (
         <div className="media-photo-grid">
-          {items.map((item) => (
+          {items.map((item, index) => (
             <div className="media-photo-item" key={item.id}>
               <img
                 src={mediaUrl(item.url)}
                 alt={item.filename}
-                onClick={() => setLightboxUrl(mediaUrl(item.url))}
+                onClick={() => setLightboxIndex(index)}
                 style={{ cursor: "zoom-in" }}
               />
               {editable && (
@@ -153,7 +153,14 @@ export default function PersonMediaTab({ treeId, personId, type, editable = true
           />
         </>
       )}
-      {lightboxUrl && <PhotoLightbox src={lightboxUrl} onClose={() => setLightboxUrl(null)} />}
+      {lightboxIndex !== null && items[lightboxIndex] && (
+        <PhotoLightbox
+          src={mediaUrl(items[lightboxIndex].url)}
+          alt={items[lightboxIndex].filename}
+          onClose={() => setLightboxIndex(null)}
+          gallery={{ total: items.length, index: lightboxIndex, onNavigate: setLightboxIndex }}
+        />
+      )}
     </div>
   );
 }

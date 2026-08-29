@@ -1,7 +1,8 @@
 import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { importCsv, type ImportResult } from "./api";
-import { Trash2Icon } from "./Icons";
+import { importCsv, type ImportResult, type Individual } from "./api";
+import { SearchIcon, Trash2Icon } from "./Icons";
+import PersonPicker from "./PersonPicker";
 
 // Same column set and order as the backend's own CSV_HEADERS (backend/src/
 // csv.ts) — kept as a plain literal here rather than imported, since that
@@ -32,32 +33,37 @@ const CSV_COLUMNS = [
   "union_notes",
 ] as const;
 
+type Column = (typeof CSV_COLUMNS)[number];
+
 // Narrow columns for short codes/ids, wide ones for freeform text — plain
 // px widths rather than a shared CSS class per column, since the mapping
 // is 1:1 with this specific column list and not reused anywhere else.
-const COLUMN_WIDTH: Record<(typeof CSV_COLUMNS)[number], number> = {
+const COLUMN_WIDTH: Record<Column, number> = {
   id: 50,
   given_names: 130,
   surname1: 130,
   surname2: 130,
   surname1_birth_name: 140,
   alias: 90,
-  sex: 70,
-  birth_date: 110,
+  sex: 90,
+  birth_date: 130,
   birth_place: 130,
-  death_date: 110,
+  death_date: 130,
   death_place: 130,
   notes: 180,
   biography: 200,
-  father_id: 70,
-  mother_id: 70,
-  spouse_id: 80,
-  union_type: 120,
-  union_status: 120,
-  union_date: 110,
+  father_id: 110,
+  mother_id: 110,
+  spouse_id: 110,
+  union_type: 140,
+  union_status: 150,
+  union_date: 130,
   union_place: 130,
   union_notes: 160,
 };
+
+const DATE_COLUMNS = new Set<Column>(["birth_date", "death_date", "union_date"]);
+const ID_REF_COLUMNS = new Set<Column>(["father_id", "mother_id", "spouse_id"]);
 
 const INITIAL_ROWS = 6;
 
@@ -65,6 +71,11 @@ function makeBlankRow(id: string): string[] {
   const row = CSV_COLUMNS.map(() => "");
   row[0] = id;
   return row;
+}
+
+function personLabel(p: Individual): string {
+  const surname = [p.surname1, p.surname2].filter(Boolean).join(" ");
+  return [p.givenNames, surname].filter(Boolean).join(" ");
 }
 
 // Standard CSV quoting: only wrap a field in quotes (doubling any quotes
@@ -100,6 +111,40 @@ export default function CsvGridImport({ treeId, onImported, onBack }: Props) {
   // that's already on screen, which matters since the id column is what
   // father_id/mother_id/spouse_id reference across rows.
   const nextRowNumber = useRef(INITIAL_ROWS + 1);
+  // Which father_id/mother_id/spouse_id cell (if any) has its "pick a
+  // person" dialog open.
+  const [pickerTarget, setPickerTarget] = useState<{ rowIndex: number; colIndex: number } | null>(null);
+  // A raw id value (whatever's actually sitting in the cell) -> the real
+  // person's name, filled in only when that value came from picking an
+  // existing tree member below — this is what turns an otherwise-opaque
+  // database id back into something readable in the grid. A plain
+  // same-grid row reference (a small typed number) never gets an entry
+  // here, which is fine: the row itself is right there on screen already.
+  const [resolvedNames, setResolvedNames] = useState<Record<string, string>>({});
+
+  const sexOptions = [
+    { value: "", label: t("csvGrid.blankOption") },
+    { value: "M", label: t("personFields.sexMale") },
+    { value: "F", label: t("personFields.sexFemale") },
+  ];
+  const unionTypeOptions = [
+    { value: "", label: t("csvGrid.blankOption") },
+    { value: "MARRIAGE", label: t("unionType.MARRIAGE") },
+    { value: "PARTNERSHIP", label: t("unionType.PARTNERSHIP") },
+    { value: "EXTRAMARITAL", label: t("unionType.EXTRAMARITAL") },
+  ];
+  const unionStatusOptions = [
+    { value: "", label: t("csvGrid.blankOption") },
+    { value: "ENDED_BY_DEATH", label: t("unionStatus.ENDED_BY_DEATH") },
+    { value: "DIVORCED", label: t("unionStatus.DIVORCED") },
+    { value: "SEPARATED", label: t("unionStatus.SEPARATED") },
+    { value: "ANNULLED", label: t("unionStatus.ANNULLED") },
+  ];
+  const SELECT_OPTIONS: Partial<Record<Column, { value: string; label: string }[]>> = {
+    sex: sexOptions,
+    union_type: unionTypeOptions,
+    union_status: unionStatusOptions,
+  };
 
   function updateCell(rowIndex: number, colIndex: number, value: string) {
     setRows((prev) => {
@@ -192,17 +237,69 @@ export default function CsvGridImport({ treeId, onImported, onBack }: Props) {
                     <Trash2Icon size={14} />
                   </button>
                 </td>
-                {row.map((cell, colIndex) => (
-                  <td key={colIndex}>
-                    <input
-                      type="text"
-                      value={cell}
-                      style={{ width: COLUMN_WIDTH[CSV_COLUMNS[colIndex]] }}
-                      onChange={(e) => updateCell(rowIndex, colIndex, e.target.value)}
-                      onPaste={(e) => handlePaste(rowIndex, colIndex, e)}
-                    />
-                  </td>
-                ))}
+                {row.map((cell, colIndex) => {
+                  const col = CSV_COLUMNS[colIndex];
+                  const width = COLUMN_WIDTH[col];
+
+                  if (ID_REF_COLUMNS.has(col)) {
+                    const resolved = cell.trim() ? resolvedNames[cell.trim()] : undefined;
+                    return (
+                      <td key={colIndex}>
+                        <div className="csv-grid-idref" style={{ width }}>
+                          <input
+                            type="text"
+                            value={cell}
+                            onChange={(e) => updateCell(rowIndex, colIndex, e.target.value)}
+                            onPaste={(e) => handlePaste(rowIndex, colIndex, e)}
+                          />
+                          <button
+                            type="button"
+                            className="csv-grid-idref-pick"
+                            onClick={() => setPickerTarget({ rowIndex, colIndex })}
+                            aria-label={t("csvGrid.pickPerson")}
+                            title={t("csvGrid.pickPerson")}
+                          >
+                            <SearchIcon size={13} />
+                          </button>
+                        </div>
+                        {resolved && <div className="csv-grid-idref-hint">→ {resolved}</div>}
+                      </td>
+                    );
+                  }
+
+                  const options = SELECT_OPTIONS[col];
+                  if (options) {
+                    return (
+                      <td key={colIndex}>
+                        <select
+                          value={cell}
+                          style={{ width }}
+                          onChange={(e) => updateCell(rowIndex, colIndex, e.target.value)}
+                        >
+                          {options.map((opt) => (
+                            <option key={opt.value} value={opt.value}>
+                              {opt.label}
+                            </option>
+                          ))}
+                        </select>
+                      </td>
+                    );
+                  }
+
+                  return (
+                    <td key={colIndex}>
+                      <input
+                        type="text"
+                        value={cell}
+                        style={{ width }}
+                        placeholder={DATE_COLUMNS.has(col) ? t("csvGrid.datePlaceholder") : undefined}
+                        title={DATE_COLUMNS.has(col) ? t("csvGrid.dateHint") : undefined}
+                        onChange={(e) => updateCell(rowIndex, colIndex, e.target.value)}
+                        onPaste={(e) => handlePaste(rowIndex, colIndex, e)}
+                      />
+                    </td>
+                  );
+                })}
               </tr>
             ))}
           </tbody>
@@ -225,6 +322,55 @@ export default function CsvGridImport({ treeId, onImported, onBack }: Props) {
           {importing ? t("gedcom.importing") : t("csvGrid.import")}
         </button>
       </div>
+
+      {pickerTarget && (
+        <div className="modal-backdrop" onClick={() => setPickerTarget(null)}>
+          <div className="modal-panel csv-grid-picker-panel" onClick={(e) => e.stopPropagation()}>
+            <h3>{t(`csvGrid.columns.${CSV_COLUMNS[pickerTarget.colIndex]}`)}</h3>
+
+            <p className="field-hint">{t("csvGrid.pickExistingHint")}</p>
+            <PersonPicker
+              treeId={treeId}
+              selectedName={null}
+              onSelect={(person) => {
+                updateCell(pickerTarget.rowIndex, pickerTarget.colIndex, person.id);
+                setResolvedNames((prev) => ({ ...prev, [person.id]: personLabel(person) }));
+                setPickerTarget(null);
+              }}
+            />
+
+            <p className="field-hint">{t("csvGrid.pickRowHint")}</p>
+            <ul className="csv-grid-picker-rows">
+              {rows.map((row, i) => {
+                if (i === pickerTarget.rowIndex) return null;
+                const rowId = row[0].trim();
+                if (!rowId) return null;
+                const name = `${row[1]} ${row[2]}`.trim();
+                return (
+                  <li key={i}>
+                    <button
+                      type="button"
+                      className="union-notes-edit-link"
+                      onClick={() => {
+                        updateCell(pickerTarget.rowIndex, pickerTarget.colIndex, rowId);
+                        setPickerTarget(null);
+                      }}
+                    >
+                      {name || t("csvGrid.unnamedRow", { n: i + 1 })}
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+
+            <div className="modal-actions">
+              <button type="button" onClick={() => setPickerTarget(null)}>
+                {t("common.close")}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

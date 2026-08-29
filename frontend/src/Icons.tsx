@@ -322,3 +322,14 @@ export function ExpandIcon({ size }: IconProps) {
     </Svg>
   );
 }
+
+// PhotoLightbox's close button — a real drawn glyph instead of a bare "×"
+// character, same stroke language as every other icon here.
+export function XIcon({ size }: IconProps) {
+  return (
+    <Svg size={size}>
+      <path d="M18 6 6 18" />
+      <path d="m6 6 12 12" />
+    </Svg>
+  );
+}

@@ -154,7 +154,9 @@
     "addDocument": "+ Dodaj dokument",
     "uploading": "Wysyłanie…",
     "deletePhoto": "Usuń zdjęcie",
-    "deleteDocument": "Usuń dokument"
+    "deleteDocument": "Usuń dokument",
+    "previousPhoto": "Poprzednie zdjęcie",
+    "nextPhoto": "Następne zdjęcie"
   },
   "personFields": {
     "photo": "Zdjęcie",
@@ -451,11 +453,18 @@
   },
   "csvGrid": {
     "title": "Wprowadź osoby w arkuszu",
-    "hint": "Wpisuj dane jak w arkuszu kalkulacyjnym: Tab przechodzi do następnej komórki, można też wkleić kilka komórek skopiowanych z Excela/Sheets naraz. Kolumna „ID” to tylko numer wiersza, dzięki któremu inne wiersze mogą się do niego odwołać przez „ID ojca”, „ID matki” lub „ID małżonka” — sama nie jest zapisywana.",
+    "hint": "Wpisuj dane jak w arkuszu kalkulacyjnym: Tab przechodzi do następnej komórki, można też wkleić kilka komórek skopiowanych z Excela/Sheets naraz. Kolumna „ID” to tylko numer wiersza, dzięki któremu inne wiersze mogą się do niego odwołać przez „ID ojca”, „ID matki” lub „ID małżonka” — sama nie jest zapisywana. W tych trzech kolumnach użyj przycisku wyszukiwania, aby wybrać kogoś, kto już jest w Twoim drzewie, albo inny wiersz z tego samego arkusza, zamiast wpisywać ID ręcznie.",
     "addRow": "+ Dodaj wiersz",
     "removeRow": "Usuń wiersz",
     "import": "Importuj",
     "emptyError": "Wypełnij przynajmniej jeden wiersz jakimiś danymi.",
+    "datePlaceholder": "RRRR-MM-DD, ~1930, <1930, >1930",
+    "dateHint": "Dokładna data (RRRR-MM-DD lub DD/MM/RRRR) albo sam rok. Opcjonalne przedrostki: ~ około, < przed, > po.",
+    "blankOption": "— Nie podano —",
+    "pickPerson": "Szukaj osoby",
+    "pickExistingHint": "Wybierz kogoś, kto już jest w Twoim drzewie:",
+    "pickRowHint": "Albo wybierz inny wiersz z tego samego arkusza:",
+    "unnamedRow": "Wiersz {{n}} (jeszcze bez imienia)",
     "columns": {
       "id": "ID",
       "given_names": "Imię/imiona",

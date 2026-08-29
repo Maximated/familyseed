@@ -1130,8 +1130,8 @@ export default async function individualRoutes(fastify: FastifyInstance) {
     }
 
     const tree = await prisma.tree.findUniqueOrThrow({ where: { id: treeId } });
-    const { people } = await buildTreeData(treeId);
-    const html = await renderReportHtml(people, rootIds, tree.name, direction, layout);
+    const { people, unions } = await buildTreeData(treeId);
+    const html = await renderReportHtml(people, unions, rootIds, tree.name, direction, layout);
     const pdf = await renderReportPdf(html);
 
     const byId = new Map(individuals.map((i) => [i.id, i]));

@@ -154,7 +154,9 @@
     "addDocument": "+ Añadir documento",
     "uploading": "Subiendo…",
     "deletePhoto": "Eliminar foto",
-    "deleteDocument": "Eliminar documento"
+    "deleteDocument": "Eliminar documento",
+    "previousPhoto": "Foto anterior",
+    "nextPhoto": "Foto siguiente"
   },
   "personFields": {
     "photo": "Fotografía",
@@ -451,11 +453,18 @@
   },
   "csvGrid": {
     "title": "Introducir personas en cuadrícula",
-    "hint": "Escribe los datos como en una hoja de cálculo: pulsa Tab para pasar a la siguiente celda, o pega directamente varias celdas copiadas de Excel/Sheets. La columna «ID» es solo un número de fila para poder referenciarla desde «ID padre», «ID madre» o «ID cónyuge» de otra fila — no se guarda como tal.",
+    "hint": "Escribe los datos como en una hoja de cálculo: pulsa Tab para pasar a la siguiente celda, o pega directamente varias celdas copiadas de Excel/Sheets. La columna «ID» es solo un número de fila para poder referenciarla desde «ID padre», «ID madre» o «ID cónyuge» de otra fila — no se guarda como tal. En esas tres columnas, usa el botón de buscar para elegir a alguien que ya esté en tu árbol, o a otra fila de esta misma cuadrícula, sin necesidad de escribir ningún ID a mano.",
     "addRow": "+ Añadir fila",
     "removeRow": "Quitar fila",
     "import": "Importar",
     "emptyError": "Rellena al menos una fila con algún dato.",
+    "datePlaceholder": "AAAA-MM-DD, ~1930, <1930, >1930",
+    "dateHint": "Fecha exacta (AAAA-MM-DD o DD/MM/AAAA), o un año solo. Prefijos opcionales: ~ hacia, < antes de, > después de.",
+    "blankOption": "— Sin especificar —",
+    "pickPerson": "Buscar persona",
+    "pickExistingHint": "Elige a alguien que ya esté en tu árbol:",
+    "pickRowHint": "O elige otra fila de esta misma cuadrícula:",
+    "unnamedRow": "Fila {{n}} (sin nombre todavía)",
     "columns": {
       "id": "ID",
       "given_names": "Nombre",

@@ -2596,7 +2596,8 @@ body {
   text-align: center !important;
 }
 
-.csv-grid-table input {
+.csv-grid-table input,
+.csv-grid-table select {
   box-sizing: border-box;
   width: 100%;
   min-width: 0;
@@ -2609,10 +2610,69 @@ body {
   font-family: inherit;
 }
 
-.csv-grid-table input:focus {
+.csv-grid-table input:focus,
+.csv-grid-table select:focus {
   outline: none;
   border-color: var(--color-amber);
   background: var(--color-bg);
+}
+
+/* father_id/mother_id/spouse_id: the plain text input (still there for a
+   typed same-grid row number) plus a search button that opens the picker
+   dialog below — .csv-grid-idref-hint under it resolves the id back to a
+   name once it's a real picked person, since a raw id string on its own
+   answers nothing about who it points to. */
+.csv-grid-idref {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 0.15rem;
+}
+
+.csv-grid-idref input {
+  width: 0;
+  flex: 1;
+}
+
+.csv-grid-idref-pick {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--color-forest);
+  cursor: pointer;
+}
+
+.csv-grid-idref-pick:hover {
+  color: var(--color-amber);
+}
+
+.csv-grid-idref-hint {
+  padding: 0 0.35rem;
+  font-size: 0.68rem;
+  color: var(--color-text-secondary);
+  white-space: normal;
+}
+
+.csv-grid-picker-panel {
+  width: 420px;
+}
+
+.csv-grid-picker-rows {
+  list-style: none;
+  margin: 0 0 0.75rem;
+  padding: 0;
+  max-height: 160px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
 }
 
 .csv-grid-toolbar {
@@ -2850,9 +2910,16 @@ body {
   animation: photo-lightbox-fade-in 180ms ease both;
 }
 
+/* A definite width/height plus object-fit (not max-width/max-height alone)
+   so a photo actually grows to fill most of the screen — max-* only ever
+   caps a size, it never scales anything up, so a modestly-sized upload
+   used to open at the same size it already showed in the grid thumbnail
+   (reported: "apenas se amplían"). This scales both up and down to match,
+   capped so it doesn't get absurdly huge on a large monitor. */
 .photo-lightbox-image {
-  max-width: min(90vw, 900px);
-  max-height: 90vh;
+  width: min(94vw, 1400px);
+  height: min(88vh, 1400px);
+  object-fit: contain;
   border-radius: 4px;
   cursor: default;
   animation: photo-lightbox-zoom-in 220ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
@@ -2890,23 +2957,97 @@ body {
   }
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .photo-lightbox-backdrop,
+  .photo-lightbox-image {
+    animation: none;
+  }
+}
+
+/* A dark circle (not the old translucent-white one) so it reads clearly
+   against a bright photo reaching right up to it, not just against the
+   dark backdrop — that plus env() safe-area insets is what was making it
+   effectively invisible on an installed PWA (reported: "no se ve la X"),
+   where a notch/status bar can sit right over a bare `top: 1rem`. 44px,
+   the same touch-target floor used everywhere else in the app. */
 .photo-lightbox-close {
   position: fixed;
-  top: 1rem;
-  right: 1.25rem;
-  width: 40px;
-  height: 40px;
+  top: max(1rem, env(safe-area-inset-top));
+  right: max(1.25rem, env(safe-area-inset-right));
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
   border: none;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.15);
+  background: rgba(0, 0, 0, 0.55);
   color: #fff;
-  font-size: 1.375rem;
-  line-height: 1;
   cursor: pointer;
+  transition: background 150ms ease, transform 150ms ease;
 }
 
 .photo-lightbox-close:hover {
-  background: rgba(255, 255, 255, 0.3);
+  background: rgba(0, 0, 0, 0.75);
+}
+
+.photo-lightbox-close:active {
+  transform: scale(0.92);
+}
+
+/* Slideshow nav — only rendered when the lightbox opened from a gallery
+   with more than one photo (see PhotoLightbox.tsx's `gallery` prop).
+   Floats over the photo's own edges rather than squeezing the image
+   narrower to make room, the same trade-off almost every photo viewer
+   makes since the alternative (shrinking the photo) undercuts the whole
+   "make it bigger" fix right above. */
+.photo-lightbox-nav {
+  position: fixed;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.45);
+  color: #fff;
+  cursor: pointer;
+  transition: background 150ms ease, transform 150ms ease;
+}
+
+.photo-lightbox-nav:hover {
+  background: rgba(0, 0, 0, 0.7);
+}
+
+.photo-lightbox-nav:active {
+  transform: translateY(-50%) scale(0.92);
+}
+
+.photo-lightbox-prev {
+  left: max(1rem, env(safe-area-inset-left));
+}
+
+.photo-lightbox-next {
+  right: max(1rem, env(safe-area-inset-right));
+}
+
+.photo-lightbox-counter {
+  position: fixed;
+  bottom: max(1.25rem, env(safe-area-inset-bottom));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 5;
+  padding: 0.3rem 0.8rem;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.45);
+  color: #fff;
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
 }
 
 .modal-panel {

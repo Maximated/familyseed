@@ -307,16 +307,14 @@ export function parseCsvFile(text: string): ParsedCsvIndividual[] {
     };
   });
 
+  // father_id/mother_id/spouse_id no longer have to match another row's own
+  // id in *this* file — importCsvIntoTree below also accepts the real
+  // database id of someone who already exists in the tree (so a batch can
+  // attach new people to someone who isn't part of this file at all), which
+  // this function has no way to check without a database. Only the
+  // same-file self-reference is still worth catching this early, since it's
+  // never valid either way.
   for (const ind of individuals) {
-    if (ind.fatherCsvId && !seenIds.has(ind.fatherCsvId)) {
-      throw new Error(`father_id "${ind.fatherCsvId}" no corresponde a ningún id de este archivo`);
-    }
-    if (ind.motherCsvId && !seenIds.has(ind.motherCsvId)) {
-      throw new Error(`mother_id "${ind.motherCsvId}" no corresponde a ningún id de este archivo`);
-    }
-    if (ind.spouseCsvId && !seenIds.has(ind.spouseCsvId)) {
-      throw new Error(`spouse_id "${ind.spouseCsvId}" no corresponde a ningún id de este archivo`);
-    }
     if (ind.spouseCsvId && ind.csvId === ind.spouseCsvId) {
       throw new Error(`Fila con id "${ind.csvId}": spouse_id no puede apuntar a la misma persona`);
     }
@@ -380,13 +378,44 @@ export async function importCsvIntoTree(
         await deriveLineagesFromSurnames(tx, treeId, row.id, [ind.surname1, ind.surname1BirthName]);
       }
 
+      // father_id/mother_id/spouse_id can reference either another row's
+      // own `id` in this same file, or the real database id of someone who
+      // already exists in this tree — lets a hand-typed batch attach new
+      // people to someone who isn't part of this file at all (e.g. adding
+      // a few children to a parent who's already in the tree), not just to
+      // each other. Resolved once up front, before any Family row is
+      // touched, so a bad reference fails the whole import cleanly instead
+      // of leaving a partial batch behind (the transaction rolls back
+      // regardless, but the error reads the same either way).
+      const resolvedRefs = new Map<string, string>();
+      async function resolveRef(ref: string, label: string): Promise<string> {
+        const cached = resolvedRefs.get(ref);
+        if (cached) return cached;
+        const local = csvIdToDbId.get(ref);
+        const resolved =
+          local ??
+          (await tx.individual.findFirst({ where: { id: ref, treeId, deletedAt: null } }))?.id;
+        if (!resolved) {
+          throw new Error(
+            `${label} "${ref}" no corresponde a ningún id de este archivo ni a una persona ya existente en este árbol`,
+          );
+        }
+        resolvedRefs.set(ref, resolved);
+        return resolved;
+      }
+      for (const ind of parsed) {
+        if (ind.fatherCsvId) await resolveRef(ind.fatherCsvId, "father_id");
+        if (ind.motherCsvId) await resolveRef(ind.motherCsvId, "mother_id");
+        if (ind.spouseCsvId) await resolveRef(ind.spouseCsvId, "spouse_id");
+      }
+
       // Group children by (father, mother) pair so siblings share one
       // Family row instead of getting one each.
       const familyKeyToChildren = new Map<string, { partner1Id: string | null; partner2Id: string | null; childIds: string[] }>();
       for (const ind of parsed) {
         if (!ind.fatherCsvId && !ind.motherCsvId) continue;
-        const partner1Id = ind.fatherCsvId ? (csvIdToDbId.get(ind.fatherCsvId) ?? null) : null;
-        const partner2Id = ind.motherCsvId ? (csvIdToDbId.get(ind.motherCsvId) ?? null) : null;
+        const partner1Id = ind.fatherCsvId ? (resolvedRefs.get(ind.fatherCsvId) ?? null) : null;
+        const partner2Id = ind.motherCsvId ? (resolvedRefs.get(ind.motherCsvId) ?? null) : null;
         const childId = ind.csvId ? csvIdToDbId.get(ind.csvId) : undefined;
         if (!childId) continue;
 
@@ -423,7 +452,7 @@ export async function importCsvIntoTree(
       for (const ind of parsed) {
         if (!ind.spouseCsvId || !ind.csvId) continue;
         const selfId = csvIdToDbId.get(ind.csvId);
-        const spouseId = csvIdToDbId.get(ind.spouseCsvId);
+        const spouseId = resolvedRefs.get(ind.spouseCsvId);
         if (!selfId || !spouseId) continue;
 
         const pairKey = [selfId, spouseId].sort().join("|");

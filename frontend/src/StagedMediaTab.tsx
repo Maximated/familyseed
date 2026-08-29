@@ -29,7 +29,7 @@ type Props = {
 export default function StagedMediaTab({ type, items, onChange }: Props) {
   const { t } = useTranslation();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [converting, setConverting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -71,7 +71,7 @@ export default function StagedMediaTab({ type, items, onChange }: Props) {
               <img
                 src={item.previewUrl}
                 alt={item.name}
-                onClick={() => item.previewUrl && setLightboxUrl(item.previewUrl)}
+                onClick={() => item.previewUrl && setLightboxIndex(index)}
                 style={{ cursor: "zoom-in" }}
               />
               <button
@@ -124,7 +124,14 @@ export default function StagedMediaTab({ type, items, onChange }: Props) {
         onChange={handleFileChange}
         style={{ display: "none" }}
       />
-      {lightboxUrl && <PhotoLightbox src={lightboxUrl} onClose={() => setLightboxUrl(null)} />}
+      {lightboxIndex !== null && items[lightboxIndex]?.previewUrl && (
+        <PhotoLightbox
+          src={items[lightboxIndex].previewUrl!}
+          alt={items[lightboxIndex].name}
+          onClose={() => setLightboxIndex(null)}
+          gallery={{ total: items.length, index: lightboxIndex, onNavigate: setLightboxIndex }}
+        />
+      )}
     </div>
   );
 }
