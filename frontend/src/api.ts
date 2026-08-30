@@ -821,6 +821,13 @@ export async function addFamilyChild(treeId: string, familyId: string, individua
   await throwIfNotOk(res);
 }
 
+// Inverse of addFamilyChild — unlinks a child from this specific union
+// without touching the child or either partner.
+export async function removeFamilyChild(treeId: string, familyId: string, individualId: string): Promise<void> {
+  const res = await apiFetch(`/trees/${treeId}/families/${familyId}/children/${individualId}`, { method: "DELETE" });
+  await throwIfNotOk(res);
+}
+
 export type SpouseChildCandidate = { id: string; givenNames: string; surname1: string };
 
 // Children already linked to just one of this union's partners through a

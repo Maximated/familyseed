@@ -333,6 +333,40 @@ export default async function familyRoutes(fastify: FastifyInstance) {
     return reply.code(204).send();
   });
 
+  // Inverse of the above — unlinks a child from this specific union.
+  // Unlike detachParent (POST /individuals/:id/parents' own delete
+  // counterpart), there's no "other parent" slot to preserve here: this
+  // union is already fixed to its own two partners, so removing a child
+  // just means dropping the join row. Never touches the Individual or
+  // either partner.
+  fastify.delete("/:id/children/:individualId", async (request, reply) => {
+    const { id, individualId } = request.params as { id: string; individualId: string };
+    const treeId = request.treeId!;
+
+    const family = await prisma.family.findFirst({ where: { id, treeId } });
+    if (!family) {
+      return reply.code(404).send({ error: `No existe la unión ${id}` });
+    }
+    const link = await prisma.familyChild.findUnique({
+      where: { familyId_individualId: { familyId: id, individualId } },
+    });
+    if (!link) {
+      return reply.code(404).send({ error: "Esa persona no es hijo/a de esta unión" });
+    }
+
+    await prisma.familyChild.delete({ where: { id: link.id } });
+
+    await logChange({
+      treeId,
+      userId: request.userId ?? null,
+      action: "family.removeChild",
+      entityType: "Family",
+      entityId: id,
+    });
+
+    return reply.code(204).send();
+  });
+
   // A child added before the second parent was ever linked ends up as the
   // sole child of a "single-parent" Family row (partner2Id null) instead of
   // this — the real, both-parents — union. Deliberately scoped to

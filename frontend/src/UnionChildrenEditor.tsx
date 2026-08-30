@@ -1,6 +1,14 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { addFamilyChild, copySpouseChildren, getSpouseChildCandidates, type Individual, type SpouseChildCandidate } from "./api";
+import {
+  addFamilyChild,
+  copySpouseChildren,
+  getSpouseChildCandidates,
+  removeFamilyChild,
+  type Individual,
+  type SpouseChildCandidate,
+} from "./api";
+import { Trash2Icon } from "./Icons";
 import PersonPicker from "./PersonPicker";
 
 export type UnionChild = { id: string; name: string };
@@ -60,6 +68,17 @@ export default function UnionChildrenEditor({ treeId, familyId, partner1Id, part
     }
   }
 
+  async function handleRemove(childId: string) {
+    setError(null);
+    try {
+      await removeFamilyChild(treeId, familyId, childId);
+      setChildren((prev) => prev.filter((c) => c.id !== childId));
+      onSaved();
+    } catch (err) {
+      setError((err as Error).message);
+    }
+  }
+
   async function handleCopySpouseChildren() {
     setError(null);
     setCopying(true);
@@ -81,9 +100,20 @@ export default function UnionChildrenEditor({ treeId, familyId, partner1Id, part
       {children.length === 0 ? (
         <p className="field-hint">{t("editPerson.noChildren")}</p>
       ) : (
-        <ul className="info-panel-bullets">
+        <ul className="edit-parents-list">
           {children.map((child) => (
-            <li key={child.id}>{child.name}</li>
+            <li key={child.id}>
+              <span>{child.name}</span>
+              <button
+                type="button"
+                className="icon-button"
+                onClick={() => handleRemove(child.id)}
+                aria-label={t("editPerson.removeChild")}
+                title={t("editPerson.removeChild")}
+              >
+                <Trash2Icon size={14} />
+              </button>
+            </li>
           ))}
         </ul>
       )}

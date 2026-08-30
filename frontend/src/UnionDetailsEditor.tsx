@@ -96,9 +96,16 @@ export default function UnionDetailsEditor({ treeId, familyId, initial, onSaved 
     // reasoning as birth/death dates: trust what was actually typed.
     // Falling back to the structured value+precision means a date entered
     // solely via the picker still shows here instead of "unknown".
+    // "ABOUT" shows year-only (same as an approximate birth/death date) —
+    // a day/month never recorded as exact would otherwise read as false
+    // precision once "c." is in front of it.
     const displayDate =
       unionDateText ||
-      (unionDateValue ? (unionDatePrecision === "ABOUT" ? t("common.circaDate", { date: unionDateValue }) : unionDateValue) : "");
+      (unionDateValue
+        ? unionDatePrecision === "ABOUT"
+          ? t("common.circaYear", { year: unionDateValue.slice(0, 4) })
+          : unionDateValue
+        : "");
     // Reads local state, not the `initial` prop — see UnionNotesEditor for
     // why (the prop is a snapshot from when the panel opened and never
     // updates for an already-mounted panel).

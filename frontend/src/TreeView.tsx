@@ -735,11 +735,14 @@ function buildUnionInfoPanel(union: UnionInfo, people: TreePerson[]): InfoPanelD
   // death dates above — falls back to the structured date+precision so a
   // date entered solely via the picker still shows on hover instead of
   // "unknown".
+  // An "ABOUT" union date shows year-only, same as an approximate birth/
+  // death date (see yearLabel) — a day/month the user never actually
+  // recorded as exact reads as false precision once "c." is in front of it.
   const unionDisplayDate =
     union.unionDateText ||
     (union.unionDateValue
       ? union.unionDatePrecision === "ABOUT"
-        ? i18n.t("common.circaDate", { date: union.unionDateValue.slice(0, 10) })
+        ? i18n.t("common.circaYear", { year: union.unionDateValue.slice(0, 4) })
         : union.unionDateValue.slice(0, 10)
       : "");
 
@@ -1607,6 +1610,106 @@ function App() {
     linkTextCleanupRef.current.push(() => {
       window.clearTimeout(settleTimer);
       observer.disconnect();
+    });
+
+    // A person with children from two or more marriages otherwise has every
+    // descent trunk drawn identically by family-chart (same row depth, same
+    // color) — the only thing telling them apart on screen is how far apart
+    // their two anchor points happen to land, which reads as one confusing
+    // tangle once several children from each union are interleaved. Unlike
+    // the union-line overlap problem above (an "offset lane" per union was
+    // tried there and explicitly rejected for not scaling), this doesn't
+    // need exclusive-zone math: each marriage's trunk already starts from
+    // its own anchor point, so nudging the row a little closer to the
+    // parents (further per extra marriage) plus a distinct color is enough
+    // to read as separate groups at a glance. Scoped to order 2+ only — a
+    // person's first (and, overwhelmingly commonly, only) marriage is left
+    // exactly as family-chart renders it, so this never touches the common
+    // case.
+    const MARRIAGE_LINE_COLORS = ["var(--color-amber-strong)", "var(--color-union-highlight)"];
+    const MARRIAGE_ROW_OFFSET_STEP = 18;
+
+    const descentEntries: { p: SVGPathElement; order: number }[] = [];
+    container.querySelectorAll<SVGPathElement>("path.link:not(.union-line)").forEach((p) => {
+      const datum = (p as unknown as { __data__?: PathLinkDatum }).__data__;
+      if (!datum || !Array.isArray(datum.source)) return;
+      const [d0, other] = datum.source;
+      const id0 = d0?.data?.id;
+      const id1 = (other ?? d0)?.data?.id;
+      // A single-parent family (no other partner on record) leaves both
+      // slots pointing at the very same node — see handleProgenySide's own
+      // `other_parent = otherParent(child, d) || d` fallback in family-
+      // chart — so there's no second marriage to disambiguate against here.
+      if (!id0 || !id1 || id0 === id1) return;
+      const union = unionsByPairKeyRef.current.get(pairKey(id0, id1));
+      if (!union || union.order < 2) {
+        p.style.stroke = "";
+        return;
+      }
+      descentEntries.push({ p, order: union.order });
+    });
+
+    const lastAppliedDescentD = new Map<SVGPathElement, string>();
+    const applyMarriageLineOffsets = () => {
+      const isHorizontal = orientationRef.current === "horizontal";
+      descentEntries.forEach(({ p, order }) => {
+        const datum = (p as unknown as { __data__?: PathLinkDatum }).__data__;
+        if (!datum || !Array.isArray(datum.source)) return;
+        const [d0, other] = datum.source;
+        const target = datum.target;
+        // Mirrors family-chart's own handleProgenySide formula exactly
+        // (parent_pos = {x: other_parent.sx, y: d.y} in vertical mode, axes
+        // swapped in horizontal mode) — `.sx` is the one coordinate that
+        // stays meaningful regardless of orientation (see the only-child
+        // fix's own comment on `.sx` above for why), so reading it here
+        // reconstructs the same anchor point family-chart already laid out,
+        // without duplicating its internal otherParent() lookup.
+        const anchorSpread = (other ?? d0)?.sx;
+        const anchorDepth = isHorizontal ? d0?.x : d0?.y;
+        const childDepth = isHorizontal ? target?.x : target?.y;
+        const childSpread = isHorizontal ? target?.y : target?.x;
+        if (
+          typeof anchorSpread !== "number" ||
+          typeof anchorDepth !== "number" ||
+          typeof childDepth !== "number" ||
+          typeof childSpread !== "number"
+        ) {
+          return;
+        }
+        // Capped well short of the parent row itself so even a third or
+        // fourth marriage's trunk can never visually cross into the row
+        // above.
+        const halfGap = Math.abs(anchorDepth - childDepth) / 2;
+        const offset = Math.min((order - 1) * MARRIAGE_ROW_OFFSET_STEP, halfGap * 0.4);
+        const elbow = childDepth + (anchorDepth - childDepth) / 2 + Math.sign(anchorDepth - childDepth) * offset;
+        const point = (depthVal: number, spreadVal: number) =>
+          isHorizontal ? `${depthVal},${spreadVal}` : `${spreadVal},${depthVal}`;
+        const d = `M${point(childDepth, childSpread)}L${point(elbow, childSpread)}L${point(elbow, anchorSpread)}L${point(anchorDepth, anchorSpread)}`;
+        lastAppliedDescentD.set(p, d);
+        p.setAttribute("d", d);
+        p.style.stroke = MARRIAGE_LINE_COLORS[(order - 2) % MARRIAGE_LINE_COLORS.length];
+      });
+    };
+    applyMarriageLineOffsets();
+
+    // Same settle problem every other override in this function has: family-
+    // chart's own transition redraws these same paths back to its default
+    // elbow/color on later passes of the same logical update, so only a
+    // settle that keeps reasserting the override survives.
+    let marriageLineSettleTimer: number | undefined;
+    const scheduleMarriageLineOffsets = () => {
+      window.clearTimeout(marriageLineSettleTimer);
+      marriageLineSettleTimer = window.setTimeout(applyMarriageLineOffsets, 120);
+    };
+    const marriageLinesDrifted = () =>
+      descentEntries.some(({ p }) => p.getAttribute("d") !== lastAppliedDescentD.get(p));
+    const marriageLineObserver = new MutationObserver(() => {
+      if (marriageLinesDrifted()) scheduleMarriageLineOffsets();
+    });
+    descentEntries.forEach(({ p }) => marriageLineObserver.observe(p, { attributes: true, attributeFilter: ["d"] }));
+    linkTextCleanupRef.current.push(() => {
+      window.clearTimeout(marriageLineSettleTimer);
+      marriageLineObserver.disconnect();
     });
 
     unionLineEntries.forEach((entry) => {
