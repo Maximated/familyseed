@@ -92,6 +92,7 @@ export default function UnionChildrenEditor({ treeId, familyId, partner1Id, part
           treeId={treeId}
           selectedName={null}
           excludeIds={[partner1Id, partner2Id, ...children.map((c) => c.id)]}
+          excludeAncestorsOf={[partner1Id, partner2Id]}
           onSelect={handleAdd}
         />
       ) : (

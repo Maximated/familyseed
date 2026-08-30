@@ -269,6 +269,24 @@ export function walkGraph(
   return visited;
 }
 
+// True if recording `parentCandidateId` as a parent of `childId` would make
+// someone their own ancestor — i.e. `childId` is already among
+// `parentCandidateId`'s own ancestors, which this new edge would turn into a
+// loop the other way too. Reported case: searching "Katarzyna Wysopal" to
+// link a daughter of Antoni's turned up several same-named people in the
+// tree, including Antoni's own (long-dead) mother — linking her back as his
+// child made the tree an unrenderable cycle with no way to fix it except a
+// direct database edit, since opening the tree to undo it is what hung.
+// Mirrors relationshipGuards.ts's own cycle check on the frontend (used
+// before every addParent call there) — this is the same rule for the
+// routes that don't already have that tree loaded client-side, and the
+// only guard at all for family-child links, which never went through that
+// frontend check to begin with.
+export function wouldCreateAncestryCycle(people: TreePerson[], parentCandidateId: string, childId: string): boolean {
+  if (parentCandidateId === childId) return true;
+  return walkGraph(people, parentCandidateId, "up").has(childId);
+}
+
 // walkGraph only ever follows rels.parents/rels.children — someone who
 // married into the family but shares no blood ancestor/descendant with the
 // walked person is never reached by it at all. Every ancestors/descendants-

@@ -11,7 +11,7 @@ import {
 } from "../enums.js";
 import { logChange } from "../tree-context.js";
 import { deleteUploadByUrl, saveUpload } from "../uploads.js";
-import { buildTreeData } from "../tree-data.js";
+import { buildTreeData, walkGraph, wouldCreateAncestryCycle } from "../tree-data.js";
 import { renderReportHtml, renderReportPdf, type ReportDirection, type ReportLayout } from "../report.js";
 import { downloadFilename } from "../filename.js";
 
@@ -396,18 +396,39 @@ export default async function individualRoutes(fastify: FastifyInstance) {
   // exposes (lineage chips, birth years for the timeline) — this is a
   // second view over that data, not a new filtering concept.
   fastify.get("/", async (request) => {
-    const { search, trashed, lineageId, birthYearFrom, birthYearTo, place, sex, missingBirth, missingDeath } =
-      request.query as {
-        search?: string;
-        trashed?: string;
-        lineageId?: string;
-        birthYearFrom?: string;
-        birthYearTo?: string;
-        place?: string;
-        sex?: string;
-        missingBirth?: string;
-        missingDeath?: string;
-      };
+    const {
+      search,
+      trashed,
+      lineageId,
+      birthYearFrom,
+      birthYearTo,
+      place,
+      sex,
+      missingBirth,
+      missingDeath,
+      excludeAncestorsOf,
+      excludeDescendantsOf,
+    } = request.query as {
+      search?: string;
+      trashed?: string;
+      lineageId?: string;
+      birthYearFrom?: string;
+      birthYearTo?: string;
+      place?: string;
+      sex?: string;
+      missingBirth?: string;
+      missingDeath?: string;
+      // Comma-separated individual ids. Used when picking someone to link
+      // as a *child* of these people (excludeAncestorsOf — their own
+      // ancestors can never also be their child) or as a *parent* of these
+      // people (excludeDescendantsOf — their own descendants can never also
+      // be their parent). Keeps the exact mistake this was added for (an
+      // ancestor picked by mistake instead of an actual child, closing a
+      // cycle) out of the suggestion list to begin with, rather than only
+      // rejecting it after the fact like wouldCreateAncestryCycle below.
+      excludeAncestorsOf?: string;
+      excludeDescendantsOf?: string;
+    };
     const treeId = request.treeId!;
 
     const and: Array<Record<string, unknown>> = [];
@@ -462,10 +483,29 @@ export default async function individualRoutes(fastify: FastifyInstance) {
     // (family-chart only renders what's reachable from the centered
     // person) — surfaced here so the search view can flag "still needs
     // linking" instead of the user having to guess why someone's missing.
-    return rows.map(({ _count, ...individual }) => ({
+    const mapped = rows.map(({ _count, ...individual }) => ({
       ...individual,
       hasNoRelationships: _count.childOf === 0 && _count.familiesAsPartner1 === 0 && _count.familiesAsPartner2 === 0,
     }));
+
+    if (!excludeAncestorsOf && !excludeDescendantsOf) return mapped;
+
+    // Only loads the full graph when actually needed (these two params are
+    // opt-in, most callers of this list never pass them) — same data
+    // wouldCreateAncestryCycle checks against below, just used here to keep
+    // the impossible choice out of the list rather than only rejecting it
+    // after the fact.
+    const { people } = await buildTreeData(treeId);
+    const excludedIds = new Set<string>();
+    for (const id of excludeAncestorsOf?.split(",").filter(Boolean) ?? []) {
+      excludedIds.add(id);
+      for (const ancestorId of walkGraph(people, id, "up").keys()) excludedIds.add(ancestorId);
+    }
+    for (const id of excludeDescendantsOf?.split(",").filter(Boolean) ?? []) {
+      excludedIds.add(id);
+      for (const descendantId of walkGraph(people, id, "down").keys()) excludedIds.add(descendantId);
+    }
+    return mapped.filter((individual) => !excludedIds.has(individual.id));
   });
 
   fastify.get("/:id", async (request, reply) => {
@@ -855,6 +895,11 @@ export default async function individualRoutes(fastify: FastifyInstance) {
     const parent = await prisma.individual.findFirst({ where: { id: parentId, treeId, deletedAt: null } });
     if (!parent) {
       return reply.code(404).send({ error: `No existe el individuo ${parentId}` });
+    }
+
+    const { people } = await buildTreeData(treeId);
+    if (wouldCreateAncestryCycle(people, parentId, id)) {
+      return reply.code(400).send({ error: "Esa persona ya es descendiente de este individuo — no puede ser también su padre/madre" });
     }
 
     try {

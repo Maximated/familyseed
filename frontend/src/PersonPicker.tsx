@@ -9,6 +9,12 @@ type Props = {
   // Hides these from the results — e.g. the person you're already editing,
   // so they can't be picked as their own parent/partner/child.
   excludeIds?: string[];
+  // Hides these people's own ancestors/descendants too (not just the ids
+  // themselves) — for a "pick a child" search, pass the people this new
+  // child would belong to here as excludeAncestorsOf, and the reverse for a
+  // "pick a parent" search. See IndividualFilters' own comment for why.
+  excludeAncestorsOf?: string[];
+  excludeDescendantsOf?: string[];
 };
 
 function personLine(p: Individual): string {
@@ -20,7 +26,14 @@ function personLine(p: Individual): string {
 // A minimal search-and-pick box — reused wherever a home-screen action
 // (PDF report, GEDCOM export) needs "which person" before it can proceed,
 // since outside a tree there's no "currently centered person" to default to.
-export default function PersonPicker({ treeId, selectedName, onSelect, excludeIds }: Props) {
+export default function PersonPicker({
+  treeId,
+  selectedName,
+  onSelect,
+  excludeIds,
+  excludeAncestorsOf,
+  excludeDescendantsOf,
+}: Props) {
   const { t } = useTranslation();
   const [search, setSearch] = useState("");
   const [results, setResults] = useState<Individual[]>([]);
@@ -33,7 +46,7 @@ export default function PersonPicker({ treeId, selectedName, onSelect, excludeId
     }
     let cancelled = false;
     const timeout = setTimeout(() => {
-      fetchIndividuals(treeId, { search: search.trim() })
+      fetchIndividuals(treeId, { search: search.trim(), excludeAncestorsOf, excludeDescendantsOf })
         .then((people) => {
           if (!cancelled) setResults(excludeIds ? people.filter((p) => !excludeIds.includes(p.id)) : people);
         })
@@ -45,7 +58,13 @@ export default function PersonPicker({ treeId, selectedName, onSelect, excludeId
       cancelled = true;
       clearTimeout(timeout);
     };
-  }, [treeId, search]);
+    // excludeAncestorsOf/excludeDescendantsOf are joined to strings here
+    // rather than depended on directly — most callers pass a fresh array
+    // literal on every render, which would otherwise re-trigger this fetch
+    // (still correct, just wasteful) even when the actual ids haven't
+    // changed.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [treeId, search, excludeAncestorsOf?.join(","), excludeDescendantsOf?.join(",")]);
 
   if (selectedName && !open) {
     return (

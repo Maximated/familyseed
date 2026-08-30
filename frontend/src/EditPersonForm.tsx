@@ -486,6 +486,7 @@ export default function EditPersonForm({
                     selectedName={null}
                     onSelect={handleAddParent}
                     excludeIds={[personId, ...parents.map((p) => p.id)]}
+                    excludeDescendantsOf={[personId]}
                   />
                 ) : (
                   <button type="button" className="union-notes-edit-link" onClick={() => setAddingParent(true)}>
@@ -595,6 +596,7 @@ export default function EditPersonForm({
                   selectedName={null}
                   onSelect={handleAddChild}
                   excludeIds={[personId, ...children.map((c) => c.id)]}
+                  excludeAncestorsOf={[personId]}
                 />
               ) : (
                 <button type="button" className="union-notes-edit-link" onClick={() => setAddingChild(true)}>

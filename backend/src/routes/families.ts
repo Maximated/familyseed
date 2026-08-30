@@ -3,6 +3,7 @@ import { prisma } from "../db.js";
 import { HttpError } from "../http-error.js";
 import { CHILD_RELATION_TYPE_VALUES, DATE_PRECISION_VALUES, UNION_STATUS_VALUES, UNION_TYPE_VALUES } from "../enums.js";
 import { logChange } from "../tree-context.js";
+import { buildTreeData, wouldCreateAncestryCycle } from "../tree-data.js";
 
 const addFamilyChildBodySchema = {
   type: "object",
@@ -294,6 +295,24 @@ export default async function familyRoutes(fastify: FastifyInstance) {
     const child = await prisma.individual.findFirst({ where: { id: individualId, treeId, deletedAt: null } });
     if (!child) {
       return reply.code(404).send({ error: `No existe el individuo ${individualId}` });
+    }
+
+    // Reported case: linking a same-named-but-wrong person here (an
+    // ancestor of one of the two partners, picked by mistake instead of
+    // their actual child) makes them their own ancestor — a cycle that
+    // leaves the tree unrenderable. Unlike POST /individuals/:id/parents,
+    // nothing upstream of this endpoint checks for that (UnionChildrenEditor
+    // calls it directly, with no client-side guard either), so this is the
+    // only place preventing it.
+    const { people } = await buildTreeData(treeId);
+    const partnerIds = [family.partner1Id, family.partner2Id].filter((pid): pid is string => pid !== null);
+    // Each partner would become individualId's parent here — checks whether
+    // individualId (the candidate child) is already one of *that partner's*
+    // own ancestors (parentCandidateId=pid, childId=individualId; see
+    // wouldCreateAncestryCycle's own doc comment for which way round this
+    // reads).
+    if (partnerIds.some((pid) => wouldCreateAncestryCycle(people, pid, individualId))) {
+      return reply.code(400).send({ error: "Esa persona ya es antepasado/a de esta unión — no puede ser también su hijo/a" });
     }
 
     await prisma.familyChild.upsert({

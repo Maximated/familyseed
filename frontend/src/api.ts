@@ -398,6 +398,13 @@ export type IndividualFilters = {
   sex?: Sex;
   missingBirth?: boolean;
   missingDeath?: boolean;
+  // Keeps someone's own ancestors out of a "pick a child for them" search,
+  // or their own descendants out of a "pick a parent for them" search —
+  // either would close an impossible ancestry loop (see
+  // wouldCreateAncestryCycle on the backend, which rejects it if picked
+  // anyway; this is what keeps it from being offered as a choice at all).
+  excludeAncestorsOf?: string[];
+  excludeDescendantsOf?: string[];
 };
 
 export async function fetchIndividuals(treeId: string, filters?: IndividualFilters): Promise<Individual[]> {
@@ -409,6 +416,8 @@ export async function fetchIndividuals(treeId: string, filters?: IndividualFilte
   if (filters?.missingDeath) params.set("missingDeath", "true");
   if (filters?.birthYearFrom) params.set("birthYearFrom", String(filters.birthYearFrom));
   if (filters?.birthYearTo) params.set("birthYearTo", String(filters.birthYearTo));
+  if (filters?.excludeAncestorsOf?.length) params.set("excludeAncestorsOf", filters.excludeAncestorsOf.join(","));
+  if (filters?.excludeDescendantsOf?.length) params.set("excludeDescendantsOf", filters.excludeDescendantsOf.join(","));
   if (filters?.place) params.set("place", filters.place);
   const qs = params.toString();
   const res = await apiFetch(`/trees/${treeId}/individuals${qs ? `?${qs}` : ""}`);
