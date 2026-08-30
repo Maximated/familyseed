@@ -2032,8 +2032,12 @@ function App() {
         // started landing on a card's own text — worst in horizontal mode
         // (governed by this same y-axis knob, hence the further +20 to 205
         // below), but requested for vertical mode's own union-line length
-        // too, hence the matching x-axis bump.
-        chart.setCardYSpacing(205);
+        // too, hence the matching x-axis bump. +20 again (225) once
+        // .card-name started wrapping a long double surname onto a second
+        // line instead of truncating it — same reasoning, one more line of
+        // text below the avatar needs the same amount more clearance above
+        // the row underneath it.
+        chart.setCardYSpacing(225);
         chart.setCardXSpacing(265);
 
         // family-chart always creates a <text> here regardless of what this

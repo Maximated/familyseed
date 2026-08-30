@@ -505,8 +505,12 @@ export type ExportCsvIndividual = {
   alias: string | null;
   sex: Sex;
   birthDateText: string | null;
+  birthDateValue: Date | null;
+  birthDatePrecision: DatePrecision | null;
   birthPlace: string | null;
   deathDateText: string | null;
+  deathDateValue: Date | null;
+  deathDatePrecision: DatePrecision | null;
   deathPlace: string | null;
   notes: string | null;
   biography: string | null;
@@ -519,9 +523,30 @@ export type ExportCsvFamily = {
   unionType: UnionType;
   unionStatus: UnionStatus;
   unionDateText: string | null;
+  unionDateValue: Date | null;
+  unionDatePrecision: DatePrecision | null;
   unionPlace: string | null;
   notes: string | null;
 };
+
+// birthDateText/deathDateText/unionDateText are free text — only ever
+// blank when someone was added by hand with no free-text date typed at
+// all, e.g. entered purely through the structured date picker instead
+// (birthDateValue set, birthDateText left null). Exporting *only* the text
+// field silently dropped the date entirely for exactly that case — this
+// falls back to formatting the structured value/precision the same way
+// parseCsvDate on the import side already expects (~/</> prefix), so a
+// round trip through this exporter and back into importCsvIntoTree can
+// never lose a date that was really there.
+function formatCsvDate(text: string | null, value: Date | null, precision: DatePrecision | null): string {
+  if (text) return text;
+  if (!value) return "";
+  const iso = value.toISOString().slice(0, 10);
+  if (precision === "ABOUT") return `~${iso}`;
+  if (precision === "BEFORE") return `<${iso}`;
+  if (precision === "AFTER") return `>${iso}`;
+  return iso;
+}
 
 // One row per person, using the real database id as the CSV `id` — good
 // enough for a round trip back into this same app (or another FamilySeed
@@ -544,14 +569,14 @@ export function serializeCsv(individuals: ExportCsvIndividual[], families: Expor
   // appears exactly once instead of redundantly on both partners' rows.
   const unionByPersonId = new Map<
     string,
-    { spouseId: string; unionType: UnionType; unionStatus: UnionStatus; unionDateText: string | null; unionPlace: string | null; notes: string | null }
+    { spouseId: string; unionType: UnionType; unionStatus: UnionStatus; unionDate: string; unionPlace: string | null; notes: string | null }
   >();
   for (const fam of families) {
     if (!fam.partner1Id || !fam.partner2Id) continue;
     const unionInfo = {
       unionType: fam.unionType,
       unionStatus: fam.unionStatus,
-      unionDateText: fam.unionDateText,
+      unionDate: formatCsvDate(fam.unionDateText, fam.unionDateValue, fam.unionDatePrecision),
       unionPlace: fam.unionPlace,
       notes: fam.notes,
     };
@@ -576,9 +601,9 @@ export function serializeCsv(individuals: ExportCsvIndividual[], families: Expor
       surname1_birth_name: ind.surname1BirthName ?? "",
       alias: ind.alias ?? "",
       sex: ind.sex === "MALE" ? "M" : ind.sex === "FEMALE" ? "F" : "",
-      birth_date: ind.birthDateText ?? "",
+      birth_date: formatCsvDate(ind.birthDateText, ind.birthDateValue, ind.birthDatePrecision),
       birth_place: ind.birthPlace ?? "",
-      death_date: ind.deathDateText ?? "",
+      death_date: formatCsvDate(ind.deathDateText, ind.deathDateValue, ind.deathDatePrecision),
       death_place: ind.deathPlace ?? "",
       notes: ind.notes ?? "",
       biography: ind.biography ?? "",
@@ -587,7 +612,7 @@ export function serializeCsv(individuals: ExportCsvIndividual[], families: Expor
       spouse_id: union?.spouseId ?? "",
       union_type: union?.unionType ?? "",
       union_status: union?.unionStatus ?? "",
-      union_date: union?.unionDateText ?? "",
+      union_date: union?.unionDate ?? "",
       union_place: union?.unionPlace ?? "",
       union_notes: union?.notes ?? "",
     };
