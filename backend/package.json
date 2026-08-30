@@ -12,7 +12,9 @@
     "prisma:studio": "prisma studio",
     "seed": "tsx prisma/seed.ts",
     "check-tree": "tsx scripts/check-tree-integrity.ts",
-    "check-tree:prod": "node dist/scripts/check-tree-integrity.js"
+    "check-tree:prod": "node dist/scripts/check-tree-integrity.js",
+    "remove-family-child": "tsx scripts/remove-family-child.ts",
+    "remove-family-child:prod": "node dist/scripts/remove-family-child.js"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
