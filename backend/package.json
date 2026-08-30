@@ -10,7 +10,9 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:studio": "prisma studio",
-    "seed": "tsx prisma/seed.ts"
+    "seed": "tsx prisma/seed.ts",
+    "check-tree": "tsx scripts/check-tree-integrity.ts",
+    "check-tree:prod": "node dist/scripts/check-tree-integrity.js"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
