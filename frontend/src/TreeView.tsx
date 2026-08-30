@@ -364,7 +364,7 @@ type LinkTextDatum = { nodes: [LinkTextNode, LinkTextNode] };
 // below), so they're optional rather than a second, near-identical type.
 // A single-parent family (the other parent unknown) leaves that slot in
 // `source` empty rather than omitted, so it must be tolerated here too.
-type PathLinkNode = { data: { id: string }; x?: number; y?: number };
+type PathLinkNode = { data: { id: string }; x?: number; y?: number; sx?: number };
 type PathLinkDatum = { source: PathLinkNode | (PathLinkNode | null | undefined)[]; target: PathLinkNode };
 
 // A union line's own hitarea/knot (see the unionLineEntries-building loop
@@ -1825,6 +1825,37 @@ function App() {
             : `M${trueMidSpreadLocal},${childDepthLocal}L${trueMidSpreadLocal},${parentDepthLocal}`;
         if (p.getAttribute("d") !== straightD) p.setAttribute("d", straightD);
 
+        // Every one of this only-child's own spouses, looked up once here
+        // regardless of svgSpreadDelta — the mutation below (carrying each
+        // spouse's own x/y/sx by svgSpreadDelta) only needs to run the one
+        // time there's an actual correction to make, but *redrawing* each
+        // spouse's own children's descent-trunk paths from whatever sx they
+        // currently hold has to run unconditionally on every settle, for
+        // the same reason `straightD` above does: family-chart's own next
+        // re-render redraws those trunks from its default curved elbow
+        // regardless of how correct the underlying node data already is,
+        // so only a settle that keeps reasserting the override survives.
+        const spouseNodes = spouseIds
+          .map((spouseId) => {
+            const spouseEntry = unionLineEntries.find((entry) => {
+              const d = (entry.p as unknown as { __data__?: PathLinkDatum }).__data__;
+              if (!d || Array.isArray(d.source)) return false;
+              const ids = [d.source.data?.id, d.target.data?.id];
+              return ids.includes(targetId) && ids.includes(spouseId);
+            });
+            if (!spouseEntry) return null;
+            const spouseDatum = (spouseEntry.p as unknown as { __data__?: PathLinkDatum }).__data__;
+            const spouseSource = spouseDatum && !Array.isArray(spouseDatum.source) ? spouseDatum.source : null;
+            const spouseNode =
+              spouseSource?.data?.id === spouseId
+                ? spouseSource
+                : spouseDatum?.target.data?.id === spouseId
+                  ? spouseDatum.target
+                  : null;
+            return spouseNode && typeof spouseNode.x === "number" && typeof spouseNode.y === "number" ? { spouseId, node: spouseNode } : null;
+          })
+          .filter((n): n is { spouseId: string; node: PathLinkNode & { x: number; y: number } } => n !== null);
+
         if (Math.abs(svgSpreadDelta) > 1) {
           // The child-link's own `d` above is a direct DOM override this
           // same code re-applies every settle, so it never needs the
@@ -1855,31 +1886,78 @@ function App() {
           // spouse's own point, so leaving the spouse's node untouched
           // would turn a straight rope into one with only one end
           // corrected — offset from both cards rather than connecting
-          // either. Found via unionLineEntries (built above, in this same
-          // closure) rather than unionsByPairKeyRef directly, since only an
-          // entry actually carries the live `__data__` node references this
-          // needs to mutate.
-          for (const spouseId of spouseIds) {
-            const spouseEntry = unionLineEntries.find((entry) => {
-              const d = (entry.p as unknown as { __data__?: PathLinkDatum }).__data__;
-              if (!d || Array.isArray(d.source)) return false;
-              const ids = [d.source.data?.id, d.target.data?.id];
-              return ids.includes(targetId) && ids.includes(spouseId);
-            });
-            if (!spouseEntry) continue;
-            const spouseDatum = (spouseEntry.p as unknown as { __data__?: PathLinkDatum }).__data__;
-            const spouseSource = spouseDatum && !Array.isArray(spouseDatum.source) ? spouseDatum.source : null;
-            const spouseNode =
-              spouseSource?.data?.id === spouseId
-                ? spouseSource
-                : spouseDatum?.target.data?.id === spouseId
-                  ? spouseDatum.target
-                  : null;
-            if (!spouseNode || typeof spouseNode.x !== "number" || typeof spouseNode.y !== "number") continue;
+          // either.
+          //
+          // family-chart also stashes a *second*, separate coordinate on
+          // this same shared node — `.sx` (set once in its own
+          // setupSpouses, never touched again) — that its own descent-link
+          // code reads for this spouse's *own* children's trunk
+          // (handleProgenySide's `other_parent.sx`, in family-
+          // chart.esm.js), entirely apart from the `.x`/`.y` carried here.
+          // Leaving it uncorrected reproduces exactly the desync this whole
+          // fix exists to close, just one hop further out: the spouse's
+          // *card* lands at the corrected position, but the trunk down to
+          // *their* children still points at the stale pre-correction spot,
+          // off by the same svgSpreadDelta. Reported as a union's
+          // child-descent trunk visibly missing the union icon whenever
+          // that union's own "other" partner is an only child of a
+          // multi-spouse parent. `.sx` is set only on the synthetic spouse
+          // nodes setupSpouses creates (never on a bloodline node like
+          // `target` itself), and unlike `.x`/`.y` it keeps one fixed
+          // meaning (the pre-orientation-swap spread axis) regardless of
+          // vertical/horizontal mode — see setupProgenyParentsPos's own
+          // `psx`/`psy` swap, which reads `.sx` as the swapped-in value for
+          // *either* axis depending on orientation, never re-deriving it
+          // from `.x`/`.y`. svgSpreadDelta is itself already a spread-axis
+          // delta (from spreadLocal, defined the same way), so it applies
+          // to `.sx` directly with no orientation branch needed.
+          for (const { node: spouseNode } of spouseNodes) {
             if (orientationRef.current === "horizontal") spouseNode.y += svgSpreadDelta;
             else spouseNode.x += svgSpreadDelta;
+            if (typeof spouseNode.sx === "number") spouseNode.sx += svgSpreadDelta;
           }
           applyAllZones();
+        }
+
+        // Redrawing each spouse's own children's descent-trunk paths from
+        // their current `.sx` — unconditional, same reasoning as `straightD`
+        // above: family-chart's own next re-render redraws those trunks
+        // from its default curved elbow regardless of how correct `.sx`
+        // already is, so only a settle that keeps reasserting the override
+        // survives. Mirrors family-chart's own LinkVertical/LinkHorizontal
+        // (a child's own point, an elbow at the row midpoint, then the
+        // parent anchor) using plain straight segments rather than its
+        // curveMonotoneY: the two points on either side of that elbow are
+        // real, but each is *also* immediately repeated back onto itself in
+        // family-chart's own point list before curve-fitting, specifically
+        // to flatten the curve into a straight corner at that repeat — so a
+        // plain polyline through the same points already matches what it
+        // renders, without pulling in d3-shape (a transitive dependency
+        // here, not a direct one) just for this.
+        for (const { spouseId, node: spouseNode } of spouseNodes) {
+          if (typeof spouseNode.sx !== "number") continue;
+          container.querySelectorAll<SVGPathElement>("path.link:not(.union-line)").forEach((childPath) => {
+            const childDatum = (childPath as unknown as { __data__?: PathLinkDatum }).__data__;
+            const childSource = childDatum && Array.isArray(childDatum.source) ? childDatum.source : null;
+            if (!childSource?.some((n) => n?.data?.id === spouseId)) return;
+            const child = childDatum?.target;
+            if (!child || typeof child.x !== "number" || typeof child.y !== "number") return;
+            const nextD =
+              orientationRef.current === "horizontal"
+                ? (() => {
+                    const anchorX = spouseNode.x;
+                    const anchorY = spouseNode.sx as number;
+                    const hx = child.x! + (anchorX - child.x!) / 2;
+                    return `M${child.x},${child.y}L${hx},${child.y}L${hx},${anchorY}L${anchorX},${anchorY}`;
+                  })()
+                : (() => {
+                    const anchorX = spouseNode.sx as number;
+                    const anchorY = spouseNode.y;
+                    const hy = child.y! + (anchorY - child.y!) / 2;
+                    return `M${child.x},${child.y}L${child.x},${hy}L${anchorX},${hy}L${anchorX},${anchorY}`;
+                  })();
+            if (childPath.getAttribute("d") !== nextD) childPath.setAttribute("d", nextD);
+          });
         }
 
         // Pixel-space midpoint of the two parents' own card wrappers, read
