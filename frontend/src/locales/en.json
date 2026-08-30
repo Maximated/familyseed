@@ -67,6 +67,11 @@
     "selfHostedHint": "Self-hosted mode: single user.",
     "moreActions": "More actions"
   },
+  "identityBanner": {
+    "prompt": "Who are you in this tree? Set it so the tree opens centered on you next time.",
+    "choose": "Set who I am",
+    "pickTitle": "Who are you in this tree?"
+  },
   "roles": {
     "OWNER": "Owner",
     "EDITOR": "Editor",

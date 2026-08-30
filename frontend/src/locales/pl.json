@@ -67,6 +67,11 @@
     "selfHostedHint": "Tryb własnego serwera: pojedynczy użytkownik.",
     "moreActions": "Więcej opcji"
   },
+  "identityBanner": {
+    "prompt": "Kim jesteś w tym drzewie? Ustaw to, aby drzewo otwierało się wyśrodkowane na Tobie następnym razem.",
+    "choose": "Ustaw, kim jestem",
+    "pickTitle": "Kim jesteś w tym drzewie?"
+  },
   "roles": {
     "OWNER": "Właściciel",
     "EDITOR": "Edytor",

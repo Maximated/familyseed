@@ -67,6 +67,11 @@
     "selfHostedHint": "Modo autohospedado: un único usuario.",
     "moreActions": "Más acciones"
   },
+  "identityBanner": {
+    "prompt": "¿Quién eres tú en este árbol? Indícalo para que se abra centrado en ti la próxima vez.",
+    "choose": "Indicar quién soy",
+    "pickTitle": "¿Quién eres tú en este árbol?"
+  },
   "roles": {
     "OWNER": "Propietario",
     "EDITOR": "Editor",

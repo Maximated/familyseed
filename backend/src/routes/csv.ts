@@ -1,7 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { prisma } from "../db.js";
 import { logChange } from "../tree-context.js";
-import { buildTreeData, walkGraph } from "../tree-data.js";
+import { buildTreeData, expandWithSpouses, walkGraph } from "../tree-data.js";
 import { csvTemplate, importCsvIntoTree, serializeCsv } from "../csv.js";
 import { downloadFilename } from "../filename.js";
 
@@ -58,7 +58,7 @@ export default async function csvRoutes(fastify: FastifyInstance) {
         return reply.code(404).send({ error: `No existe el individuo ${personId}` });
       }
       const walked = walkGraph(people, personId, direction === "ancestors" ? "up" : "down");
-      includedIds = new Set([personId, ...walked.keys()]);
+      includedIds = expandWithSpouses([personId, ...walked.keys()], people);
     }
 
     const individuals = await prisma.individual.findMany({

@@ -432,21 +432,35 @@ body {
    default (opens *below* its anchor, right-aligned, see its own top/right/
    transform-origin rules) would render entirely off the bottom of the
    viewport from here, making the panel completely unreachable (reported:
-   "sus paneles son inaccesibles"). Flipped to open upward, and centered
-   under its own anchor rather than right-aligned — the sheet's buttons
-   sit wherever a wrapping, centered flex row puts them, and a 220–320px
-   panel right-aligned to a button near the *left* edge of a narrow phone
-   (found while verifying the fix above) pushed just as far off the
-   opposite side instead. max-width caps against the viewport itself, not
-   just a fixed px value, so this holds on any phone width. */
+   "sus paneles son inaccesibles").
+   position: fixed (not the base rule's absolute, which centers relative to
+   the *anchor*) — centering on the anchor instead of the actual screen was
+   the next bug: Lineages and Statistics sit at different points along the
+   sheet's own wrapping, centered row, so a panel centered under whichever
+   one opened it drifted off one edge or the other depending on where that
+   button happened to land (reported: "se pierden a la derecha... no están
+   bien centradas"). Fixed positioning centers on the real viewport
+   instead, which is the same regardless of which button was tapped. The
+   170px clearance is a known quantity, not a guess — this sheet always
+   holds the same 7 fixed buttons, wrapping to at most two 48px rows. */
 .mobile-actions-sheet .popover {
+  position: fixed;
   top: auto;
   right: auto;
   left: 50%;
-  bottom: calc(100% + 8px);
+  bottom: calc(env(safe-area-inset-bottom) + 170px);
   max-width: min(300px, calc(100vw - 2rem));
   transform-origin: bottom center;
   animation-name: popoverOpenUpCentered;
+  /* The base .popover rule's own `animation` shorthand carries no fill-
+     mode, so its keyframe's transform only ever applied *during* the
+     420ms animation — the instant it finished, the element reverted to
+     having no transform at all (the shorthand's initial value), silently
+     dropping the translateX(-50%) this centering depends on and leaving
+     `left: 50%` alone in charge, which centers the box's *left edge*, not
+     the box. That's what "se pierden a la derecha" actually was: not a
+     wrong centering value, a correct one that only held for 420ms. */
+  animation-fill-mode: both;
 }
 
 @keyframes popoverOpenUpCentered {
@@ -457,7 +471,12 @@ body {
   }
   to {
     opacity: 1;
-    max-height: 420px;
+    /* Capped against the viewport too, not just 420px flat — on a short
+       viewport (a phone in landscape) the fixed 170px clearance plus a
+       fixed 420px panel can add up to more height than the screen has,
+       pushing the top of the panel above y=0 instead of just being
+       tall. Still 420px on any normal portrait phone. */
+    max-height: min(420px, calc(100vh - 190px));
     transform: translateX(-50%) translateY(0);
   }
 }
@@ -2064,6 +2083,16 @@ body {
   text-align: center;
 }
 
+.card-place {
+  width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.65rem;
+  opacity: 0.75;
+  text-align: center;
+}
+
 /* The expand/edit/quick-add corner toggles are hover-revealed together, at
    the same moment, to keep the card uncluttered by default — one hover
    away instead of always on show. Expand/edit sit at the top corners;
@@ -2956,6 +2985,81 @@ body {
   to {
     opacity: 1;
     transform: translate(-50%, 0);
+  }
+}
+
+/* A non-blocking nudge (not a modal — the tree stays fully usable behind
+   it) to set who the current user is in this tree, so the tree has a real
+   default focus instead of falling back to "the earliest-born person"
+   forever (see loadTree's own identity.individualId check). Top-center
+   rather than .update-banner's own bottom-center spot — this app's bottom
+   edge already holds the canvas FAB and legend toggle on touch/PWA, and
+   the two banners could in principle coexist. */
+.identity-banner {
+  position: absolute;
+  top: 4.5rem;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  max-width: calc(100vw - 2rem);
+  padding: 0.6rem 0.7rem 0.6rem 1.1rem;
+  border-radius: 999px;
+  background: var(--color-forest);
+  color: var(--color-bg);
+  font-size: 0.85rem;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+  z-index: 16;
+  animation: identity-banner-in 220ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.identity-banner button:not(.identity-banner-dismiss) {
+  flex-shrink: 0;
+  font-size: 0.82rem;
+  font-weight: 700;
+  padding: 0.4rem 0.9rem;
+  border-radius: 999px;
+  border: none;
+  cursor: pointer;
+  background: var(--color-amber);
+  color: #fff;
+}
+
+.identity-banner-dismiss {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--color-bg);
+  opacity: 0.75;
+  cursor: pointer;
+}
+
+.identity-banner-dismiss:hover {
+  opacity: 1;
+}
+
+@keyframes identity-banner-in {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .identity-banner {
+    animation: none;
   }
 }
 

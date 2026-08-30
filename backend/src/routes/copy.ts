@@ -2,7 +2,7 @@ import type { FastifyInstance } from "fastify";
 import type { Individual } from "@prisma/client";
 import { prisma } from "../db.js";
 import { requireAuth } from "./auth.js";
-import { buildTreeData, walkGraph } from "../tree-data.js";
+import { buildTreeData, expandWithSpouses, walkGraph } from "../tree-data.js";
 import { logChange } from "../tree-context.js";
 
 const copyBodySchema = {
@@ -120,7 +120,7 @@ export default async function copyRoutes(fastify: FastifyInstance) {
       return reply.code(404).send({ error: `No existe el individuo ${id}` });
     }
     const walked = walkGraph(people, id, direction === "ancestors" ? "up" : "down");
-    const copyIds = [id, ...walked.keys()];
+    const copyIds = [...expandWithSpouses([id, ...walked.keys()], people)];
 
     const sourceIndividuals = await prisma.individual.findMany({
       where: { id: { in: copyIds }, deletedAt: null },

@@ -268,3 +268,26 @@ export function walkGraph(
 
   return visited;
 }
+
+// walkGraph only ever follows rels.parents/rels.children — someone who
+// married into the family but shares no blood ancestor/descendant with the
+// walked person is never reached by it at all. Every ancestors/descendants-
+// scoped export or copy (CSV, GEDCOM, copy-into-another-tree) used to build
+// its included-people set from walkGraph alone, which silently dropped that
+// spouse from the result — and then, since the resulting Family row had one
+// partner missing, dropped the *union* too, leaving their children looking
+// parentless in the exported/copied tree even though the real data has both
+// parents. This adds each included person's own direct spouse(s) (not their
+// spouse's own further ancestors/descendants — just enough to keep the
+// union and the parent-child link intact) to whatever id set is already
+// there.
+export function expandWithSpouses(ids: Iterable<string>, people: TreePerson[]): Set<string> {
+  const byId = new Map(people.map((p) => [p.id, p]));
+  const expanded = new Set(ids);
+  for (const id of [...expanded]) {
+    const person = byId.get(id);
+    if (!person) continue;
+    for (const spouseId of person.rels.spouses) expanded.add(spouseId);
+  }
+  return expanded;
+}

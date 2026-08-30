@@ -12,7 +12,9 @@ import {
   fetchMyIdentity,
   fetchTree,
   mediaUrl,
+  setMyIdentity,
   updateTreeName,
+  type Individual,
   type Lineage,
   type TreePerson,
   type TreeRole,
@@ -22,6 +24,7 @@ import AddPersonForm, { type QuickAddInitialRelation } from "./AddPersonForm";
 import QuickAddKindPicker, { type QuickAddPickerKind } from "./QuickAddKindPicker";
 import EditPersonForm from "./EditPersonForm";
 import IndividualsSearchView from "./IndividualsSearchView";
+import PersonPicker from "./PersonPicker";
 import LineageChips from "./LineageChips";
 import Legend from "./Legend";
 import HoverPreview from "./HoverPreview";
@@ -45,6 +48,7 @@ import {
   SwitchOrientationIcon,
   UserIcon,
   UserPlusIcon,
+  XIcon,
 } from "./Icons";
 import LinkPeopleModal from "./LinkPeopleModal";
 import LineagesManageView from "./LineagesManageView";
@@ -256,6 +260,24 @@ function estimatedBirthTime(person: TreePerson): number {
     return new Date(death.getFullYear() - ASSUMED_LIFESPAN_YEARS, death.getMonth(), death.getDate()).getTime();
   }
   return Infinity;
+}
+
+// Default focus for a tree that has no "this is me" identity set yet (see
+// myIdentityPersonId) — the person with the earliest known/estimated birth,
+// same date logic findLineageRootPerson's own tie-break already uses.
+// Simpler than that function on purpose: there's no lineage-membership
+// filter here, just "earliest across everyone in the tree."
+function findEldestPersonId(people: TreePerson[]): string {
+  let best = people[0];
+  let bestTime = estimatedBirthTime(best);
+  for (const person of people) {
+    const time = estimatedBirthTime(person);
+    if (time < bestTime) {
+      best = person;
+      bestTime = time;
+    }
+  }
+  return best.id;
 }
 
 function findLineageRootPerson(lineageId: string, people: TreePerson[]): TreePerson | null {
@@ -611,6 +633,12 @@ function cardTemplate(d: CardDatum): string {
     data.birthPrecision,
     data.deathPrecision,
   );
+  // Same "birth · death" join the PDF report's own card uses — a single
+  // compact line rather than two, since the card has no room to spare.
+  // Deduplicated: someone who never left their hometown shouldn't show it
+  // twice back to back.
+  const places = [...new Set([data["birth place"], data["death place"]].filter(Boolean))] as string[];
+  const placeLine = places.join(" · ");
   const avatarHtml = data.avatar
     ? `<img class="card-avatar" src="${escapeHtml(mediaUrl(String(data.avatar)))}" alt="" />`
     : `<div class="card-avatar card-avatar-placeholder">${PERSON_ICON_SVG}</div>`;
@@ -622,6 +650,7 @@ function cardTemplate(d: CardDatum): string {
         ${alias ? `<div class="card-alias alias-text">«${alias}»</div>` : ""}
         ${birthName ? `<div class="card-birthname name-text">${birthName}</div>` : ""}
         ${lifespan ? `<div class="card-lifespan">${escapeHtml(lifespan)}</div>` : ""}
+        ${placeLine ? `<div class="card-place">${escapeHtml(placeLine)}</div>` : ""}
       </div>
     </div>
     <button type="button" class="card-expand-toggle" data-person-id="${d.data.id}" title="${escapeHtml(i18n.t("card.viewFull"))}" aria-label="${escapeHtml(i18n.t("card.viewFull"))}">${EXPAND_ICON_SVG}</button>
@@ -825,6 +854,13 @@ function App() {
   // a different person correctly un-checks the previous one without that
   // previous person's form needing to be mounted.
   const [myIdentityPersonId, setMyIdentityPersonId] = useState<string | null>(null);
+  // Nudges toward setting myIdentityPersonId when a tree has none yet (see
+  // its own render below and the default-focus comment in loadTree) —
+  // dismissed for this visit only, not persisted, so it naturally asks
+  // again next time the tree is opened until someone actually sets one.
+  const [identityBannerDismissed, setIdentityBannerDismissed] = useState(false);
+  const [showIdentityPicker, setShowIdentityPicker] = useState(false);
+  const [identityError, setIdentityError] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState("");
   // An <input> can't size itself to its own value the way text naturally
@@ -2056,7 +2092,16 @@ function App() {
           wireCardAndUnionClicks();
         });
 
-        chart.updateMainId(findTopAncestorId(people[0].id, people));
+        // Focus defaults to whoever the user has marked "esta persona soy
+        // yo" for this tree (see myIdentityPersonId/setMyIdentity) — a tree
+        // used to always open on findTopAncestorId(people[0]), an arbitrary
+        // structural pick (whichever person happened to be first in
+        // creation order, then walked up from there) with no relation to
+        // who's actually using the app. Falls back to the tree's own
+        // earliest-born person when no identity is set yet, and
+        // identityBannerDismissed's own render below is what nudges the
+        // user to set one instead of leaving that fallback permanent.
+        chart.updateMainId(identity.individualId ?? findEldestPersonId(people));
         // transition_time: 0 only here, on the very first paint — every
         // later updateTree() call in this file omits it and keeps family-
         // chart's own default (1000ms), which is the right amount of
@@ -2088,8 +2133,21 @@ function App() {
       if (recenterOnId) {
         ensureSafeAncestryDepthFor(chartRef.current, recenterOnId, people);
         chartRef.current.updateMainId(recenterOnId);
+        chartRef.current.updateTree({});
+      } else {
+        // No recenter requested — this is a plain data refresh (saving an
+        // edit, adding/deleting a relative, ...), which shouldn't move the
+        // camera at all. family-chart's view() defaults tree_position to
+        // 'fit' whenever it isn't given explicitly (see its own source),
+        // silently re-fitting/zooming out to show the whole visible tree on
+        // every one of these refreshes (reported: "el zoom se aleja" right
+        // after saving a person). 'inherit' is the value family-chart's own
+        // code uses internally for this exact "redraw without moving the
+        // view" case (see its kinship-labels-toggle handler) — falls into
+        // view()'s trailing `else` branch, which does nothing to the current
+        // pan/zoom at all.
+        chartRef.current.updateTree({ initial: false, tree_position: "inherit" });
       }
-      chartRef.current.updateTree({});
       currentMainIdRef.current = chartRef.current.getMainDatum().id;
     },
     [runHighlight, wireCardAndUnionClicks, t, treeId],
@@ -2388,6 +2446,27 @@ function App() {
     chart.updateTree({ tree_position: "fit" });
   }
 
+  // From the identity-prompt banner below — same jump-to-person pattern as
+  // handleLineageClick, plus persisting the choice so future visits open
+  // here by default (see loadTree's own identity.individualId check).
+  async function handleSetIdentity(person: Individual) {
+    if (!treeId) return;
+    setIdentityError(null);
+    try {
+      await setMyIdentity(treeId, person.id);
+      setMyIdentityPersonId(person.id);
+      setShowIdentityPicker(false);
+      const chart = chartRef.current;
+      if (chart) {
+        ensureSafeAncestryDepthFor(chart, person.id, treeDataRef.current);
+        chart.updateMainId(person.id);
+        chart.updateTree({ tree_position: "fit" });
+      }
+    } catch (err) {
+      setIdentityError(err instanceof Error ? err.message : String(err));
+    }
+  }
+
   // The PDF report (TreeReportModal, from the home screen) is a
   // generation-by-generation list with no visual diagram at all — this is
   // the "actually looks like the tree" export instead: a literal capture
@@ -2624,9 +2703,55 @@ function App() {
       // the custom property here (it's inherited, so this cascades to every
       // descendant that reads it) clears both at once.
       if (transparent) {
+        const realBg = getComputedStyle(container).getPropertyValue("--color-bg");
         container.classList.add("tree-container-no-watermark");
         container.style.background = "transparent";
         container.style.setProperty("--color-bg", "transparent");
+
+        // The mask above only hides a crossing line because it paints an
+        // opaque patch that blends into the app's own real background —
+        // gone now that the whole export is transparent. Most cards never
+        // had anything crossing their text anyway (the mask was just
+        // insurance), but a non-adjacent second marriage's own union line
+        // (a known, already-accepted-as-imperfect layout quirk — see
+        // correctLinkTextTransform's own comment) can still visually cut
+        // across a completely unrelated card's name: invisible on screen
+        // against the app's real cream/graphite background, a visible
+        // slash through the text once that background is gone (reported).
+        // Detected by plain bounding-box overlap — this app's own lines
+        // are drawn as right-angle segments, never a curve bulging outside
+        // its own box, so a bbox overlap here really does mean "crosses"
+        // — and fixed only for the handful of cards actually affected:
+        // re-establishing a real --color-bg locally on just their own
+        // .card-text (it's inherited, so its ::before mask picks it back
+        // up) keeps every other card in the export cleanly transparent.
+        const unionLineBoxes = [...container.querySelectorAll<SVGPathElement>("path.link.union-line")]
+          .map((line) => {
+            const datum = (line as unknown as { __data__?: PathLinkDatum }).__data__;
+            const source = datum && !Array.isArray(datum.source) ? datum.source : null;
+            if (!source || !datum) return null;
+            return { rect: line.getBoundingClientRect(), ids: [source.data?.id, datum.target.data?.id] };
+          })
+          .filter((entry) => entry !== null);
+
+        container.querySelectorAll<HTMLElement>(".card-text").forEach((cardText) => {
+          const personId = cardText.closest<HTMLElement>(".card-inner")?.dataset.personId;
+          if (!personId) return;
+          const textRect = cardText.getBoundingClientRect();
+          const crossed = unionLineBoxes.some(({ rect, ids }) => {
+            if (ids.includes(personId)) return false; // this card's own union
+            return !(
+              rect.right < textRect.left ||
+              rect.left > textRect.right ||
+              rect.bottom < textRect.top ||
+              rect.top > textRect.bottom
+            );
+          });
+          if (crossed) {
+            cardText.style.setProperty("--color-bg", realBg);
+            exportDomRestores.push(() => cardText.style.removeProperty("--color-bg"));
+          }
+        });
       }
 
       // The currently-centered person's card carries family-chart's own
@@ -3092,6 +3217,36 @@ function App() {
             </div>
           )}
           <Legend />
+          {!myIdentityPersonId && !identityBannerDismissed && !loading && (
+            <div className="identity-banner">
+              <span>{t("identityBanner.prompt")}</span>
+              <button type="button" onClick={() => setShowIdentityPicker(true)}>
+                {t("identityBanner.choose")}
+              </button>
+              <button
+                type="button"
+                className="identity-banner-dismiss"
+                onClick={() => setIdentityBannerDismissed(true)}
+                aria-label={t("common.close")}
+              >
+                <XIcon size={16} />
+              </button>
+            </div>
+          )}
+          {showIdentityPicker && (
+            <div className="modal-backdrop" onClick={() => setShowIdentityPicker(false)}>
+              <div className="modal-panel" onClick={(e) => e.stopPropagation()}>
+                <h2>{t("identityBanner.pickTitle")}</h2>
+                <PersonPicker treeId={treeId} selectedName={null} onSelect={handleSetIdentity} />
+                {identityError && <p className="status status-error">{identityError}</p>}
+                <div className="modal-actions">
+                  <button type="button" onClick={() => setShowIdentityPicker(false)}>
+                    {t("common.close")}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
           {hoverPreview && (
             <HoverPreview data={hoverPreview.data} x={hoverPreview.x} y={hoverPreview.y} flip={hoverPreview.flip} />
           )}
