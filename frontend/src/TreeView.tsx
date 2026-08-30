@@ -2001,6 +2001,41 @@ function App() {
         // show up when a parent is centered instead, since siblings are
         // then rendered as that parent's children).
         chart.setShowSiblingsOfMain(true);
+        // Reported bug: selecting one of several siblings as main scrambled
+        // the rest instead of keeping them in birth-date order. Root cause
+        // is in family-chart's own setupSiblings (family-chart.esm.js):
+        // it looks siblings up via a plain data_stash.filter (order = the
+        // array we handed the chart, unrelated to birth date), then its
+        // positionSiblings sorts the whole [main, ...siblings] list with
+        // this hook — or, absent one, not at all — before fanning everyone
+        // out left/right of wherever main lands in that sorted list. Every
+        // data_stash entry already has a real `.main` boolean by the time
+        // this runs (set by the library itself, one step before this
+        // hook's first call), so this both keeps main pinned at the front
+        // (same feel as before — the request was to keep main leftmost)
+        // and sorts the actual siblings after it by birth date instead of
+        // that incidental array order. Same hook also runs for ordinary
+        // parent→children sorting elsewhere, where nothing is ever main —
+        // there this is just a birth-date sort, matching the order the
+        // backend's own sortChildren (tree-data.ts) already sends, so it's
+        // a no-op for that path.
+        chart.setSortChildrenFunction((a, b) => {
+          if (a.main && !b.main) return -1;
+          if (b.main && !a.main) return 1;
+          const aDate = a.data.birthDateValue as string | undefined;
+          const bDate = b.data.birthDateValue as string | undefined;
+          if (aDate && bDate) {
+            const diff = new Date(aDate).getTime() - new Date(bDate).getTime();
+            if (diff !== 0) return diff;
+          } else if (aDate) {
+            return -1;
+          } else if (bDate) {
+            return 1;
+          }
+          const aName = `${a.data["first name"] ?? ""} ${a.data["last name"] ?? ""}`;
+          const bName = `${b.data["first name"] ?? ""} ${b.data["last name"] ?? ""}`;
+          return aName.localeCompare(bName);
+        });
         // family-chart otherwise auto-inserts a client-only "unknown spouse"
         // placeholder card for anyone with children but only one recorded
         // parent. That card has a generated id with no backing Individual
@@ -2036,8 +2071,10 @@ function App() {
         // .card-name started wrapping a long double surname onto a second
         // line instead of truncating it — same reasoning, one more line of
         // text below the avatar needs the same amount more clearance above
-        // the row underneath it.
-        chart.setCardYSpacing(225);
+        // the row underneath it. +20 once more (245) when two lines still
+        // wasn't enough for three-plus surnames and .card-name grew a
+        // third line — same reasoning again.
+        chart.setCardYSpacing(245);
         chart.setCardXSpacing(265);
 
         // family-chart always creates a <text> here regardless of what this

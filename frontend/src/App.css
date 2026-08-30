@@ -2060,16 +2060,17 @@ body {
 /* Two surnames (standard Spanish naming) plus a given name routinely ran
    past this card's width, silently truncated mid-word ("Isabel Camacho
    R…") — a full name is exactly the kind of thing that shouldn't get cut
-   off. Wraps onto a second line instead of truncating on one; still falls
-   back to an ellipsis if a name is long enough to overflow *two* lines
-   (rare — a person would need three-plus surnames), so nothing can grow
-   the card without bound. See .card-text's own comment for the layout-
-   spacing side of this (the row below needs to stay clear of a name that
-   sometimes wraps). */
+   off. Wraps onto further lines instead of truncating on one; two lines
+   still wasn't enough for names with three-plus surnames (compound given
+   names, double paternal+maternal surnames), so this allows a third
+   before falling back to an ellipsis — still bounded, just one line
+   further out. See .card-text's own comment for the layout-spacing side
+   of this (the row below needs to stay clear of a name that sometimes
+   wraps this far). */
 .card-name {
   overflow: hidden;
   display: -webkit-box;
-  -webkit-line-clamp: 2;
+  -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
   white-space: normal;
   word-break: break-word;
