@@ -373,6 +373,23 @@ function sortTreeChildren(
   return aName.localeCompare(bName);
 }
 
+// Reads a person's already-rendered card position straight off the DOM
+// rather than from family-chart's own internal node objects — the two
+// rendering layers (the SVG links layer and this HTML cards layer) apply
+// their own independent scale/offset, and this is the one thing that's
+// never stale regardless of how many layout passes have happened since
+// the card was last positioned. `container` is passed explicitly (rather
+// than closed over) so this can be called both from wireCardAndUnionClicks
+// (the only-child fix) and from renderLineageBranches (anchoring a new
+// branch onto the card that spawned it) without either owning the other.
+function getCardScreenPos(container: HTMLElement, personId: string): { wrapper: HTMLElement; x: number; y: number } | null {
+  const card = container.querySelector<HTMLElement>(`.card[data-id="${personId}"]`);
+  const wrapper = card?.parentElement ?? null;
+  const style = wrapper?.getAttribute("style");
+  const match = style?.match(/translate\(([-\d.]+)px,\s*([-\d.]+)px\)/);
+  return match ? { wrapper: wrapper!, x: Number(match[1]), y: Number(match[2]) } : null;
+}
+
 // A genealogical loop (someone reachable from the centered person by two
 // different chains of ancestors/descendants — e.g. two first cousins who
 // married) renders the *same* union twice, once per chain, at two
@@ -1853,13 +1870,6 @@ function App() {
     // in both orientations.
     const spreadLocal = (n: { x: number; y: number }) => (orientationRef.current === "horizontal" ? n.y : n.x);
     const depthLocal = (n: { x: number; y: number }) => (orientationRef.current === "horizontal" ? n.x : n.y);
-    const cardWrapperPixelPos = (personId: string) => {
-      const card = container.querySelector<HTMLElement>(`.card[data-id="${personId}"]`);
-      const wrapper = card?.parentElement ?? null;
-      const style = wrapper?.getAttribute("style");
-      const match = style?.match(/translate\(([-\d.]+)px,\s*([-\d.]+)px\)/);
-      return match ? { wrapper: wrapper!, x: Number(match[1]), y: Number(match[2]) } : null;
-    };
     const spreadPixel = (pos: { x: number; y: number }) => (orientationRef.current === "horizontal" ? pos.y : pos.x);
 
     type ChildLink = { p: SVGPathElement; targetId: string; parentIds: [string, string] };
@@ -2114,8 +2124,8 @@ function App() {
         // the same underlying layout, computing the midpoint separately in
         // each space and applying each to its own layer stays consistent
         // without needing to know that conversion factor at all.
-        const parentPositions = parentIds.map(cardWrapperPixelPos);
-        const childPos = cardWrapperPixelPos(targetId);
+        const parentPositions = parentIds.map((id) => getCardScreenPos(container, id));
+        const childPos = getCardScreenPos(container, targetId);
         if (parentPositions[0] && parentPositions[1] && childPos) {
           const trueMidSpreadPixel = (spreadPixel(parentPositions[0]) + spreadPixel(parentPositions[1])) / 2;
           const spreadDelta = trueMidSpreadPixel - spreadPixel(childPos);
@@ -2134,7 +2144,7 @@ function App() {
             // a full overlap) instead of moving the couple as one, the way
             // family-chart itself drew them.
             for (const spouseId of spouseIds) {
-              const spousePos = cardWrapperPixelPos(spouseId);
+              const spousePos = getCardScreenPos(container, spouseId);
               if (!spousePos) continue;
               const nextSpouseSpreadPixel = spreadPixel(spousePos) + spreadDelta;
               const nextSpouseTransform =
@@ -2148,7 +2158,7 @@ function App() {
       };
       applyChildCorrection();
 
-      const childPosForObserve = cardWrapperPixelPos(targetId);
+      const childPosForObserve = getCardScreenPos(container, targetId);
       let onlyChildSettleTimer: number | undefined;
       const scheduleChildCorrection = () => {
         window.clearTimeout(onlyChildSettleTimer);
