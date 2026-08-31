@@ -453,23 +453,19 @@ At `frontend/src/TreeView.tsx:2314` (inside `chart.setAfterUpdate`, right before
 
 - [ ] **Step 4: Verify with a temporary manual trigger**
 
-This task has no click handler yet (Task 8 adds it) — verify by calling the function directly from the browser console against a real running tree:
+This task has no click handler yet (Task 8 adds it), and `renderLineageBranches` reads `lineageBranchesRef.current`, which nothing yet writes to — so there is no way to exercise this task's own rendering through the real UI. Verify by temporarily seeding one entry directly in code, checking the result, then removing the seed before committing.
 
-Build a disposable scratch tree via the backend API with at least: a person `X` who has one recorded parent `P` not currently rendered from the centered person, and `X` has one child `C`. Open the tree in Playwright, evaluate in-page:
+Build a disposable scratch tree via the backend API with at least: a person `X` who has one recorded parent `P` not currently rendered from the centered person, and `X` has one child `C`.
 
-```js
-() => {
-  // Simulate what Task 8's click handler will eventually do.
-  window.__testAddBranch = (rootPersonId) => {
-    const event = new CustomEvent("test-add-lineage-branch", { detail: { rootPersonId } });
-    window.dispatchEvent(event);
-  };
-}
+Add **one temporary line**, inside `renderLineageBranches`, right after `const people = treeDataRef.current;`:
+
+```typescript
+    lineageBranchesRef.current = [{ rootPersonId: "<X's real id from the scratch tree>", ancestryDepth: 1, progenyDepth: 1 }];
 ```
 
-— actually, simpler: since `renderLineageBranches` reads `lineageBranchesRef.current` and there is no click handler yet, directly exercise React state from Playwright is not practical without one. Instead, temporarily verify by hardcoding a single test entry: add `lineageBranchesRef.current = [{ rootPersonId: "<X's id>", ancestryDepth: 1, progenyDepth: 1 }];` as a **temporary** line inside `renderLineageBranches` right after `const people = treeDataRef.current;`, guarded so it only ever runs once (e.g. behind a module-level `let __devSeeded = false;` flag flipped after use), run the Playwright check, confirm `P` and `C`'s cards now appear as plain absolutely-positioned divs near `X`'s real card, then **delete this temporary line before committing** — Step 3's real wiring plus Task 8's click handler are the actual, permanent way branches get added.
+Open the tree in Playwright and confirm `P` and `C`'s cards now appear as plain absolutely-positioned divs near `X`'s real card. Confirm via `container.querySelector('.lineage-extra-view')` in the browser that the new cards are direct children of that div, and via `getComputedStyle` / a screenshot that they render with the same card visuals (avatar, name, lifespan) as any other card, positioned in the right neighborhood of `X`.
 
-Confirm via `container.querySelector('.lineage-extra-view')` in the browser that the new cards are direct children of that div, and via `getComputedStyle` / a screenshot that they render with the same card visuals (avatar, name, lifespan) as any other card, positioned in the right neighborhood of `X`.
+**Delete that one temporary line before committing** — Step 3's real wiring plus Task 8's own click handler are the actual, permanent way branches get added; this line only exists to give this task something to verify against before Task 8 exists.
 
 Clean up the scratch tree/user afterward.
 
@@ -803,7 +799,9 @@ git commit -m "Wire expand-lineage button to open/collapse a branch instead of r
     x: number;
     y: number;
     canCollapseAncestors: boolean;
+    canExpandAncestors: boolean;
     canCollapseDescendants: boolean;
+    canExpandDescendants: boolean;
     onAncestorChange: (delta: 1 | -1) => void;
     onDescendantChange: (delta: 1 | -1) => void;
     onClose: () => void;
@@ -811,7 +809,7 @@ git commit -m "Wire expand-lineage button to open/collapse a branch instead of r
   };
   export default function LineageBranchControls(props: Props): JSX.Element;
   ```
-- Produces (`TreeView.tsx`): `const [lineageBranchPositions, setLineageBranchPositions] = useState<Map<string, { x: number; y: number }>>(new Map());` — recomputed by a new `updateLineageBranchPositions()` function, called from the same place `updateAncestryToggles()` already runs (both inside its own definition call and inside `scheduleAncestryUpdate`'s debounced callback, `frontend/src/TreeView.tsx:1112-1146`), since both need "recompute once the current settle pass has actually finished moving cards."
+- Produces (`TreeView.tsx`): `const [lineageBranchPositions, setLineageBranchPositions] = useState<Map<string, { x: number; y: number }>>(new Map());` — recomputed directly inside the existing `updateAncestryToggles()` (no separate function; see Step 4 below, which extends that function's own body in place), so it keeps running from every place that function already runs (its own definition call and `scheduleAncestryUpdate`'s debounced callback, `frontend/src/TreeView.tsx:1112-1146`), since both need "recompute once the current settle pass has actually finished moving cards."
 - Consumes: `lineageBranches`, `setLineageBranches`, `minAncestorLevels` (existing, line 174), `renderLineageBranches`, `wireCardAndUnionClicks`, `hasMoreAncestors`/`hasMoreDescendants` (existing, lines 147-153) — reused here scoped to a branch's own root person rather than the centered one, to decide whether `+` should be disabled once a branch has reached the true end of that person's own recorded lineage in that direction.
 
 - [ ] **Step 1: Add the locale keys**
