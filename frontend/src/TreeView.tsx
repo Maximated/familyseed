@@ -76,6 +76,8 @@ const DEFAULT_DESCENDANT_LEVELS = 2;
 // rather than fighting the stricter type throughout this file.
 type ChartData = Parameters<typeof f3.createChart>[1];
 
+type LineageBranch = { rootPersonId: string; ancestryDepth: number; progenyDepth: number };
+
 // Walks up via each person's first recorded parent until there's no parent
 // left on file — used to pick a starting point for "ver todo el árbol" that
 // makes every sibling-of-a-sibling (and their spouses) a proper descendant
@@ -900,6 +902,11 @@ function App() {
   // selection change, see the reset block inside chart.setAfterUpdate.
   const [ancestorLevels, setAncestorLevels] = useState(DEFAULT_ANCESTOR_LEVELS);
   const [descendantLevels, setDescendantLevels] = useState(DEFAULT_DESCENDANT_LEVELS);
+  const [lineageBranches, setLineageBranches] = useState<LineageBranch[]>([]);
+  const lineageBranchesRef = useRef<LineageBranch[]>([]);
+  useEffect(() => {
+    lineageBranchesRef.current = lineageBranches;
+  }, [lineageBranches]);
   const [infoPanel, setInfoPanel] = useState<InfoPanelData | null>(null);
   // The person currently centered on the canvas (family-chart's own
   // "main" person) — mirrors currentMainIdRef into React state so the
@@ -2314,6 +2321,7 @@ function App() {
               const nextDescendantLevels = overrides?.descendantLevels ?? DEFAULT_DESCENDANT_LEVELS;
               setAncestorLevels(nextAncestorLevels);
               setDescendantLevels(nextDescendantLevels);
+              setLineageBranches([]);
               chart.setAncestryDepth(nextAncestorLevels);
               chart.setProgenyDepth(nextDescendantLevels);
               chart.updateTree({});
