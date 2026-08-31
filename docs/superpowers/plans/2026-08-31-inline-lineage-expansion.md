@@ -303,7 +303,7 @@ This is the architectural core of the feature. It's split from Task 6 (lines) de
 - Consumes: `LineageBranch` (Task 4), `getCardScreenPos` (Task 2), `sortTreeChildren` (Task 1), `cardTemplate` (existing, line 625), `f3.calculateTree` (library export), `TreePerson` (existing type from `./api`), `orientationRef` (existing ref).
 - Produces: `renderLineageBranches(): void` — a `useCallback`, stable across renders the same way `wireCardAndUnionClicks` is (same dependency array pattern: whatever refs/state it closes over that aren't refs). Called from two places: (a) inside `chart.setAfterUpdate`, immediately before `wireCardAndUnionClicks()`; (b) directly after every `setLineageBranches(...)` call (Task 8 and Task 9 add these call sites) — because a plain React state change does **not** trigger `family-chart`'s own `chart.updateTree()`/`setAfterUpdate`, so nothing else would re-run this function when a branch is opened, deepened, or collapsed.
 
-Everything this task's `renderLineageBranches` creates lives inside one container: `<g class="lineage-extra-view">` for cards' SVG-side needs — actually cards are HTML, not SVG (see below) — so precisely: a plain `<div class="lineage-extra-cards">` for cards, sibling to whatever element hosts `family-chart`'s own `#htmlSvg`/card layer, both living directly under `container` (the `.f3` div). `family-chart` only ever calls `d3.select(svg).select(".cards_view")`/`.select(".links_view")` (both scoped **inside its own SVG**, matched by exact class name) — a sibling div with a different class name is never touched by that selector, so nothing here ever gets exit-removed by `family-chart`'s own re-renders.
+Everything this task's `renderLineageBranches` creates lives in one container, `<div class="lineage-extra-view">`, placed *inside* `#htmlSvg .cards_view` — the exact element family-chart's own pan/zoom handler applies its transform to (confirmed directly against the library source; a sibling of `#f3Canvas` would never inherit that transform and would drift out of sync with the tree on the first pan or zoom). `family-chart` only ever queries that view for the exact class `div.card_cont` (see `updateCardsHtml`'s own `d3.select(div).select(".cards_view").selectAll("div.card_cont")`), so a sibling `<div class="lineage-extra-view">` living in there is still never touched by that selector — isolation is preserved one level deeper than earlier drafts of this plan placed it.
 
 - [ ] **Step 1: Add the branch-tree data type alias and the container helper**
 
@@ -318,18 +318,38 @@ Right before the `wireCardAndUnionClicks` declaration (`const wireCardAndUnionCl
   // verify it through the library's own exported types without a cast.
   type BranchTreeInput = Parameters<typeof f3.calculateTree>[0];
 
-  // family-chart only ever queries its own `.cards_view`/`.links_view` by
-  // exact class name (see updateCardsSvg/updateLinks in family-chart.esm.js)
-  // — a sibling container with a different class, living directly under the
-  // same `.f3` root, is never part of that selection, so its own re-renders
-  // can never exit-remove anything placed here. Created once and reused
-  // (not recreated every render) so DOM identity is stable across passes.
+  // family-chart's own pan/zoom handler applies its transform directly to
+  // `#htmlSvg .cards_view` (see onZoomSetup/getHtmlView in family-
+  // chart.esm.js) — not to the outer `.f3`/`#f3Canvas` container. A sibling
+  // of `#f3Canvas` would never inherit that transform, so branch cards
+  // would render at the right layout coordinates but the wrong screen
+  // position the instant the user pans or zooms (reproduced directly
+  // against the library source before writing this). Placed *inside*
+  // `.cards_view` instead — family-chart only ever queries that view by the
+  // exact class `div.card_cont` (see updateCardsSvg's own `d3.select(div)
+  // .select(".cards_view").selectAll("div.card_cont")`), so a sibling
+  // `<div class="lineage-extra-view">` living in there is still never part
+  // of that selection, and its own re-renders can never exit-remove
+  // anything placed here — isolation is preserved, just one level deeper.
+  // `top: 0; left: 0` mirrors family-chart's own `div.card_cont` (which
+  // sets the same two properties alongside `position: absolute`) — without
+  // them the absolutely-positioned wrappers inside resolve against their
+  // own static in-flow position instead of this layer's own top-left
+  // corner, offsetting every branch card by roughly the container's height
+  // (also reproduced directly before writing this). Created once and
+  // reused (not recreated every render) so DOM identity is stable across
+  // passes.
   function getOrCreateLineageExtraLayer(container: HTMLElement): HTMLDivElement {
-    let layer = container.querySelector<HTMLDivElement>(":scope > .lineage-extra-view");
+    const cardsView = container.querySelector<HTMLElement>("#htmlSvg .cards_view");
+    if (!cardsView) throw new Error("cards_view not found — chart not mounted yet");
+    let layer = cardsView.querySelector<HTMLDivElement>(":scope > .lineage-extra-view");
     if (!layer) {
       layer = document.createElement("div");
       layer.className = "lineage-extra-view";
-      container.appendChild(layer);
+      layer.style.position = "absolute";
+      layer.style.top = "0";
+      layer.style.left = "0";
+      cardsView.appendChild(layer);
     }
     return layer;
   }
@@ -399,15 +419,23 @@ Right after the helper from Step 1 (still before `wireCardAndUnionClicks`):
       const rootNode = result.data.find((n) => n.data.id === branch.rootPersonId);
       if (!rootNode) continue;
 
-      // family-chart's own coordinate convention: x is the spread axis
-      // (siblings/spouses side by side), y is the depth axis (generation)
-      // in vertical mode; swapped in horizontal mode (see
-      // correctLinkTextTransform's own comment on this same swap
-      // elsewhere in this file).
-      const offsetX = isHorizontal ? anchor.x - rootNode.y : anchor.x - rootNode.x;
-      const offsetY = isHorizontal ? anchor.y - rootNode.x : anchor.y - rootNode.y;
-      const screenX = (n: { x: number; y: number }) => (isHorizontal ? n.y + offsetX : n.x + offsetX);
-      const screenY = (n: { x: number; y: number }) => (isHorizontal ? n.x + offsetY : n.y + offsetY);
+      // No orientation branch needed here, deliberately — unlike `.sx`
+      // (see Task 6's own anchorSpread, which genuinely does need one),
+      // `calculateTree()`'s returned `.x`/`.y` are already final screen
+      // coordinates in *either* orientation: its own internal
+      // nodePositioning() applies the horizontal swap itself before
+      // returning (`if (is_horizontal) { const d_x = d.x; d.x = d.y; d.y =
+      // d_x; }`, family-chart.esm.js), which is also why the library's own
+      // card renderer writes `translate(d.x, d.y)` unconditionally in both
+      // orientations. Reading `.x`/`.y` through an isHorizontal swap here
+      // (an earlier draft of this plan did exactly that) re-applies a swap
+      // the library already performed, transposing every non-root node 90°
+      // in horizontal mode — caught in Task 5's own review and confirmed
+      // directly against the library source before writing this.
+      const offsetX = anchor.x - rootNode.x;
+      const offsetY = anchor.y - rootNode.y;
+      const screenX = (n: { x: number; y: number }) => n.x + offsetX;
+      const screenY = (n: { x: number; y: number }) => n.y + offsetY;
 
       for (const node of result.data) {
         if (node.data.id === branch.rootPersonId) continue; // already on screen for real
@@ -425,9 +453,19 @@ Right after the helper from Step 1 (still before `wireCardAndUnionClicks`):
         // where a real family-chart card would sit at the same coordinates.
         const wrapper = document.createElement("div");
         wrapper.style.position = "absolute";
+        wrapper.style.top = "0";
+        wrapper.style.left = "0";
         wrapper.style.transform = `translate(${screenX(node)}px, ${screenY(node)}px)`;
         const cardEl = document.createElement("div");
-        cardEl.className = "card";
+        // Gender class matches family-chart's own getClassList (family-
+        // chart.esm.js) — the only one of its several classes with real CSS
+        // behind it in this app's App.css (card-male/-female/-genderless
+        // color the avatar frame); card-depth-N/card-main/card-new-rel have
+        // no matching rule here, so there's nothing to gain from adding
+        // them too.
+        const gender = (node.data.data as { gender?: string }).gender;
+        const genderClass = gender === "M" ? "card-male" : gender === "F" ? "card-female" : "card-genderless";
+        cardEl.className = `card ${genderClass}`;
         cardEl.dataset.id = node.data.id;
         cardEl.style.transform = "translate(-50%, -50%)";
         cardEl.style.pointerEvents = "auto";
@@ -658,13 +696,24 @@ Right before the `for (const branch of lineageBranchesRef.current)` loop in `ren
 Immediately after computing `offsetX`/`offsetY` in Task 5's Step 2 (right after the `const screenY = ...` line, before the `for (const node of result.data)` cards loop), add:
 
 ```typescript
+      // The shift magnitude split by orientation is deliberate and distinct
+      // from the screenX/screenY fix below: it decides *which* of the two
+      // already-correct screen offsets to perturb — shifting along whichever
+      // axis is the sibling/"spread" direction for this orientation (screen-
+      // x when vertical, screen-y when horizontal, same concept `.sx`
+      // encodes elsewhere) so a shifted branch doesn't get shoved into a
+      // neighboring generation row. `candidateScreenX`/`candidateScreenY`
+      // themselves, unlike that choice, must NOT swap axes — same fix as
+      // Task 5's `screenX`/`screenY` above and for the same reason
+      // (`calculateTree()`'s `.x`/`.y` are already final screen coordinates
+      // in either orientation).
       const SHIFT_STEP = isHorizontal ? 0 : 300;
       const SHIFT_STEP_Y = isHorizontal ? 220 : 0;
       let shiftAttempt = 0;
       let adjustedOffsetX = offsetX;
       let adjustedOffsetY = offsetY;
-      const candidateScreenX = (n: { x: number; y: number }) => (isHorizontal ? n.y + adjustedOffsetX : n.x + adjustedOffsetX);
-      const candidateScreenY = (n: { x: number; y: number }) => (isHorizontal ? n.x + adjustedOffsetY : n.y + adjustedOffsetY);
+      const candidateScreenX = (n: { x: number; y: number }) => n.x + adjustedOffsetX;
+      const candidateScreenY = (n: { x: number; y: number }) => n.y + adjustedOffsetY;
       const nonRootNodes = result.data.filter((n) => n.data.id !== branch.rootPersonId && !placedPersonIds.has(n.data.id));
       while (
         shiftAttempt < 20 &&
@@ -679,8 +728,8 @@ Immediately after computing `offsetX`/`offsetY` in Task 5's Step 2 (right after 
 Then replace the two `screenX`/`screenY` const declarations from Task 5's Step 2 to close over `adjustedOffsetX`/`adjustedOffsetY` instead of `offsetX`/`offsetY`:
 
 ```typescript
-      const screenX = (n: { x: number; y: number }) => (isHorizontal ? n.y + adjustedOffsetX : n.x + adjustedOffsetX);
-      const screenY = (n: { x: number; y: number }) => (isHorizontal ? n.x + adjustedOffsetY : n.y + adjustedOffsetY);
+      const screenX = (n: { x: number; y: number }) => n.x + adjustedOffsetX;
+      const screenY = (n: { x: number; y: number }) => n.y + adjustedOffsetY;
 ```
 
 Finally, record each card this branch actually places as newly occupied, so the **next** branch in the same pass avoids it too. Do this inline in Task 5's own cards loop — not as a separate pass afterward — precisely because that loop already applies the right guards (skips the root, skips anyone already placed elsewhere); re-deriving the same "was this really placed by me just now" condition a second time from `placedPersonIds` after the fact doesn't work, since Task 5's own loop has, by that point, already added every one of this branch's ids into `placedPersonIds` itself. In Task 5's Step 2 cards loop, right after `placedPersonIds.add(node.data.id);`, add one line:
