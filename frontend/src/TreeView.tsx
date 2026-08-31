@@ -2867,6 +2867,32 @@ function App() {
         el.style.color = "#000000";
       });
 
+      // Card name/date/place text reads as forest green on screen — not a
+      // stray color, but App.css's own `.f3 { --text-color: var(--color-
+      // forest) }`, read by family-chart's own `.f3 div.card { color:
+      // var(--text-color) }` rule and inherited from there into every card's
+      // name/birthname/lifespan/place text, none of which set their own
+      // `color`. The same "black instead of the on-screen accent color, by
+      // request" rule applied to the connecting lines above was never
+      // extended to this text — reported as names still coming out green in
+      // an exported image. `container` here *is* the `.f3` element itself
+      // (see its own JSX `className="f3 tree-container"`), so an inline
+      // override of the same custom property, on this same element, beats
+      // that class rule exactly the way the `--color-bg` override below
+      // does for the transparent-background case — no per-element
+      // targeting needed, it cascades to every card under it. Unlike the
+      // SVG overrides above, html-to-image *does* inline computed HTML
+      // style automatically, so this alone is enough for the exported
+      // image; nothing highlights it on screen while overridden (same as
+      // --color-bg), so restoring it is only for correctness, not to avoid
+      // a flash.
+      const previousTextColor = container.style.getPropertyValue("--text-color");
+      container.style.setProperty("--text-color", "#000000");
+      exportDomRestores.push(() => {
+        if (previousTextColor) container.style.setProperty("--text-color", previousTextColor);
+        else container.style.removeProperty("--text-color");
+      });
+
       // html-to-image's own cloning (see clone-node.js's cloneCSSStyle)
       // overwrites *every* cloned element's inline style with its
       // getComputedStyle() cssText — including `transform`, which for a
