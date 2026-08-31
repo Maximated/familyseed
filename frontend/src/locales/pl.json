@@ -104,7 +104,7 @@
   "card": {
     "viewFull": "Zobacz pełną kartę",
     "quickAdd": "Dodaj krewnego",
-    "moreAncestry": "Posiada więcej przodków — kliknij, aby ich zobaczyć"
+    "expandLineage": "Pokaż jego/jej rodziców/dzieci, którzy nie są jeszcze widoczni"
   },
   "quickAdd": {
     "title": "Co chcesz dodać?",

@@ -104,7 +104,7 @@
   "card": {
     "viewFull": "Ver ficha completa",
     "quickAdd": "Añadir familiar",
-    "moreAncestry": "Tiene más antepasados registrados — pincha para verlos"
+    "expandLineage": "Mostrar sus padres/hijos que aún no se ven en el árbol"
   },
   "quickAdd": {
     "title": "¿Qué quieres añadir?",

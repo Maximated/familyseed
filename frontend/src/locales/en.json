@@ -104,7 +104,7 @@
   "card": {
     "viewFull": "View full profile",
     "quickAdd": "Add relative",
-    "moreAncestry": "Has more recorded ancestors — click to view them"
+    "expandLineage": "Show their parents/children not yet shown in the tree"
   },
   "quickAdd": {
     "title": "What do you want to add?",

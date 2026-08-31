@@ -717,7 +717,7 @@ function cardTemplate(d: CardDatum): string {
     <button type="button" class="card-expand-toggle" data-person-id="${d.data.id}" title="${escapeHtml(i18n.t("card.viewFull"))}" aria-label="${escapeHtml(i18n.t("card.viewFull"))}">${EXPAND_ICON_SVG}</button>
     <button type="button" class="card-edit-toggle" data-person-id="${d.data.id}" title="${escapeHtml(i18n.t("app.edit"))}" aria-label="${escapeHtml(i18n.t("app.edit"))}">${EDIT_ICON_SVG}</button>
     <button type="button" class="card-quickadd-toggle" data-person-id="${d.data.id}" title="${escapeHtml(i18n.t("card.quickAdd"))}" aria-label="${escapeHtml(i18n.t("card.quickAdd"))}">${QUICKADD_ICON_SVG}</button>
-    <button type="button" class="card-ancestry-toggle" data-person-id="${d.data.id}" title="${escapeHtml(i18n.t("card.moreAncestry"))}" aria-label="${escapeHtml(i18n.t("card.moreAncestry"))}">${ANCESTRY_ICON_SVG}</button>
+    <button type="button" class="card-ancestry-toggle" data-person-id="${d.data.id}" title="${escapeHtml(i18n.t("card.expandLineage"))}" aria-label="${escapeHtml(i18n.t("card.expandLineage"))}">${ANCESTRY_ICON_SVG}</button>
   `;
 }
 
@@ -1155,19 +1155,9 @@ function App() {
     // removed and recomputes then, the same "wait for it to settle"
     // approach correctLinkTextTransform already uses for transforms.
     function updateAncestryToggles() {
-      // TS can't carry the `if (!container) return` narrowing above into a
-      // function that (via the MutationObserver below) can be called
-      // asynchronously — this alias is just to satisfy that; `container`
-      // itself doesn't change for as long as this closure is alive.
       const el = container as HTMLDivElement;
-      const currentCardIds = new Set(
-        [...el.querySelectorAll<HTMLElement>(".card-inner[data-person-id]")].map((card) => card.dataset.personId),
-      );
       el.querySelectorAll<HTMLButtonElement>(".card-ancestry-toggle").forEach((btn) => {
-        const personId = btn.dataset.personId;
-        const person = personId ? treeDataRef.current.find((p) => p.id === personId) : undefined;
-        const hasUnrenderedParent = person?.rels.parents.some((parentId) => !currentCardIds.has(parentId)) ?? false;
-        btn.style.display = hasUnrenderedParent ? "" : "none";
+        btn.style.display = "";
       });
     }
     updateAncestryToggles();
