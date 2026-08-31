@@ -600,7 +600,7 @@ Inside the same `for (const branch of ...)` loop from Task 5, after the `for (co
       for (const node of result.data) {
         for (const child of node.children ?? []) {
           if (!placedScreenPos.has(child.data.id)) continue;
-          const otherParent = (node.spouses ?? []).find((sp) => (child.parents ?? []).some((p) => p.data.id === sp.data.id));
+          const otherParent = (node.spouses ?? []).find((sp) => (sp.children ?? []).some((c) => c.data.id === child.data.id));
           const parentIds: [string, string] = otherParent ? [node.data.id, otherParent.data.id] : [node.data.id, node.data.id];
           makeLinkPath(parentIds, child.data.id, false);
         }
@@ -608,6 +608,31 @@ Inside the same `for (const branch of ...)` loop from Task 5, after the `for (co
           if (!placedScreenPos.has(spouse.data.id)) continue;
           if (node.data.id > spouse.data.id) continue; // draw each spouse pair once, not twice
           makeLinkPath(node.data.id, spouse.data.id, true);
+        }
+        // Ancestor side — `family-chart`'s calculateTree() computes ancestry
+        // and progeny as two independent traversals (see calculateTree's own
+        // calculateTreePositions(main, 'children', false) and (main,
+        // 'parents', true) calls), so `.children`/`.spouses` above are only
+        // ever populated on `main` and progeny nodes, while `.parents`/
+        // `.coparent` are only ever populated on `main` and ancestry nodes
+        // (confirmed against the library's own treeData.d.ts doc comments —
+        // "Parents of this node (main person and ancestry)" — and
+        // empirically, via a live console dump of a real branch's result,
+        // during this task's own review). Nothing in the loop above ever
+        // reaches this direction: an ancestor node's own `.children`/
+        // `.spouses` stay empty by the library's design, so a revealed
+        // parent's own link to its child (this `node`) and that parent's own
+        // marriage line both need this separate pass, reading `.parents`/
+        // `.coparent` instead.
+        for (const parent of node.parents ?? []) {
+          if (!placedScreenPos.has(parent.data.id)) continue;
+          const coparent = parent.coparent;
+          const parentIds: [string, string] =
+            coparent && placedScreenPos.has(coparent.data.id) ? [parent.data.id, coparent.data.id] : [parent.data.id, parent.data.id];
+          makeLinkPath(parentIds, node.data.id, false);
+        }
+        if (node.coparent && placedScreenPos.has(node.coparent.data.id) && !(node.data.id > node.coparent.data.id)) {
+          makeLinkPath(node.data.id, node.coparent.data.id, true);
         }
       }
 ```
