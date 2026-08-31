@@ -1022,6 +1022,129 @@ function App() {
     }
   }
 
+  // The v1/"legacy" input shape f3.calculateTree() expects — same escape
+  // hatch (`as unknown as`) the existing f3.createChart(containerRef.current,
+  // people as unknown as ChartData) call already uses two lines below this
+  // one, for the same reason: TreePerson's own rels shape (parents/children/
+  // spouses id arrays) is structurally what family-chart wants but TS can't
+  // verify it through the library's own exported types without a cast.
+  type BranchTreeInput = Parameters<typeof f3.calculateTree>[0];
+
+  // family-chart only ever queries its own `.cards_view`/`.links_view` by
+  // exact class name (see updateCardsSvg/updateLinks in family-chart.esm.js)
+  // — a sibling container with a different class, living directly under the
+  // same `.f3` root, is never part of that selection, so its own re-renders
+  // can never exit-remove anything placed here. Created once and reused
+  // (not recreated every render) so DOM identity is stable across passes.
+  function getOrCreateLineageExtraLayer(container: HTMLElement): HTMLDivElement {
+    let layer = container.querySelector<HTMLDivElement>(":scope > .lineage-extra-view");
+    if (!layer) {
+      layer = document.createElement("div");
+      layer.className = "lineage-extra-view";
+      container.appendChild(layer);
+    }
+    return layer;
+  }
+
+  const renderLineageBranches = useCallback(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    const layer = getOrCreateLineageExtraLayer(container);
+    // Rebuilt from scratch on every pass rather than diffed — the number
+    // of open branches is small (a handful at most, opened by hand), so
+    // the simplicity of "clear and redraw" outweighs any cost of
+    // incremental patching here.
+    layer.innerHTML = "";
+
+    const isHorizontal = orientationRef.current === "horizontal";
+    const people = treeDataRef.current;
+
+    // Ids already claimed by a real, currently-rendered main-tree card —
+    // a branch never duplicates someone already visible there (same
+    // reasoning this app already applies to genealogical loops: the
+    // already-existing card wins). Mutated as each branch below places its
+    // own cards (see the end of the `for (const node of result.data)` cards
+    // loop), so a *later* branch in this same pass also skips anyone a
+    // *earlier* branch just placed — without this, opening two branches
+    // that both reach the same third person in one pass would render that
+    // person twice.
+    const placedPersonIds = new Set(
+      [...container.querySelectorAll<HTMLElement>(".card-inner[data-person-id]")]
+        .map((el) => el.dataset.personId)
+        .filter((id): id is string => id !== undefined),
+    );
+
+    for (const branch of lineageBranchesRef.current) {
+      const anchor = getCardScreenPos(container, branch.rootPersonId);
+      if (!anchor) continue; // root card isn't currently rendered — nothing to anchor onto
+
+      let result: ReturnType<typeof f3.calculateTree>;
+      try {
+        result = f3.calculateTree(people as unknown as BranchTreeInput, {
+          main_id: branch.rootPersonId,
+          node_separation: 265,
+          level_separation: 245,
+          is_horizontal: isHorizontal,
+          single_parent_empty_card: false,
+          show_siblings_of_main: true,
+          sortChildrenFunction: sortTreeChildren,
+          ancestry_depth: branch.ancestryDepth,
+          progeny_depth: branch.progenyDepth,
+        });
+      } catch {
+        // Same family-chart crash documented on minAncestorLevels above
+        // (setupSiblings needs the parent's own hierarchy node, which
+        // ancestry_depth can trim away) — a branch whose root has
+        // siblings can't safely go below ancestryDepth 1. Task 9's own
+        // "-" button floor already prevents this from being reachable
+        // through the UI; this catch is the last line of defense so a
+        // stray bad state never crashes the whole tree render.
+        continue;
+      }
+
+      const rootNode = result.data.find((n) => n.data.id === branch.rootPersonId);
+      if (!rootNode) continue;
+
+      // family-chart's own coordinate convention: x is the spread axis
+      // (siblings/spouses side by side), y is the depth axis (generation)
+      // in vertical mode; swapped in horizontal mode (see
+      // correctLinkTextTransform's own comment on this same swap
+      // elsewhere in this file).
+      const offsetX = isHorizontal ? anchor.x - rootNode.y : anchor.x - rootNode.x;
+      const offsetY = isHorizontal ? anchor.y - rootNode.x : anchor.y - rootNode.y;
+      const screenX = (n: { x: number; y: number }) => (isHorizontal ? n.y + offsetX : n.x + offsetX);
+      const screenY = (n: { x: number; y: number }) => (isHorizontal ? n.x + offsetY : n.y + offsetY);
+
+      for (const node of result.data) {
+        if (node.data.id === branch.rootPersonId) continue; // already on screen for real
+        if (placedPersonIds.has(node.data.id)) continue; // visible elsewhere already — don't duplicate
+
+        // Two nested elements, matching family-chart's own structure
+        // exactly (see updateCardsSvg/CardHtmlWrapper in family-chart.esm.js:
+        // an outer wrapper carrying the pixel translate(), and an inner
+        // `div.card[data-id]` offset by translate(-50%, -50%) so the outer
+        // wrapper's point is the card's *center*, not its top-left corner.
+        // getCardScreenPos/applyPanBounds/Task 7's own collision check all
+        // key off `.card[data-id]` specifically — without this exact inner
+        // element, a branch-added card would silently fail to be found by
+        // any of those, and would render offset by half its own size from
+        // where a real family-chart card would sit at the same coordinates.
+        const wrapper = document.createElement("div");
+        wrapper.style.position = "absolute";
+        wrapper.style.transform = `translate(${screenX(node)}px, ${screenY(node)}px)`;
+        const cardEl = document.createElement("div");
+        cardEl.className = "card";
+        cardEl.dataset.id = node.data.id;
+        cardEl.style.transform = "translate(-50%, -50%)";
+        cardEl.style.pointerEvents = "auto";
+        cardEl.innerHTML = cardTemplate({ data: node.data });
+        wrapper.appendChild(cardEl);
+        layer.appendChild(wrapper);
+        placedPersonIds.add(node.data.id);
+      }
+    }
+  }, []);
+
   // Re-run after every tree render: family-chart rebuilds the card/link DOM
   // from scratch each time, so any handler attached to it has to be
   // reattached rather than registered once.
@@ -2329,6 +2452,7 @@ function App() {
             }
           }
           runHighlight();
+          renderLineageBranches();
           wireCardAndUnionClicks();
         });
 
@@ -2390,7 +2514,7 @@ function App() {
       }
       currentMainIdRef.current = chartRef.current.getMainDatum().id;
     },
-    [runHighlight, wireCardAndUnionClicks, t, treeId],
+    [renderLineageBranches, runHighlight, wireCardAndUnionClicks, t, treeId],
   );
 
   useEffect(() => {
