@@ -106,6 +106,13 @@
     "quickAdd": "Añadir familiar",
     "expandLineage": "Mostrar sus padres/hijos que aún no se ven en el árbol"
   },
+  "lineageBranch": {
+    "expandAncestors": "Un nivel más de ascendientes",
+    "collapseAncestors": "Un nivel menos de ascendientes",
+    "expandDescendants": "Un nivel más de descendientes",
+    "collapseDescendants": "Un nivel menos de descendientes",
+    "close": "Colapsar esta rama"
+  },
   "quickAdd": {
     "title": "¿Qué quieres añadir?",
     "child": "Hijo/a",

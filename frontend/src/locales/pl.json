@@ -106,6 +106,13 @@
     "quickAdd": "Dodaj krewnego",
     "expandLineage": "Pokaż jego/jej rodziców/dzieci, którzy nie są jeszcze widoczni"
   },
+  "lineageBranch": {
+    "expandAncestors": "Jeszcze jeden poziom przodków",
+    "collapseAncestors": "O jeden poziom mniej przodków",
+    "expandDescendants": "Jeszcze jeden poziom potomków",
+    "collapseDescendants": "O jeden poziom mniej potomków",
+    "close": "Zwiń tę gałąź"
+  },
   "quickAdd": {
     "title": "Co chcesz dodać?",
     "child": "Dziecko",

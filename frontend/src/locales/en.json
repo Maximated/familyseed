@@ -106,6 +106,13 @@
     "quickAdd": "Add relative",
     "expandLineage": "Show their parents/children not yet shown in the tree"
   },
+  "lineageBranch": {
+    "expandAncestors": "One more level of ancestors",
+    "collapseAncestors": "One fewer level of ancestors",
+    "expandDescendants": "One more level of descendants",
+    "collapseDescendants": "One fewer level of descendants",
+    "close": "Collapse this branch"
+  },
   "quickAdd": {
     "title": "What do you want to add?",
     "child": "Child",
