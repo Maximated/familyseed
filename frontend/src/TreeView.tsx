@@ -1569,11 +1569,24 @@ function App() {
       const personId = btn.dataset.personId;
       btn.onclick = (e) => {
         e.stopPropagation();
-        const chart = chartRef.current;
-        if (!chart || !personId) return;
-        ensureSafeAncestryDepthFor(chart, personId, treeDataRef.current);
-        chart.updateMainId(personId);
-        chart.updateTree({});
+        if (!personId) return;
+        const alreadyOpen = lineageBranchesRef.current.some((b) => b.rootPersonId === personId);
+        setLineageBranches((prev) =>
+          alreadyOpen
+            ? prev.filter((b) => b.rootPersonId !== personId)
+            : [...prev, { rootPersonId: personId, ancestryDepth: 1, progenyDepth: 1 }],
+        );
+        // setLineageBranches is async — lineageBranchesRef won't reflect
+        // this change until the effect in Task 4 runs on the next render.
+        // renderLineageBranches reads the ref, so update it here directly
+        // too, the same way ensureSafeAncestryDepthFor-style code
+        // elsewhere in this file writes straight into a ref instead of
+        // waiting for a state update's own effect to catch up.
+        lineageBranchesRef.current = alreadyOpen
+          ? lineageBranchesRef.current.filter((b) => b.rootPersonId !== personId)
+          : [...lineageBranchesRef.current, { rootPersonId: personId, ancestryDepth: 1, progenyDepth: 1 }];
+        renderLineageBranches();
+        wireCardAndUnionClicks();
       };
     });
 
