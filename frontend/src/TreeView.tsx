@@ -1235,6 +1235,7 @@ function App() {
         wrapper.appendChild(cardEl);
         layer.appendChild(wrapper);
         placedPersonIds.add(node.data.id);
+        occupied.push({ x: screenX(node), y: screenY(node) });
       }
 
       // `placedPersonIds` at this point also already contains every node
@@ -1255,7 +1256,14 @@ function App() {
         placedScreenPos.set(node.data.id, {
           x: screenX(node),
           y: screenY(node),
-          sx: typeof node.sx === "number" ? (isHorizontal ? node.sx + offsetY : node.sx + offsetX) : undefined,
+          // Reads the same adjustedOffsetX/adjustedOffsetY screenX/screenY
+          // above now use (Task 7), not the original offsetX/offsetY — this
+          // sx line was added by Task 6, after Task 7's own plan text was
+          // written, so Task 7's plan never mentions it; without this it
+          // would silently keep anchoring a shifted branch's union-line
+          // elbow (see makeLinkPath's anchorSpread) at its pre-shift
+          // position while the card itself moved to the shifted one.
+          sx: typeof node.sx === "number" ? (isHorizontal ? node.sx + adjustedOffsetY : node.sx + adjustedOffsetX) : undefined,
         });
       }
       placedScreenPos.set(branch.rootPersonId, { x: anchor.x, y: anchor.y, sx: rootNode.sx });
