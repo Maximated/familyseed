@@ -1162,6 +1162,14 @@ function App() {
         wrapper.style.top = "0";
         wrapper.style.left = "0";
         wrapper.style.transform = `translate(${screenX(node)}px, ${screenY(node)}px)`;
+        // Matches family-chart's own div.card_cont, which sets
+        // pointer-events: none on the outer wrapper while the inner card
+        // sets pointer-events: auto (see cardEl.style.pointerEvents below)
+        // — without this, the wrapper's own box (offset by half a card
+        // from the inner card via the -50%/-50% transform below) is a
+        // silently invisible hit target that can steal clicks intended
+        // for whatever real content sits underneath it.
+        wrapper.style.pointerEvents = "none";
         const cardEl = document.createElement("div");
         // Gender class matches family-chart's own getClassList (family-
         // chart.esm.js) — the only one of its several classes with real CSS
@@ -1179,6 +1187,137 @@ function App() {
         wrapper.appendChild(cardEl);
         layer.appendChild(wrapper);
         placedPersonIds.add(node.data.id);
+      }
+
+      // `placedPersonIds` at this point also already contains every node
+      // *this same branch's* cards loop (Task 5) just placed, not only
+      // real main-tree/earlier-branch ones — that's fine, not just "not a
+      // bug": by now those cards genuinely exist in the DOM with the exact
+      // `.card[data-id]` structure Task 5 gives them, so getCardScreenPos
+      // resolves the very same position screenX/screenY would have
+      // computed, just read back from the DOM instead of recomputed —
+      // one lookup path instead of branching on "mine vs. someone else's".
+      const placedScreenPos = new Map<string, { x: number; y: number; sx?: number }>();
+      for (const node of result.data) {
+        if (placedPersonIds.has(node.data.id) && node.data.id !== branch.rootPersonId) {
+          const real = getCardScreenPos(container, node.data.id);
+          if (real) placedScreenPos.set(node.data.id, { x: real.x, y: real.y });
+          continue;
+        }
+        placedScreenPos.set(node.data.id, {
+          x: screenX(node),
+          y: screenY(node),
+          sx: typeof node.sx === "number" ? (isHorizontal ? node.sx + offsetY : node.sx + offsetX) : undefined,
+        });
+      }
+      placedScreenPos.set(branch.rootPersonId, { x: anchor.x, y: anchor.y, sx: rootNode.sx });
+
+      function makeLinkPath(sourceIds: [string, string] | string, targetId: string, isSpouse: boolean) {
+        const targetPos = placedScreenPos.get(targetId);
+        if (!targetPos) return;
+        const sourceArr = Array.isArray(sourceIds) ? sourceIds : [sourceIds];
+        const sourceNodes = sourceArr
+          .map((id) => {
+            const pos = placedScreenPos.get(id);
+            return pos ? { data: { id }, x: pos.x, y: pos.y, sx: pos.sx } : null;
+          })
+          .filter((n): n is { data: { id: string }; x: number; y: number; sx: number | undefined } => n !== null);
+        if (sourceNodes.length === 0) return;
+
+        const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+        path.setAttribute("class", isSpouse ? "link union-line" : "link");
+        const datum = {
+          source: isSpouse ? sourceNodes[0] : sourceNodes,
+          target: { data: { id: targetId }, x: targetPos.x, y: targetPos.y },
+        };
+        (path as unknown as { __data__: typeof datum }).__data__ = datum;
+
+        if (isSpouse) {
+          const [x1, y1] = [sourceNodes[0].x, sourceNodes[0].y];
+          path.setAttribute("d", `M${x1},${y1}L${targetPos.x},${targetPos.y}`);
+        } else {
+          const parentDepth = isHorizontal ? sourceNodes[0].x : sourceNodes[0].y;
+          const childDepth = isHorizontal ? targetPos.y : targetPos.x;
+          const anchorSpreadRaw = sourceNodes.length > 1 ? sourceNodes[1].sx : sourceNodes[0].sx;
+          const anchorSpread = anchorSpreadRaw ?? (isHorizontal ? sourceNodes[0].y : sourceNodes[0].x);
+          const childSpread = isHorizontal ? targetPos.x : targetPos.y;
+          const elbow = childDepth + (parentDepth - childDepth) / 2;
+          const point = (depth: number, spread: number) => (isHorizontal ? `${depth},${spread}` : `${spread},${depth}`);
+          path.setAttribute(
+            "d",
+            `M${point(childDepth, childSpread)}L${point(elbow, childSpread)}L${point(elbow, anchorSpread)}L${point(parentDepth, anchorSpread)}`,
+          );
+        }
+        const svgHost = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+        svgHost.setAttribute("class", "lineage-extra-links-host");
+        svgHost.appendChild(path);
+        layer.appendChild(svgHost);
+      }
+
+      for (const node of result.data) {
+        for (const child of node.children ?? []) {
+          if (!placedScreenPos.has(child.data.id)) continue;
+          // A first draft cross-referenced `node.spouses` against
+          // `child.parents` (family-chart's own tree-shape field) to find
+          // this child's other parent — reasonable-looking, but empirically
+          // wrong: `.parents` is only ever populated on main/ancestry nodes
+          // (see the ancestor-side pass below), so it's always `[]` on a
+          // progeny child regardless of how many parents it really has. A
+          // second draft swapped the cross-reference to check each
+          // candidate spouse's own `.children` instead — also wrong, and
+          // for the exact same underlying reason: `.children` is likewise
+          // never populated on a "spouse of main" node (it's neither main
+          // nor progeny by family-chart's own rule), confirmed directly via
+          // a live console dump during this task's review (a real spouse
+          // node showed `children: []` despite genuinely having that child
+          // in the real data). What's always reliable regardless of which
+          // side of the ancestry/progeny split a node landed on is the raw,
+          // untransformed relationship data every TreeDatum still carries
+          // on `.data.rels` (the same `Datum.rels.parents` shape the rest
+          // of this app already reads elsewhere) — confirmed via the same
+          // dump: `child.data.rels.parents` correctly listed both real
+          // parent ids no matter which one of them `node` here is.
+          const rawParentIds = (child.data as unknown as { rels?: { parents?: string[] } }).rels?.parents ?? [];
+          const otherParentId = rawParentIds.find((id) => id !== node.data.id);
+          const parentIds: [string, string] = otherParentId ? [node.data.id, otherParentId] : [node.data.id, node.data.id];
+          makeLinkPath(parentIds, child.data.id, false);
+        }
+        for (const spouse of node.spouses ?? []) {
+          if (!placedScreenPos.has(spouse.data.id)) continue;
+          if (node.data.id > spouse.data.id) continue; // draw each spouse pair once, not twice
+          makeLinkPath(node.data.id, spouse.data.id, true);
+        }
+        // Ancestor side — family-chart's calculateTree() computes ancestry
+        // and progeny as two independent traversals, so `.children`/
+        // `.spouses` above are only ever populated on main and progeny
+        // nodes, while `.parents`/`.coparent` are only ever populated on
+        // main and ancestry nodes (confirmed against the library's own
+        // treeData.d.ts doc comments — "Parents of this node (main person
+        // and ancestry)" — and empirically via a live console dump of a
+        // real branch's result during this task's review). Nothing in the
+        // loop above ever reaches this direction: a revealed ancestor's own
+        // link to its child (this `node`) and that ancestor's own marriage
+        // line both need this separate pass, reading `.parents`/`.coparent`
+        // instead.
+        for (const parent of node.parents ?? []) {
+          if (!placedScreenPos.has(parent.data.id)) continue;
+          const coparent = parent.coparent;
+          // `node.parents` can hold both members of a couple (e.g. `node`
+          // is main and has two parents on file) — without this guard,
+          // each parent's own loop iteration would independently resolve
+          // the *same* pair and draw the identical link twice, one path
+          // stacked exactly on the other. Same unordered-pair dedup idea as
+          // the spouse loop above, just keyed off whichever of the two
+          // parent ids sorts first instead of `node`'s own id (there's no
+          // shared `node` to compare against here).
+          if (coparent && parent.data.id > coparent.data.id) continue;
+          const parentIds: [string, string] =
+            coparent && placedScreenPos.has(coparent.data.id) ? [parent.data.id, coparent.data.id] : [parent.data.id, parent.data.id];
+          makeLinkPath(parentIds, node.data.id, false);
+        }
+        if (node.coparent && placedScreenPos.has(node.coparent.data.id) && !(node.data.id > node.coparent.data.id)) {
+          makeLinkPath(node.data.id, node.coparent.data.id, true);
+        }
       }
     }
   }, []);
