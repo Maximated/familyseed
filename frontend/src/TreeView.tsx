@@ -1094,6 +1094,26 @@ function App() {
         .filter((id): id is string => id !== undefined),
     );
 
+    // Card footprint in the same coordinate space `.x`/`.y` already use —
+    // matches the real card size family-chart itself lays out to (see
+    // node_separation: 265 / level_separation: 245 above: spacing, not
+    // card size directly, but the card itself is comfortably smaller than
+    // its own spacing slot, so treating a slightly-smaller box than the
+    // full spacing as "occupied" avoids flagging two properly-spaced,
+    // legitimately-adjacent cards as colliding with each other).
+    const CARD_BOX_WIDTH = 220;
+    const CARD_BOX_HEIGHT = 200;
+    const occupied: { x: number; y: number }[] = [
+      ...[...container.querySelectorAll<HTMLElement>(".card[data-id]")].map((card) => {
+        const w = card.parentElement;
+        const style = w?.getAttribute("style");
+        const match = style?.match(/translate\(([-\d.]+)px,\s*([-\d.]+)px\)/);
+        return match ? { x: Number(match[1]), y: Number(match[2]) } : null;
+      }),
+    ].filter((p): p is { x: number; y: number } => p !== null);
+    const overlaps = (ax: number, ay: number, bx: number, by: number) =>
+      Math.abs(ax - bx) < CARD_BOX_WIDTH && Math.abs(ay - by) < CARD_BOX_HEIGHT;
+
     for (const branch of lineageBranchesRef.current) {
       const anchor = getCardScreenPos(container, branch.rootPersonId);
       if (!anchor) continue; // root card isn't currently rendered — nothing to anchor onto
@@ -1140,8 +1160,36 @@ function App() {
       // directly against the library source before writing this.
       const offsetX = anchor.x - rootNode.x;
       const offsetY = anchor.y - rootNode.y;
-      const screenX = (n: { x: number; y: number }) => n.x + offsetX;
-      const screenY = (n: { x: number; y: number }) => n.y + offsetY;
+
+      // The shift magnitude split by orientation is deliberate and distinct
+      // from the screenX/screenY axis-swap fix above: it decides *which* of
+      // the two already-correct screen offsets to perturb — shifting along
+      // whichever axis is the sibling/"spread" direction for this
+      // orientation (screen-x when vertical, screen-y when horizontal, same
+      // concept `.sx` encodes elsewhere) so a shifted branch doesn't get
+      // shoved into a neighboring generation row. `candidateScreenX`/
+      // `candidateScreenY` themselves, unlike that choice, must NOT swap
+      // axes — same reasoning as `screenX`/`screenY` above (`calculateTree()`'s
+      // `.x`/`.y` are already final screen coordinates in either orientation).
+      const SHIFT_STEP = isHorizontal ? 0 : 300;
+      const SHIFT_STEP_Y = isHorizontal ? 220 : 0;
+      let shiftAttempt = 0;
+      let adjustedOffsetX = offsetX;
+      let adjustedOffsetY = offsetY;
+      const candidateScreenX = (n: { x: number; y: number }) => n.x + adjustedOffsetX;
+      const candidateScreenY = (n: { x: number; y: number }) => n.y + adjustedOffsetY;
+      const nonRootNodes = result.data.filter((n) => n.data.id !== branch.rootPersonId && !placedPersonIds.has(n.data.id));
+      while (
+        shiftAttempt < 20 &&
+        nonRootNodes.some((n) => occupied.some((o) => overlaps(candidateScreenX(n), candidateScreenY(n), o.x, o.y)))
+      ) {
+        shiftAttempt += 1;
+        adjustedOffsetX = offsetX + shiftAttempt * SHIFT_STEP;
+        adjustedOffsetY = offsetY + shiftAttempt * SHIFT_STEP_Y;
+      }
+
+      const screenX = (n: { x: number; y: number }) => n.x + adjustedOffsetX;
+      const screenY = (n: { x: number; y: number }) => n.y + adjustedOffsetY;
 
       for (const node of result.data) {
         if (node.data.id === branch.rootPersonId) continue; // already on screen for real
