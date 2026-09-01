@@ -1784,6 +1784,53 @@ body {
   transform: scale(0.92);
 }
 
+.lineage-branch-controls {
+  position: fixed;
+  transform: translate(-50%, 0);
+  display: flex;
+  gap: 0.25rem;
+  background: var(--color-surface);
+  border-radius: 999px;
+  padding: 0.25rem;
+  box-shadow: 0 2px 8px var(--color-union-hover-shadow);
+  z-index: 20;
+}
+
+.lineage-branch-controls-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: none;
+  color: var(--color-forest);
+  cursor: pointer;
+}
+
+.lineage-branch-controls-button:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.lineage-branch-controls-button:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--color-forest) 12%, transparent);
+}
+
+.lineage-branch-controls-close {
+  color: var(--color-tree-black);
+}
+
+/* The expand-lineage icon on a card whose branch is already open — filled
+   instead of outlined, same idea as any other "currently active" toggle
+   in this app, so it's obvious at a glance which cards already have an
+   open branch without needing to hunt for their own floating panel. */
+.card-ancestry-toggle-active svg {
+  fill: currentColor;
+}
+
 /* Compact tree card: name + optional birth surname/alias + a lifespan
    line, plus a small toggle that opens the full record instead of
    growing the card in place (which would overlap its neighbors in the
