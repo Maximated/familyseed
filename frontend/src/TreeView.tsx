@@ -52,6 +52,7 @@ import {
 } from "./Icons";
 import LinkPeopleModal from "./LinkPeopleModal";
 import LineagesManageView from "./LineagesManageView";
+import LineageBranchControls from "./LineageBranchControls";
 import PhotoLightbox from "./PhotoLightbox";
 import GedcomView from "./GedcomView";
 import { getDefaultOrientation } from "./preferences";
@@ -907,6 +908,9 @@ function App() {
   useEffect(() => {
     lineageBranchesRef.current = lineageBranches;
   }, [lineageBranches]);
+  const [lineageBranchPositions, setLineageBranchPositions] = useState<Map<string, { x: number; y: number }>>(
+    new Map(),
+  );
   const [infoPanel, setInfoPanel] = useState<InfoPanelData | null>(null);
   // The person currently centered on the canvas (family-chart's own
   // "main" person) — mirrors currentMainIdRef into React state so the
@@ -1519,9 +1523,19 @@ function App() {
     // approach correctLinkTextTransform already uses for transforms.
     function updateAncestryToggles() {
       const el = container as HTMLDivElement;
+      const openIds = new Set(lineageBranchesRef.current.map((b) => b.rootPersonId));
       el.querySelectorAll<HTMLButtonElement>(".card-ancestry-toggle").forEach((btn) => {
         btn.style.display = "";
+        btn.classList.toggle("card-ancestry-toggle-active", openIds.has(btn.dataset.personId ?? ""));
       });
+      const positions = new Map<string, { x: number; y: number }>();
+      for (const branch of lineageBranchesRef.current) {
+        const card = el.querySelector<HTMLElement>(`.card[data-id="${branch.rootPersonId}"]`);
+        if (!card) continue;
+        const rect = card.getBoundingClientRect();
+        positions.set(branch.rootPersonId, { x: rect.left + rect.width / 2, y: rect.bottom + 8 });
+      }
+      setLineageBranchPositions(positions);
     }
     updateAncestryToggles();
     applyPanBounds(container);
@@ -3906,6 +3920,69 @@ function App() {
               }}
             />
           )}
+          {lineageBranches.map((branch) => {
+            const pos = lineageBranchPositions.get(branch.rootPersonId);
+            if (!pos) return null;
+            const min = minAncestorLevels(branch.rootPersonId, treeDataRef.current);
+            return (
+              <LineageBranchControls
+                key={branch.rootPersonId}
+                x={pos.x}
+                y={pos.y}
+                canCollapseAncestors={branch.ancestryDepth > min}
+                canExpandAncestors={hasMoreAncestors(branch.rootPersonId, branch.ancestryDepth, treeDataRef.current)}
+                canCollapseDescendants={branch.progenyDepth > 0}
+                canExpandDescendants={hasMoreDescendants(branch.rootPersonId, branch.progenyDepth, treeDataRef.current)}
+                onAncestorChange={(delta) => {
+                  setLineageBranches((prev) =>
+                    prev.map((b) =>
+                      b.rootPersonId === branch.rootPersonId
+                        ? { ...b, ancestryDepth: Math.max(min, b.ancestryDepth + delta) }
+                        : b,
+                    ),
+                  );
+                  lineageBranchesRef.current = lineageBranchesRef.current.map((b) =>
+                    b.rootPersonId === branch.rootPersonId
+                      ? { ...b, ancestryDepth: Math.max(min, b.ancestryDepth + delta) }
+                      : b,
+                  );
+                  renderLineageBranches();
+                  wireCardAndUnionClicks();
+                }}
+                onDescendantChange={(delta) => {
+                  setLineageBranches((prev) =>
+                    prev.map((b) =>
+                      b.rootPersonId === branch.rootPersonId
+                        ? { ...b, progenyDepth: Math.max(0, b.progenyDepth + delta) }
+                        : b,
+                    ),
+                  );
+                  lineageBranchesRef.current = lineageBranchesRef.current.map((b) =>
+                    b.rootPersonId === branch.rootPersonId
+                      ? { ...b, progenyDepth: Math.max(0, b.progenyDepth + delta) }
+                      : b,
+                  );
+                  renderLineageBranches();
+                  wireCardAndUnionClicks();
+                }}
+                onClose={() => {
+                  setLineageBranches((prev) => prev.filter((b) => b.rootPersonId !== branch.rootPersonId));
+                  lineageBranchesRef.current = lineageBranchesRef.current.filter(
+                    (b) => b.rootPersonId !== branch.rootPersonId,
+                  );
+                  renderLineageBranches();
+                  wireCardAndUnionClicks();
+                }}
+                labels={{
+                  expandAncestors: t("lineageBranch.expandAncestors"),
+                  collapseAncestors: t("lineageBranch.collapseAncestors"),
+                  expandDescendants: t("lineageBranch.expandDescendants"),
+                  collapseDescendants: t("lineageBranch.collapseDescendants"),
+                  close: t("lineageBranch.close"),
+                }}
+              />
+            );
+          })}
           {/* Level-navigation buttons for whoever's currently selected —
               arriba/abajo widen or narrow the ascendant/descendant window
               (chart.setAncestryDepth/setProgenyDepth) one generation at a
