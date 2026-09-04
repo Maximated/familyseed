@@ -1080,6 +1080,27 @@ function App() {
     // incremental patching here.
     layer.innerHTML = "";
 
+    // Real family-chart `path.link` elements live in `svg.main_svg .view
+    // .links_view` (family-chart.esm.js's own createSvg/htmlContSetup),
+    // a `<g>` that gets the exact same pan/zoom transform `#htmlSvg
+    // .cards_view` does (onZoomSetup applies the identical translate/scale
+    // to both, kept in sync) — so a plain pixel-coordinate `<path>` placed
+    // there lines up with our own synthetic cards for free, no separate
+    // calibration needed. Synthetic links used to live in their own tiny
+    // `<svg width:0;height:0;overflow:visible>` host per path instead
+    // (isolated from family-chart's own d3 join the same way the cards
+    // layer is) — that rendered fine on screen but was found, via Task
+    // 10's own end-to-end export check, to vanish from the exported PNG:
+    // html-to-image's rendering pipeline clips a zero-size element's
+    // visually-overflowing content instead of respecting `overflow:
+    // visible` the way a normal browser paint does. A real SVG group
+    // sized to the actual canvas has no such zero-size box to clip
+    // against, and it's the exact same element real (correctly-exporting)
+    // links already live in. `.lineage-extra-link` marks our own paths so
+    // this pass can clear only those, never a real family-chart-drawn one.
+    const linksView = container.querySelector<SVGGElement>("svg.main_svg .view .links_view");
+    linksView?.querySelectorAll(".lineage-extra-link").forEach((el) => el.remove());
+
     const isHorizontal = orientationRef.current === "horizontal";
     const people = treeDataRef.current;
 
@@ -1285,7 +1306,7 @@ function App() {
         if (sourceNodes.length === 0) return;
 
         const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
-        path.setAttribute("class", isSpouse ? "link union-line" : "link");
+        path.setAttribute("class", isSpouse ? "link union-line lineage-extra-link" : "link lineage-extra-link");
         const datum = {
           source: isSpouse ? sourceNodes[0] : sourceNodes,
           target: { data: { id: targetId }, x: targetPos.x, y: targetPos.y },
@@ -1308,10 +1329,7 @@ function App() {
             `M${point(childDepth, childSpread)}L${point(elbow, childSpread)}L${point(elbow, anchorSpread)}L${point(parentDepth, anchorSpread)}`,
           );
         }
-        const svgHost = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-        svgHost.setAttribute("class", "lineage-extra-links-host");
-        svgHost.appendChild(path);
-        layer.appendChild(svgHost);
+        linksView?.appendChild(path);
       }
 
       for (const node of result.data) {

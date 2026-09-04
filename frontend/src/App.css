@@ -1295,26 +1295,6 @@ body {
   stroke-linejoin: round;
 }
 
-/* Each lineage-branch link gets its own tiny host <svg> (see
-   renderLineageBranches) purely so a <path> can exist outside family-
-   chart's own SVG document — the path's own d attribute already carries
-   absolute coordinates in the same space the cards layer uses, so the
-   host itself must never clip or transform that: full-bleed, invisible
-   overflow, zero own footprint. */
-.lineage-extra-links-host {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 0;
-  height: 0;
-  overflow: visible;
-  pointer-events: none;
-}
-
-.lineage-extra-links-host path.link {
-  pointer-events: auto;
-}
-
 /* Hover feedback used to be a CSS :has() rule reacting to the hitarea's
    native :hover — dropped because every union's own elements are flat
    siblings inside one shared SVG group (family-chart draws all links into
