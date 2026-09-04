@@ -1382,6 +1382,36 @@ function App() {
     }
   }, []);
 
+  // Closing a branch (Task 8's own toggle-close and Task 9's own panel ✕
+  // both call this instead of renderLineageBranches() directly) can orphan
+  // a NESTED branch: if a card was only ever on screen because the branch
+  // just removed was the one placing it (e.g. P's own card, added by X's
+  // branch, with a second branch opened from P's own button revealing GP),
+  // P's own LineageBranch entry has no card left to anchor to once X's
+  // branch is gone, but nothing removes that entry on its own — confirmed
+  // via Task 10's own end-to-end nested-branch check, where it otherwise
+  // lingers in state and silently reappears (a duplicate "active" icon and
+  // floating panel on P's card, and eventually GP itself) the next time
+  // anything makes P real again. Render once, then drop any branch whose
+  // root has no card at all left (real or another branch's synthetic one),
+  // and repeat — bounded, since realistic nesting is only a few levels
+  // deep — until nothing more is orphaned.
+  const renderLineageBranchesAndPruneOrphans = useCallback(() => {
+    renderLineageBranches();
+    const container = containerRef.current;
+    if (!container) return;
+    for (let pass = 0; pass < 5; pass++) {
+      const stillPresent = new Set(
+        [...container.querySelectorAll<HTMLElement>(".card[data-id]")].map((el) => el.dataset.id),
+      );
+      const pruned = lineageBranchesRef.current.filter((b) => stillPresent.has(b.rootPersonId));
+      if (pruned.length === lineageBranchesRef.current.length) break;
+      lineageBranchesRef.current = pruned;
+      setLineageBranches(pruned);
+      renderLineageBranches();
+    }
+  }, [renderLineageBranches]);
+
   // Re-run after every tree render: family-chart rebuilds the card/link DOM
   // from scratch each time, so any handler attached to it has to be
   // reattached rather than registered once.
@@ -1599,7 +1629,11 @@ function App() {
         lineageBranchesRef.current = alreadyOpen
           ? lineageBranchesRef.current.filter((b) => b.rootPersonId !== personId)
           : [...lineageBranchesRef.current, { rootPersonId: personId, ancestryDepth: 1, progenyDepth: 1 }];
-        renderLineageBranches();
+        // Always the pruning variant, not just on the close path: opening
+        // has nothing to prune (the loop finds nothing orphaned and exits
+        // after its first pass), so there's no reason to duplicate this
+        // call site into an open/close split just to skip a harmless no-op.
+        renderLineageBranchesAndPruneOrphans();
         wireCardAndUnionClicks();
       };
     });
@@ -3970,7 +4004,7 @@ function App() {
                   lineageBranchesRef.current = lineageBranchesRef.current.filter(
                     (b) => b.rootPersonId !== branch.rootPersonId,
                   );
-                  renderLineageBranches();
+                  renderLineageBranchesAndPruneOrphans();
                   wireCardAndUnionClicks();
                 }}
                 labels={{
