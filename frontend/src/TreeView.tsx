@@ -1327,6 +1327,17 @@ function App() {
         if (sourceNodes.length === 0) return;
 
         const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+        // Matches family-chart's own link_enter (family-chart.esm.js:
+        // `.attr("fill", "none")`) — without it SVG's own default fill
+        // (black) kicks in, and a parent-child link's own elbow `d` (three
+        // line segments, never explicitly closed) still gets filled as if
+        // it were a closed shape, painting a solid black polygon across
+        // however much area those bends happen to enclose. The old
+        // zero-size per-path host this used to live in apparently clipped
+        // that fill area away as a side effect (only ever noticed because
+        // its stroke still rendered) — moving into a real, unclipped SVG
+        // group is what actually exposed this, alongside fixing the export.
+        path.setAttribute("fill", "none");
         path.setAttribute("class", isSpouse ? "link union-line" : "link");
         const datum = {
           source: isSpouse ? sourceNodes[0] : sourceNodes,
