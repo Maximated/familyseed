@@ -1070,6 +1070,43 @@ function App() {
     return layer;
   }
 
+  // Same reasoning as getOrCreateLineageExtraLayer above, for links instead
+  // of cards: a synthetic `<path>` needs to live inside `svg.main_svg .view`
+  // to share its pan/zoom transform (see onZoomSetup) and to be a real,
+  // properly-sized SVG element rather than the zero-size per-path host this
+  // used to be — that isolated design rendered fine on screen but was found,
+  // via Task 10's own export check, to vanish from the exported PNG
+  // (html-to-image's rendering pipeline clips a zero-size element's
+  // visually-overflowing content, unlike a normal browser paint). The one
+  // place it must NOT live is directly inside the real `.links_view` group
+  // itself: family-chart's own update pass re-selects that group's contents
+  // with `d3.select(".links_view").selectAll("path.link")` (confirmed
+  // directly against its source) and rebinds its own data array against
+  // whatever that selection finds — a synthetic path sitting there gets
+  // scooped into that selection too (it carries the same "link" class,
+  // needed for its own styling/hover-click wiring), and family-chart's own
+  // d3 join then tries to update it as if it were one of its own, crashing
+  // (confirmed empirically: editing a person who exists only inside an open
+  // branch, forcing a real chart.updateTree() while that branch's synthetic
+  // links sat inside `.links_view`, threw "d._d is not a function" instead
+  // of ever completing — a card that only exists in a branch went right on
+  // showing its stale pre-edit name because the update that would have
+  // fixed it never finished). A sibling group instead of `.links_view`
+  // itself gets the identical shared transform (both are direct children of
+  // `.view`, the element the transform actually applies to) without ever
+  // being part of any selector family-chart's own code targets.
+  function getOrCreateLineageExtraLinksGroup(container: HTMLElement): SVGGElement | null {
+    const view = container.querySelector<SVGGElement>("svg.main_svg .view");
+    if (!view) return null;
+    let group = view.querySelector<SVGGElement>(":scope > .lineage-extra-links-view");
+    if (!group) {
+      group = document.createElementNS("http://www.w3.org/2000/svg", "g");
+      group.setAttribute("class", "lineage-extra-links-view");
+      view.appendChild(group);
+    }
+    return group;
+  }
+
   const renderLineageBranches = useCallback(() => {
     const container = containerRef.current;
     if (!container) return;
@@ -1080,26 +1117,10 @@ function App() {
     // incremental patching here.
     layer.innerHTML = "";
 
-    // Real family-chart `path.link` elements live in `svg.main_svg .view
-    // .links_view` (family-chart.esm.js's own createSvg/htmlContSetup),
-    // a `<g>` that gets the exact same pan/zoom transform `#htmlSvg
-    // .cards_view` does (onZoomSetup applies the identical translate/scale
-    // to both, kept in sync) — so a plain pixel-coordinate `<path>` placed
-    // there lines up with our own synthetic cards for free, no separate
-    // calibration needed. Synthetic links used to live in their own tiny
-    // `<svg width:0;height:0;overflow:visible>` host per path instead
-    // (isolated from family-chart's own d3 join the same way the cards
-    // layer is) — that rendered fine on screen but was found, via Task
-    // 10's own end-to-end export check, to vanish from the exported PNG:
-    // html-to-image's rendering pipeline clips a zero-size element's
-    // visually-overflowing content instead of respecting `overflow:
-    // visible` the way a normal browser paint does. A real SVG group
-    // sized to the actual canvas has no such zero-size box to clip
-    // against, and it's the exact same element real (correctly-exporting)
-    // links already live in. `.lineage-extra-link` marks our own paths so
-    // this pass can clear only those, never a real family-chart-drawn one.
-    const linksView = container.querySelector<SVGGElement>("svg.main_svg .view .links_view");
-    linksView?.querySelectorAll(".lineage-extra-link").forEach((el) => el.remove());
+    // See getOrCreateLineageExtraLinksGroup's own comment for why this is a
+    // sibling of the real `.links_view`, not that group itself.
+    const linksView = getOrCreateLineageExtraLinksGroup(container);
+    if (linksView) linksView.innerHTML = "";
 
     const isHorizontal = orientationRef.current === "horizontal";
     const people = treeDataRef.current;
@@ -1306,7 +1327,7 @@ function App() {
         if (sourceNodes.length === 0) return;
 
         const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
-        path.setAttribute("class", isSpouse ? "link union-line lineage-extra-link" : "link lineage-extra-link");
+        path.setAttribute("class", isSpouse ? "link union-line" : "link");
         const datum = {
           source: isSpouse ? sourceNodes[0] : sourceNodes,
           target: { data: { id: targetId }, x: targetPos.x, y: targetPos.y },
