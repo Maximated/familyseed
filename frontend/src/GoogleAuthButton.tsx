@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { fetchAuthConfig, googleLoginUrl } from "./api";
+import { fetchAuthConfig, googleLoginUrl, retryOnNetworkFailure } from "./api";
 
 // Renders nothing until we know the backend actually has Google OAuth
 // configured (GOOGLE_CLIENT_ID/SECRET set) — a self-hosted install with
@@ -10,7 +10,12 @@ export default function GoogleAuthButton() {
   const [enabled, setEnabled] = useState(false);
 
   useEffect(() => {
-    fetchAuthConfig()
+    // Retries a rejected fetch (no network yet right after the app opens,
+    // a mid-update service worker) instead of taking the first failure as
+    // "Google isn't configured" and hiding the button for good — reported:
+    // the button vanishing after closing and reopening the app, with
+    // nothing actually wrong with the backend's own Google setup.
+    retryOnNetworkFailure(fetchAuthConfig)
       .then((config) => setEnabled(config.googleEnabled))
       .catch(() => setEnabled(false));
   }, []);

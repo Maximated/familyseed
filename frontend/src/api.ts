@@ -162,6 +162,30 @@ async function apiFetch(path: string, init?: RequestInit): Promise<Response> {
   return fetch(`${API_URL}${path}`, { ...init, credentials: "include" });
 }
 
+// For a request made right at app startup/resume (session check, Google-
+// login availability) — reported: reopening the app after it had been
+// closed intermittently looked like being logged out, and separately made
+// "Continuar con Google" vanish, even though the session was still valid
+// and Google was still configured. Root cause in both cases was the same
+// race, not the session or the backend config: the very first fetch can
+// genuinely fail (no network yet immediately after resume, or the service
+// worker mid-update) before either has ever settled, and the caller had no
+// way to tell that apart from a real 401 / Google actually being disabled
+// — so it treated the failure as the definitive answer instead of retrying.
+// Only ever retries on a *rejected* promise (a network-level failure); a
+// resolved value — even a meaningful `null` — is a real answer, returned
+// immediately without retrying.
+export async function retryOnNetworkFailure<T>(fn: () => Promise<T>, delaysMs: number[] = [500, 1500, 3000]): Promise<T> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      if (attempt >= delaysMs.length) throw err;
+      await new Promise((resolve) => setTimeout(resolve, delaysMs[attempt]));
+    }
+  }
+}
+
 async function parseJsonOrThrow(res: Response) {
   const body = await res.json().catch(() => null);
   if (!res.ok) {

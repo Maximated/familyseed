@@ -4,6 +4,7 @@ import {
   login as apiLogin,
   logout as apiLogout,
   register as apiRegister,
+  retryOnNetworkFailure,
   type AuthUser,
 } from "./api";
 
@@ -25,7 +26,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchCurrentUser()
+    // retryOnNetworkFailure only retries a rejected fetch (no network yet,
+    // a mid-update service worker) — a resolved `null` from
+    // fetchCurrentUser (a real 401) is returned immediately, never
+    // retried, so a genuinely logged-out visitor still sees the login
+    // screen without delay.
+    retryOnNetworkFailure(fetchCurrentUser)
       .then(setUser)
       .catch(() => setUser(null))
       .finally(() => setLoading(false));
