@@ -14,10 +14,11 @@ import EditPersonForm from "./EditPersonForm";
 import IndividualsSearchView from "./IndividualsSearchView";
 import LineagesManageView from "./LineagesManageView";
 import DuplicatesView from "./DuplicatesView";
+import IntegrityIssuesView from "./IntegrityIssuesView";
 import TrashView from "./TrashView";
 import RelationshipWizard from "./RelationshipWizard";
 import { StatRow } from "./PersonStatsSection";
-import { DuplicatesIcon, Trash2Icon, UnresolvedIcon } from "./Icons";
+import { AlertTriangleIcon, DuplicatesIcon, Trash2Icon, UnresolvedIcon } from "./Icons";
 
 type Props = {
   treeId: string;
@@ -55,6 +56,7 @@ export default function TreeStatsView({ treeId, treeName, onClose }: Props) {
   const [editingPersonId, setEditingPersonId] = useState<string | null>(null);
   const [showLineagesManage, setShowLineagesManage] = useState(false);
   const [showDuplicates, setShowDuplicates] = useState(false);
+  const [showIntegrity, setShowIntegrity] = useState(false);
   const [wizardIds, setWizardIds] = useState<string[] | null>(null);
   const [noUnrelatedMessage, setNoUnrelatedMessage] = useState(false);
   const [showTrash, setShowTrash] = useState(false);
@@ -301,6 +303,10 @@ export default function TreeStatsView({ treeId, treeName, onClose }: Props) {
                     <Trash2Icon size={18} />
                     {t("app.trash")}
                   </button>
+                  <button type="button" className="btn-outline tree-stats-action" onClick={() => setShowIntegrity(true)}>
+                    <AlertTriangleIcon size={18} />
+                    {t("integrity.openLabel")}
+                  </button>
                 </div>
                 {noUnrelatedMessage && <p className="status">{t("relationshipWizard.noneUnrelated")}</p>}
               </section>
@@ -370,6 +376,16 @@ export default function TreeStatsView({ treeId, treeName, onClose }: Props) {
       )}
       {showTrash && (
         <TrashView treeId={treeId} onRestored={refresh} onClose={() => setShowTrash(false)} />
+      )}
+      {showIntegrity && (
+        <IntegrityIssuesView
+          treeId={treeId}
+          onOpenPerson={(personId) => {
+            setShowIntegrity(false);
+            openEdit(personId);
+          }}
+          onClose={() => setShowIntegrity(false)}
+        />
       )}
     </div>
   );

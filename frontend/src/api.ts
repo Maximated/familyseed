@@ -694,6 +694,26 @@ export async function resolveFamilyDuplicate(treeId: string, familyId: string, c
   await throwIfNotOk(res);
 }
 
+// Read-only structural diagnostics (cycles, more-than-one-biological-
+// family, asymmetric links) — see backend/src/tree-integrity.ts for what
+// each type means and why this never auto-fixes anything.
+export type IntegrityIssue = {
+  type:
+    | "cycle"
+    | "self_link"
+    | "asymmetric_child_link"
+    | "asymmetric_spouse_link"
+    | "multiple_biological_parents";
+  summary: string;
+  personIds: string[];
+  personNames: string[];
+};
+
+export async function fetchIntegrityIssues(treeId: string): Promise<IntegrityIssue[]> {
+  const res = await apiFetch(`/trees/${treeId}/integrity-issues`);
+  return parseJsonOrThrow(res);
+}
+
 export async function deleteIndividual(treeId: string, id: string): Promise<void> {
   const res = await apiFetch(`/trees/${treeId}/individuals/${id}`, { method: "DELETE" });
   await throwIfNotOk(res);
