@@ -15,9 +15,28 @@ export default function GoogleAuthButton() {
     // "Google isn't configured" and hiding the button for good — reported:
     // the button vanishing after closing and reopening the app, with
     // nothing actually wrong with the backend's own Google setup.
-    retryOnNetworkFailure(fetchAuthConfig)
-      .then((config) => setEnabled(config.googleEnabled))
-      .catch(() => setEnabled(false));
+    function checkConfig() {
+      retryOnNetworkFailure(fetchAuthConfig)
+        .then((config) => setEnabled(config.googleEnabled))
+        .catch(() => setEnabled(false));
+    }
+
+    checkConfig();
+
+    // Reported again after the retry above already shipped, specifically
+    // in Brave/Edge on Windows: those browsers can suspend/freeze a tab
+    // instead of actually closing it, so "reopening the app" never
+    // re-mounts this component and the retry never runs again — the page
+    // just resumes whatever state it was in (including "disabled", if
+    // that's what an earlier real network hiccup had left it as) when it
+    // froze. Re-checking whenever the tab becomes visible again catches
+    // that case without needing to know which specific browser mechanism
+    // caused it.
+    function handleVisibilityChange() {
+      if (document.visibilityState === "visible") checkConfig();
+    }
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
   }, []);
 
   if (!enabled) return null;
