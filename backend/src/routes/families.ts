@@ -4,6 +4,7 @@ import { HttpError } from "../http-error.js";
 import { CHILD_RELATION_TYPE_VALUES, DATE_PRECISION_VALUES, UNION_STATUS_VALUES, UNION_TYPE_VALUES } from "../enums.js";
 import { logChange } from "../tree-context.js";
 import { buildTreeData, wouldCreateAncestryCycle } from "../tree-data.js";
+import { deleteUploadByUrl, saveUpload } from "../uploads.js";
 
 const addFamilyChildBodySchema = {
   type: "object",
@@ -468,5 +469,77 @@ export default async function familyRoutes(fastify: FastifyInstance) {
     });
 
     return candidates.map(({ id, givenNames, surname1 }) => ({ id, givenNames, surname1 }));
+  });
+
+  // Same gallery pattern as individuals.ts's own /:id/media — a shared
+  // photo (a wedding photo, a marriage certificate) belongs to the union
+  // itself rather than to just one partner, so it doesn't need
+  // duplicating across both people's own galleries. Stored under
+  // uploads/<treeId>/family_<id>/ (see FamilyMedia's own schema comment
+  // for why the "family_" prefix).
+  fastify.get("/:id/media", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const treeId = request.treeId!;
+
+    const family = await prisma.family.findFirst({ where: { id, treeId } });
+    if (!family) {
+      return reply.code(404).send({ error: `No existe la unión ${id}` });
+    }
+
+    return prisma.familyMedia.findMany({ where: { familyId: id, treeId }, orderBy: { createdAt: "desc" } });
+  });
+
+  fastify.post("/:id/media", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const treeId = request.treeId!;
+
+    const family = await prisma.family.findFirst({ where: { id, treeId } });
+    if (!family) {
+      return reply.code(404).send({ error: `No existe la unión ${id}` });
+    }
+
+    const file = await request.file();
+    if (!file) {
+      return reply.code(400).send({ error: "No se recibió ningún archivo" });
+    }
+
+    const buffer = await file.toBuffer();
+    const { url } = await saveUpload(treeId, `family_${id}`, file.filename, buffer);
+    const type = file.mimetype.startsWith("image/") ? "PHOTO" : "DOCUMENT";
+
+    const media = await prisma.familyMedia.create({
+      data: { treeId, familyId: id, type, url, filename: file.filename, mimeType: file.mimetype },
+    });
+    await logChange({
+      treeId,
+      userId: request.userId ?? null,
+      action: "media.create",
+      entityType: "FamilyMedia",
+      entityId: media.id,
+      summary: file.filename,
+    });
+    return reply.code(201).send(media);
+  });
+
+  fastify.delete("/:id/media/:mediaId", async (request, reply) => {
+    const { id, mediaId } = request.params as { id: string; mediaId: string };
+    const treeId = request.treeId!;
+
+    const media = await prisma.familyMedia.findFirst({ where: { id: mediaId, familyId: id, treeId } });
+    if (!media) {
+      return reply.code(404).send({ error: "No existe ese archivo" });
+    }
+
+    await prisma.familyMedia.delete({ where: { id: mediaId } });
+    await deleteUploadByUrl(media.url);
+    await logChange({
+      treeId,
+      userId: request.userId ?? null,
+      action: "media.delete",
+      entityType: "FamilyMedia",
+      entityId: mediaId,
+      summary: media.filename,
+    });
+    return reply.code(204).send();
   });
 }

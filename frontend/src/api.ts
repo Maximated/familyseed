@@ -763,6 +763,42 @@ export async function deletePersonMedia(treeId: string, id: string, mediaId: str
   await throwIfNotOk(res);
 }
 
+// Same gallery as PersonMedia, but attached to a union/relationship
+// (Family) instead of one person — a wedding photo, a marriage
+// certificate, anything that belongs to the couple rather than to
+// either partner individually.
+export type FamilyMediaItem = {
+  id: string;
+  familyId: string;
+  type: PersonMediaType;
+  url: string;
+  filename: string;
+  mimeType: string | null;
+  createdAt: string;
+};
+
+export async function fetchFamilyMedia(treeId: string, familyId: string): Promise<FamilyMediaItem[]> {
+  const res = await apiFetch(`/trees/${treeId}/families/${familyId}/media`);
+  return parseJsonOrThrow(res);
+}
+
+export async function uploadFamilyMedia(
+  treeId: string,
+  familyId: string,
+  file: File | Blob,
+  filename?: string,
+): Promise<FamilyMediaItem> {
+  const formData = new FormData();
+  formData.append("file", file, filename ?? (file instanceof File ? file.name : "archivo"));
+  const res = await apiFetch(`/trees/${treeId}/families/${familyId}/media`, { method: "POST", body: formData });
+  return parseJsonOrThrow(res);
+}
+
+export async function deleteFamilyMedia(treeId: string, familyId: string, mediaId: string): Promise<void> {
+  const res = await apiFetch(`/trees/${treeId}/families/${familyId}/media/${mediaId}`, { method: "DELETE" });
+  await throwIfNotOk(res);
+}
+
 export type ReportDirection = "ancestors" | "descendants" | "both";
 export type ReportLayout = "vertical" | "horizontal" | "descending";
 

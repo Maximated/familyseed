@@ -18,13 +18,33 @@ import { uploadsRoot } from "../uploads.js";
 // whose.
 const COMBINING_DIACRITICS = /[\u0300-\u036f]/g;
 
-function personFolderName(individual: { id: string; givenNames: string; surname1: string }): string {
-  const safeName = `${individual.givenNames}_${individual.surname1}`
+function sanitizeSegment(text: string): string {
+  return text
     .normalize("NFD")
     .replace(COMBINING_DIACRITICS, "")
     .replace(/[^a-zA-Z0-9._-]+/g, "_")
     .replace(/^_+|_+$/g, "");
+}
+
+function personFolderName(individual: { id: string; givenNames: string; surname1: string }): string {
+  const safeName = sanitizeSegment(`${individual.givenNames}_${individual.surname1}`);
   return `${safeName || "persona"}_${individual.id}`;
+}
+
+// Mirrors personFolderName, but for a union's own shared media (see
+// FamilyMedia) \u2014 named after both partners so the folder reads on its
+// own, with the familyId suffix as the same unambiguous fallback.
+function unionFolderName(
+  familyId: string,
+  partner1: { givenNames: string; surname1: string } | undefined,
+  partner2: { givenNames: string; surname1: string } | undefined,
+): string {
+  const label = [partner1, partner2]
+    .filter((p): p is { givenNames: string; surname1: string } => !!p)
+    .map((p) => `${p.givenNames}_${p.surname1}`)
+    .join("_y_");
+  const safeLabel = sanitizeSegment(label);
+  return `union_${safeLabel || "pareja"}_${familyId}`;
 }
 
 // Every url this app ever writes for a person's photo/document is exactly
@@ -69,6 +89,9 @@ const README = `Copia de seguridad de FamilySeed
   siempre se puede saber a quién pertenece cada carpeta aunque el nombre
   por sí solo no fuera suficiente (dos personas con el mismo nombre,
   etc.).
+- fotos/union_<pareja>_<id>/: fotos/documentos añadidos a una relación
+  en vez de a una persona (una foto de boda, por ejemplo) — el "<id>" es
+  el identificador interno de esa unión, no aparece en arbol.csv.
 `;
 
 export default async function backupRoutes(fastify: FastifyInstance) {
@@ -102,6 +125,15 @@ export default async function backupRoutes(fastify: FastifyInstance) {
       mediaByIndividual.set(m.individualId, list);
     }
 
+    const familyMedia = await prisma.familyMedia.findMany({ where: { treeId } });
+    const mediaByFamily = new Map<string, typeof familyMedia>();
+    for (const m of familyMedia) {
+      const list = mediaByFamily.get(m.familyId) ?? [];
+      list.push(m);
+      mediaByFamily.set(m.familyId, list);
+    }
+    const individualById = new Map(individuals.map((i) => [i.id, i]));
+
     const csv = serializeCsv(individuals, families);
     const gedcom = serializeGedcom(individuals, families);
     const filenameSafe = downloadFilename(tree.name, "backup");
@@ -127,8 +159,25 @@ export default async function backupRoutes(fastify: FastifyInstance) {
     archive.append(csv, { name: "arbol.csv" });
     archive.append(gedcom, { name: "arbol.ged" });
 
+    // Shared by both loops below: adds every file in `files` under
+    // fotos/<folder>/, skipping any whose disk file has gone missing and
+    // disambiguating same-named files within that one folder rather than
+    // letting archiver silently overwrite one entry with another.
+    async function addFolder(folder: string, files: { url: string; filename: string }[]) {
+      const usedNames = new Set<string>();
+      for (const file of files) {
+        const diskPath = urlToDiskPath(file.url);
+        try {
+          await stat(diskPath);
+        } catch {
+          continue;
+        }
+        const entryName = uniqueEntryName(usedNames, file.filename);
+        archive.file(diskPath, { name: `fotos/${folder}/${entryName}` });
+      }
+    }
+
     for (const individual of individuals) {
-      const folder = personFolderName(individual);
       const files: { url: string; filename: string }[] = [];
       if (individual.photoUrl) {
         files.push({ url: individual.photoUrl, filename: `foto_perfil${path.extname(individual.photoUrl)}` });
@@ -136,20 +185,21 @@ export default async function backupRoutes(fastify: FastifyInstance) {
       for (const m of mediaByIndividual.get(individual.id) ?? []) {
         files.push({ url: m.url, filename: m.filename });
       }
+      await addFolder(personFolderName(individual), files);
+    }
 
-      const usedNames = new Set<string>();
-      for (const file of files) {
-        const diskPath = urlToDiskPath(file.url);
-        try {
-          await stat(diskPath);
-        } catch {
-          // A media row whose file no longer exists on disk shouldn't
-          // abort the whole backup — just leave it out.
-          continue;
-        }
-        const entryName = uniqueEntryName(usedNames, file.filename);
-        archive.file(diskPath, { name: `fotos/${folder}/${entryName}` });
-      }
+    for (const family of rawFamilies) {
+      const files = mediaByFamily.get(family.id) ?? [];
+      if (files.length === 0) continue;
+      const folder = unionFolderName(
+        family.id,
+        family.partner1Id ? individualById.get(family.partner1Id) : undefined,
+        family.partner2Id ? individualById.get(family.partner2Id) : undefined,
+      );
+      await addFolder(
+        folder,
+        files.map((m) => ({ url: m.url, filename: m.filename })),
+      );
     }
 
     await archive.finalize();

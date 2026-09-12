@@ -1,10 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
+  deleteFamilyMedia,
   deletePersonMedia,
+  fetchFamilyMedia,
   fetchPersonMedia,
   mediaUrl,
+  uploadFamilyMedia,
   uploadPersonMedia,
+  type FamilyMediaItem,
   type PersonMediaItem,
   type PersonMediaType,
 } from "./api";
@@ -12,20 +16,26 @@ import { resizeImage } from "./media";
 import { convertHeicIfNeeded } from "./heic";
 import PhotoLightbox from "./PhotoLightbox";
 
-type Props = {
+// Either a person's own gallery or a union's shared one (a wedding photo
+// belongs to the couple, not to just one partner) — same tab UI either
+// way, just backed by a different pair of ids/endpoints.
+type Owner = { personId: string; familyId?: undefined } | { familyId: string; personId?: undefined };
+
+type Props = Owner & {
   treeId: string;
-  personId: string;
   type: PersonMediaType;
   // Upload/delete now live in the edit form (see EditPersonForm.tsx) —
   // InfoPanel's own Fotos/Documentos tabs pass false here so the read-only
   // "ficha info" panel can no longer mutate anything, matching the rest of
-  // that panel already being view-only.
+  // that panel already being view-only. Unions have no separate edit
+  // form (the info panel itself doubles as one), so their tabs default
+  // to editable.
   editable?: boolean;
 };
 
-export default function PersonMediaTab({ treeId, personId, type, editable = true }: Props) {
+export default function PersonMediaTab({ treeId, personId, familyId, type, editable = true }: Props) {
   const { t } = useTranslation();
-  const [items, setItems] = useState<PersonMediaItem[]>([]);
+  const [items, setItems] = useState<(PersonMediaItem | FamilyMediaItem)[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -35,7 +45,8 @@ export default function PersonMediaTab({ treeId, personId, type, editable = true
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    fetchPersonMedia(treeId, personId)
+    const fetchAll = personId !== undefined ? fetchPersonMedia(treeId, personId) : fetchFamilyMedia(treeId, familyId);
+    fetchAll
       .then((all) => {
         if (!cancelled) setItems(all.filter((m) => m.type === type));
       })
@@ -48,7 +59,7 @@ export default function PersonMediaTab({ treeId, personId, type, editable = true
     return () => {
       cancelled = true;
     };
-  }, [treeId, personId, type]);
+  }, [treeId, personId, familyId, type]);
 
   async function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -59,7 +70,10 @@ export default function PersonMediaTab({ treeId, personId, type, editable = true
     setError(null);
     try {
       const upload = type === "PHOTO" ? await resizeImage(await convertHeicIfNeeded(file), 900, 0.85) : file;
-      const created = await uploadPersonMedia(treeId, personId, upload, file.name);
+      const created =
+        personId !== undefined
+          ? await uploadPersonMedia(treeId, personId, upload, file.name)
+          : await uploadFamilyMedia(treeId, familyId, upload, file.name);
       setItems((prev) => [created, ...prev]);
     } catch (err) {
       setError((err as Error).message);
@@ -70,7 +84,8 @@ export default function PersonMediaTab({ treeId, personId, type, editable = true
 
   async function handleDelete(mediaId: string) {
     try {
-      await deletePersonMedia(treeId, personId, mediaId);
+      if (personId !== undefined) await deletePersonMedia(treeId, personId, mediaId);
+      else await deleteFamilyMedia(treeId, familyId, mediaId);
       setItems((prev) => prev.filter((m) => m.id !== mediaId));
     } catch (err) {
       setError((err as Error).message);

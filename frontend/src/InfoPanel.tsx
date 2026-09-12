@@ -99,9 +99,13 @@ export default function InfoPanel({ treeId, data, onClose, onNavigateToPerson, o
           </div>
         </div>
 
-        {data.personId && (
+        {(data.personId || data.familyId) && (
           <div className="info-panel-tabs">
-            {(["ficha", "relaciones", "estadisticas", "fotos", "documentos"] as Tab[]).map((tabKey) => (
+            {(
+              data.personId
+                ? (["ficha", "relaciones", "estadisticas", "fotos", "documentos"] as Tab[])
+                : (["ficha", "fotos", "documentos"] as Tab[])
+            ).map((tabKey) => (
               <button
                 key={tabKey}
                 type="button"
@@ -196,6 +200,20 @@ export default function InfoPanel({ treeId, data, onClose, onNavigateToPerson, o
         {tab === "documentos" && data.personId && (
           <div className="info-panel-tab-content">
             <PersonMediaTab treeId={treeId} personId={data.personId} type="DOCUMENT" editable={false} />
+          </div>
+        )}
+        {/* Unions have no separate edit form the way people do (this
+            panel already doubles as the union's own editor — see
+            UnionDetailsEditor/UnionNotesEditor above), so their gallery
+            tabs default to editable instead of being forced read-only. */}
+        {tab === "fotos" && data.familyId && (
+          <div className="info-panel-tab-content">
+            <PersonMediaTab treeId={treeId} familyId={data.familyId} type="PHOTO" />
+          </div>
+        )}
+        {tab === "documentos" && data.familyId && (
+          <div className="info-panel-tab-content">
+            <PersonMediaTab treeId={treeId} familyId={data.familyId} type="DOCUMENT" />
           </div>
         )}
 
