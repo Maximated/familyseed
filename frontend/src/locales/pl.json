@@ -391,6 +391,13 @@
     "resolveFamily": "Usuń",
     "resolveAllFamilies": "Usuń wszystkie"
   },
+  "integrity": {
+    "openLabel": "Sprawdź spójność drzewa",
+    "title": "Sprawdzenie spójności drzewa",
+    "hint": "Szuka możliwych cykli, niespójnych powiązań lub osób z więcej niż jedną zarejestrowaną rodziną biologiczną. Ta lista sama w sobie niczego nie zmienia — jedynie wskazuje, kogo otworzyć, żeby to poprawić.",
+    "noIssues": "Nie znaleziono żadnych problemów.",
+    "openPerson": "Otwórz {{name}}"
+  },
   "mergeReview": {
     "title": "Połącz osoby",
     "keepThis": "Zostaje",
@@ -538,10 +545,10 @@
     "sharedEmpty": "Nikt nie udostępnił Ci jeszcze żadnego drzewa.",
     "artCredit": "Ilustracja drzewa:",
     "createTree": "Utwórz nowe drzewo",
+    "importTree": "Importuj drzewo…",
     "createTreePlaceholder": "Nazwa nowego drzewa…",
     "createTreeNameRequired": "Podaj nazwę drzewa przed kontynuowaniem.",
     "createTreeSubmit": "Utwórz",
-    "createTreeImport": "Importuj CSV/GEDCOM…",
     "importingTree": "Importowanie…",
     "createTreeCancel": "Anuluj",
     "version": "Wersja {{commit}}",

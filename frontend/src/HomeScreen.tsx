@@ -232,17 +232,13 @@ export default function HomeScreen() {
   }
 
   function handleImportClick() {
-    if (!newTreeName.trim()) {
-      setCreateError(t("home.createTreeNameRequired"));
-      return;
-    }
     setCreateError(null);
     importFileRef.current?.click();
   }
 
-  // Creates the tree and imports the chosen file into it in one step,
-  // rather than creating an empty tree first and offering import as a
-  // separate follow-up screen.
+  // Creates the tree and imports the chosen file into it in one step, using
+  // the file's own name (minus extension) as the tree name — importing
+  // shouldn't require typing a name that's already right there in the file.
   async function handleImportFile(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     event.target.value = "";
@@ -254,14 +250,13 @@ export default function HomeScreen() {
       setCreateError(t("gedcom.importErrorType"));
       return;
     }
+    const derivedName = file.name.replace(/\.(csv|ged)$/i, "").trim() || file.name;
 
     setImporting(true);
     setCreateError(null);
     try {
-      const tree = await createTree(newTreeName.trim());
+      const tree = await createTree(derivedName);
       const imported = isCsv ? await importCsv(tree.id, file) : await importGedcom(tree.id, file);
-      setCreating(false);
-      setNewTreeName("");
       if (imported.individualIds.length > 0) {
         setWizard({ treeId: tree.id, personIds: imported.individualIds });
       } else {
@@ -358,8 +353,8 @@ export default function HomeScreen() {
         </div>
       )}
 
-      {creating ? (
-        <div className="home-create-block">
+      <div className="home-create-block">
+        {creating ? (
           <form className="home-create-form" onSubmit={handleCreate}>
             <input
               type="text"
@@ -371,11 +366,8 @@ export default function HomeScreen() {
               }}
               autoFocus
             />
-            <button type="submit" disabled={submitting || importing}>
+            <button type="submit" disabled={submitting}>
               {t("home.createTreeSubmit")}
-            </button>
-            <button type="button" className="btn-outline" onClick={handleImportClick} disabled={submitting || importing}>
-              {importing ? t("home.importingTree") : t("home.createTreeImport")}
             </button>
             <button
               type="button"
@@ -383,25 +375,30 @@ export default function HomeScreen() {
                 setCreating(false);
                 setCreateError(null);
               }}
-              disabled={submitting || importing}
+              disabled={submitting}
             >
               {t("home.createTreeCancel")}
             </button>
-            <input
-              ref={importFileRef}
-              type="file"
-              accept=".ged,.csv"
-              onChange={handleImportFile}
-              style={{ display: "none" }}
-            />
           </form>
-          {createError && <p className="status status-error">{createError}</p>}
-        </div>
-      ) : (
-        <button type="button" className="home-create-button" onClick={() => setCreating(true)}>
-          {t("home.createTree")}
-        </button>
-      )}
+        ) : (
+          <div className="home-actions-row">
+            <button type="button" className="home-create-button" onClick={() => setCreating(true)}>
+              {t("home.createTree")}
+            </button>
+            <button type="button" className="home-create-button" onClick={handleImportClick} disabled={importing}>
+              {importing ? t("home.importingTree") : t("home.importTree")}
+            </button>
+          </div>
+        )}
+        <input
+          ref={importFileRef}
+          type="file"
+          accept=".ged,.csv"
+          onChange={handleImportFile}
+          style={{ display: "none" }}
+        />
+        {createError && <p className="status status-error">{createError}</p>}
+      </div>
 
       <p className="home-footer-credit">
         {t("home.artCredit")}{" "}

@@ -391,6 +391,13 @@
     "resolveFamily": "Delete",
     "resolveAllFamilies": "Delete all"
   },
+  "integrity": {
+    "openLabel": "Check tree integrity",
+    "title": "Tree integrity check",
+    "hint": "Looks for possible cycles, inconsistent links, or people with more than one biological family recorded. This list never changes anything by itself — it only tells you who to open to fix it.",
+    "noIssues": "No problems found.",
+    "openPerson": "Open {{name}}"
+  },
   "mergeReview": {
     "title": "Merge people",
     "keepThis": "Keep",
@@ -538,10 +545,10 @@
     "sharedEmpty": "Nobody has shared a tree with you yet.",
     "artCredit": "Tree illustration:",
     "createTree": "Create new tree",
+    "importTree": "Import tree…",
     "createTreePlaceholder": "New tree name…",
     "createTreeNameRequired": "Please enter a tree name before continuing.",
     "createTreeSubmit": "Create",
-    "createTreeImport": "Import CSV/GEDCOM…",
     "importingTree": "Importing…",
     "createTreeCancel": "Cancel",
     "version": "Version {{commit}}",

@@ -2658,6 +2658,28 @@ body {
   width: 640px;
 }
 
+/* IntegrityIssuesView: unlike a duplicate-suggestion row's short one-line
+   label, a cycle summary can chain several names together, and an issue
+   can involve more than one person to jump to — so this overrides the
+   shared .duplicates-suggestion-row row's nowrap-ellipsis label and single
+   flex-shrink-0 button assumptions. */
+.integrity-issue-row {
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.integrity-issue-row > span:first-child {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: unset;
+}
+
+.integrity-issue-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
 /* CsvGridImport: the 21-column grid needs far more width than any other
    modal in the app — still capped by .modal-panel's own
    max-width: calc(100vw - 2rem), so it just shrinks to that on a narrow
@@ -4181,6 +4203,12 @@ button.btn-outline:disabled {
   display: flex;
   align-items: center;
   gap: 0.4rem;
+}
+
+.home-actions-row {
+  display: flex;
+  gap: 0.6rem;
+  flex-wrap: wrap;
 }
 
 .home-create-button {
