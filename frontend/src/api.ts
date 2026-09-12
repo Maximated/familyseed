@@ -818,6 +818,14 @@ export function csvTemplateUrl(treeId: string): string {
   return `${API_URL}/trees/${treeId}/csv/template`;
 }
 
+// A .zip with arbol.csv + arbol.ged (the same full-tree export as
+// gedcomExportUrl/csvExportUrl) plus every person's photos/documents,
+// one folder per person — a standalone backup, not just a data export,
+// since neither GEDCOM nor CSV has anywhere to put the actual files.
+export function backupExportUrl(treeId: string): string {
+  return `${API_URL}/trees/${treeId}/backup`;
+}
+
 export async function updateFamilyNotes(treeId: string, id: string, notes: string): Promise<void> {
   const res = await apiFetch(`/trees/${treeId}/families/${id}`, {
     method: "PATCH",

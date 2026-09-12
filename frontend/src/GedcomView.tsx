@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
+  backupExportUrl,
   csvExportUrl,
   csvTemplateUrl,
   fetchTree,
@@ -181,6 +182,16 @@ export default function GedcomView({
             <p className="status">{t("gedcom.importSuccess", { individuals: result.individuals, families: result.families })}</p>
           )}
           {error && <p className="status status-error">{error}</p>}
+        </fieldset>
+
+        <fieldset>
+          <legend>{t("gedcom.backupHeading")}</legend>
+          <p className="field-hint">{t("gedcom.backupHint")}</p>
+          <div className="gedcom-export-list">
+            <a className="gedcom-export-item" href={backupExportUrl(treeId)} target="_blank" rel="noreferrer">
+              {t("gedcom.backupDownload")}
+            </a>
+          </div>
         </fieldset>
 
         <fieldset>

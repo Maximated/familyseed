@@ -15,6 +15,7 @@ import lineageRoutes from "./routes/lineages.js";
 import memberRoutes from "./routes/members.js";
 import duplicateRoutes from "./routes/duplicates.js";
 import integrityRoutes from "./routes/integrity.js";
+import backupRoutes from "./routes/backup.js";
 import gedcomRoutes from "./routes/gedcom.js";
 import csvRoutes from "./routes/csv.js";
 import statisticsRoutes from "./routes/statistics.js";
@@ -100,6 +101,7 @@ async function treeScopedRoutes(fastify: FastifyInstance) {
   await fastify.register(inviteLinkRoutes, { prefix: "/invite-links" });
   await fastify.register(duplicateRoutes, { prefix: "/duplicates" });
   await fastify.register(integrityRoutes);
+  await fastify.register(backupRoutes);
   await fastify.register(gedcomRoutes, { prefix: "/gedcom" });
   await fastify.register(csvRoutes, { prefix: "/csv" });
   await fastify.register(statisticsRoutes);
