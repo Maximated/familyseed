@@ -279,6 +279,29 @@ body {
   gap: 0.4rem;
 }
 
+/* Unlike header-right-actions' deliberate no-plate look, these three
+   (back home / undo / fit-all) sit where a panned-far tree's own lines
+   can visually reach up underneath them — a link passing right behind an
+   icon's own glyph read as the two mixing together, unprofessional in a
+   way the plain empty canvas around them never was. A soft, canvas-
+   colored halo behind each icon (its edge itself blurred, not a hard-
+   edged tile) keeps that from ever happening without turning these into
+   visible buttons sitting on a solid plate. */
+.header-actions .icon-button {
+  position: relative;
+  z-index: 15;
+}
+
+.header-actions .icon-button::before {
+  content: "";
+  position: absolute;
+  inset: -6px;
+  z-index: -1;
+  border-radius: 50%;
+  background: var(--color-bg);
+  filter: blur(6px);
+}
+
 /* All right-side header actions — search, lineages, add person, create
    relationship, GEDCOM, orientation, statistics, in that fixed order. No
    overflow menu any more: duplicates/unrelated/trash/share moved to the
@@ -297,10 +320,11 @@ body {
    for width. Positioned out of flow (like the header-quick-actions it
    replaces) rather than stacked in normal flow, so .app-header's own
    height never grows to fit it — the earlier bug where that inflated
-   header cut into the tree canvas underneath it. No background of its
-   own — bare .icon-button squares floating directly on the canvas, same
-   as .level-nav-button's own no-plate treatment, so this never reads as
-   a solid band sitting over the title or the tree behind it. */
+   header cut into the tree canvas underneath it. Same soft canvas-colored
+   halo behind each icon as .header-actions' own left-side icons (see
+   above) — no solid plate/band of its own, just enough of a blurred-edge
+   backdrop that a tree line panned directly behind one of these doesn't
+   visually mix with its glyph. */
 .header-right-actions {
   position: absolute;
   top: 0.75rem;
@@ -310,6 +334,20 @@ body {
   align-items: center;
   gap: 0.3rem;
   z-index: 15;
+}
+
+.header-right-actions .icon-button {
+  position: relative;
+}
+
+.header-right-actions .icon-button::before {
+  content: "";
+  position: absolute;
+  inset: -6px;
+  z-index: -1;
+  border-radius: 50%;
+  background: var(--color-bg);
+  filter: blur(6px);
 }
 
 /* Touch/PWA's own replacement for .header-right-actions above (see
