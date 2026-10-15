@@ -309,11 +309,18 @@ model Individual {
   birthDateValue     DateTime?      @map("birth_date_value")
   birthDatePrecision DatePrecision? @map("birth_date_precision")
   birthPlace         String?        @map("birth_place")
+  // Coordinates of birthPlace, set when the user picked a geocoded
+  // suggestion (or left null for free text that was never located —
+  // historical place names often aren't). Drives the tree's map view.
+  birthPlaceLat      Float?         @map("birth_place_lat")
+  birthPlaceLng      Float?         @map("birth_place_lng")
 
   deathDateText      String?        @map("death_date_text")
   deathDateValue     DateTime?      @map("death_date_value")
   deathDatePrecision DatePrecision? @map("death_date_precision")
   deathPlace         String?        @map("death_place")
+  deathPlaceLat      Float?         @map("death_place_lat")
+  deathPlaceLng      Float?         @map("death_place_lng")
 
   notes     String? @db.Text
   biography String? @map("biography") @db.Text
@@ -411,6 +418,9 @@ model Family {
   unionDateValue     DateTime?      @map("union_date_value")
   unionDatePrecision DatePrecision? @map("union_date_precision")
   unionPlace         String?        @map("union_place")
+  // Same meaning as Individual.birthPlaceLat/Lng, for the union's place.
+  unionPlaceLat      Float?         @map("union_place_lat")
+  unionPlaceLng      Float?         @map("union_place_lng")
 
   // Free-text annotation on this union/"event" — the same kind of note an
   // Individual can carry, just scoped to the marriage/partnership itself

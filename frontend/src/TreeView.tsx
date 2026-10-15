@@ -40,6 +40,7 @@ import {
   GitBranchIcon,
   HomeIcon,
   LinkIcon,
+  MapIcon,
   MaximizeIcon,
   MenuIcon,
   MinusIcon,
@@ -54,6 +55,7 @@ import LinkPeopleModal from "./LinkPeopleModal";
 import LineagesManageView from "./LineagesManageView";
 import PhotoLightbox from "./PhotoLightbox";
 import GedcomView from "./GedcomView";
+import MapView from "./MapView";
 import { getDefaultOrientation } from "./preferences";
 
 // Generous enough that a realistic family tree's every reachable ancestor/
@@ -777,6 +779,8 @@ function buildUnionInfoPanel(union: UnionInfo, people: TreePerson[]): InfoPanelD
       unionDateValue: union.unionDateValue,
       unionDatePrecision: union.unionDatePrecision,
       unionPlace: union.unionPlace,
+      unionPlaceLat: union.unionPlaceLat,
+      unionPlaceLng: union.unionPlaceLng,
       partner1Id: union.partner1Id,
       partner2Id: union.partner2Id,
       children,
@@ -816,6 +820,7 @@ function App() {
   const [deriveLineagesMessage, setDeriveLineagesMessage] = useState<string | null>(null);
   const [showLinkPeople, setShowLinkPeople] = useState(false);
   const [showGedcom, setShowGedcom] = useState(false);
+  const [showMap, setShowMap] = useState(false);
   // The card's own "+" corner button (see QUICKADD_ICON_SVG) — a click
   // opens a small kind picker (child/spouse/parent) for that card's
   // person, then AddPersonForm with that relation and person already
@@ -3299,6 +3304,19 @@ function App() {
         type="button"
         className="icon-button"
         onClick={() => {
+          setShowMap(true);
+          setShowMobileActions(false);
+        }}
+        aria-label={t("app.map")}
+        title={t("app.map")}
+      >
+        <MapIcon />
+      </button>
+
+      <button
+        type="button"
+        className="icon-button"
+        onClick={() => {
           handleToggleOrientation();
           setShowMobileActions(false);
         }}
@@ -3632,6 +3650,9 @@ function App() {
           exportingImage={exportingImage}
           onExportImage={handleExportTreeImage}
         />
+      )}
+      {showMap && (
+        <MapView treeId={treeId} onNavigateToPerson={handleNavigateToPerson} onClose={() => setShowMap(false)} />
       )}
       {showSearch && (
         <IndividualsSearchView

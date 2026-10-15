@@ -22,6 +22,8 @@ import { downloadFilename } from "../filename.js";
 // without allowing null here a cleared field could never actually be
 // cleared: it would just always resend whatever was already in the database.
 const optionalNullableString = { type: ["string", "null"] } as const;
+const optionalNullableLatitude = { type: ["number", "null"], minimum: -90, maximum: 90 } as const;
+const optionalNullableLongitude = { type: ["number", "null"], minimum: -180, maximum: 180 } as const;
 
 export const individualFieldsSchema = {
   type: "object",
@@ -37,10 +39,14 @@ export const individualFieldsSchema = {
     birthDateValue: { type: ["string", "null"], format: "date" },
     birthDatePrecision: { type: ["string", "null"], enum: [...DATE_PRECISION_VALUES, null] },
     birthPlace: optionalNullableString,
+    birthPlaceLat: optionalNullableLatitude,
+    birthPlaceLng: optionalNullableLongitude,
     deathDateText: optionalNullableString,
     deathDateValue: { type: ["string", "null"], format: "date" },
     deathDatePrecision: { type: ["string", "null"], enum: [...DATE_PRECISION_VALUES, null] },
     deathPlace: optionalNullableString,
+    deathPlaceLat: optionalNullableLatitude,
+    deathPlaceLng: optionalNullableLongitude,
     notes: optionalNullableString,
     biography: optionalNullableString,
     photoUrl: { type: "string" },
@@ -65,6 +71,8 @@ const relationshipSchema = {
     unionDateValue: { type: "string", format: "date" },
     unionDatePrecision: { type: "string", enum: DATE_PRECISION_VALUES },
     unionPlace: { type: "string" },
+    unionPlaceLat: { type: "number", minimum: -90, maximum: 90 },
+    unionPlaceLng: { type: "number", minimum: -180, maximum: 180 },
   },
   additionalProperties: false,
 };
@@ -123,10 +131,14 @@ export type IndividualFieldsInput = {
   birthDateValue?: string | null;
   birthDatePrecision?: (typeof DATE_PRECISION_VALUES)[number] | null;
   birthPlace?: string | null;
+  birthPlaceLat?: number | null;
+  birthPlaceLng?: number | null;
   deathDateText?: string | null;
   deathDateValue?: string | null;
   deathDatePrecision?: (typeof DATE_PRECISION_VALUES)[number] | null;
   deathPlace?: string | null;
+  deathPlaceLat?: number | null;
+  deathPlaceLng?: number | null;
   notes?: string | null;
   biography?: string | null;
   photoUrl?: string;
@@ -148,6 +160,8 @@ type CreateIndividualBody = {
     unionDateValue?: string;
     unionDatePrecision?: (typeof DATE_PRECISION_VALUES)[number];
     unionPlace?: string;
+    unionPlaceLat?: number;
+    unionPlaceLng?: number;
   };
 };
 
@@ -367,6 +381,8 @@ async function attachPartner(
     unionDateValue?: Date;
     unionDatePrecision?: (typeof DATE_PRECISION_VALUES)[number];
     unionPlace?: string;
+    unionPlaceLat?: number;
+    unionPlaceLng?: number;
   },
 ): Promise<{ familyId: string }> {
   const openFamily = await db.family.findFirst({
@@ -580,6 +596,8 @@ export default async function individualRoutes(fastify: FastifyInstance) {
         unionType: family.unionType,
         unionDateText: family.unionDateText,
         unionPlace: family.unionPlace,
+        unionPlaceLat: family.unionPlaceLat,
+        unionPlaceLng: family.unionPlaceLng,
       });
       for (const child of family.children) {
         if (!isActive(child.individual)) continue;
@@ -595,6 +613,8 @@ export default async function individualRoutes(fastify: FastifyInstance) {
         unionType: family.unionType,
         unionDateText: family.unionDateText,
         unionPlace: family.unionPlace,
+        unionPlaceLat: family.unionPlaceLat,
+        unionPlaceLng: family.unionPlaceLng,
       });
       for (const child of family.children) {
         if (!isActive(child.individual)) continue;
@@ -732,6 +752,8 @@ export default async function individualRoutes(fastify: FastifyInstance) {
                 unionDateValue: relationship.unionDateValue ? new Date(relationship.unionDateValue) : undefined,
                 unionDatePrecision: relationship.unionDatePrecision,
                 unionPlace: relationship.unionPlace,
+                unionPlaceLat: relationship.unionPlaceLat,
+                unionPlaceLng: relationship.unionPlaceLng,
               });
               family = await tx.family.findUniqueOrThrow({ where: { id: attachedPartner.familyId } });
 

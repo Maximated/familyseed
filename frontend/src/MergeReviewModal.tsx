@@ -168,6 +168,19 @@ export default function MergeReviewModal({ treeId, aId, bId, onMerged, onClose }
       }
     }
 
+    // Coordinates follow whichever record's place text won rather than being
+    // a choice of their own — preferring a located copy when both records
+    // name the very same place but only one of them was ever geocoded.
+    const placeKeys = [
+      ["birthPlace", "birthPlaceLat", "birthPlaceLng"],
+      ["deathPlace", "deathPlaceLat", "deathPlaceLng"],
+    ] as const;
+    for (const [place, lat, lng] of placeKeys) {
+      const source = [keep, loser].find((p) => p[place] === individual[place] && p[lat] !== null && p[lng] !== null);
+      individual[lat] = source?.[lat] ?? null;
+      individual[lng] = source?.[lng] ?? null;
+    }
+
     setSubmitting(true);
     setError(null);
     try {

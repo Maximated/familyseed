@@ -22,6 +22,8 @@ export type UnionInfo = {
   unionDateValue: string | null;
   unionDatePrecision: DatePrecision | null;
   unionPlace: string | null;
+  unionPlaceLat: number | null;
+  unionPlaceLng: number | null;
   notes: string | null;
   // Chronological order of this union among each partner's own unions
   // (max of both, so a remarriage shows as such even if it's the other
@@ -82,10 +84,14 @@ export type Individual = {
   birthDateValue: string | null;
   birthDatePrecision: DatePrecision | null;
   birthPlace: string | null;
+  birthPlaceLat: number | null;
+  birthPlaceLng: number | null;
   deathDateText: string | null;
   deathDateValue: string | null;
   deathDatePrecision: DatePrecision | null;
   deathPlace: string | null;
+  deathPlaceLat: number | null;
+  deathPlaceLng: number | null;
   notes: string | null;
   biography: string | null;
   photoUrl: string | null;
@@ -120,6 +126,8 @@ export type Relationship =
       unionStatus?: UnionStatus;
       unionDateText?: string;
       unionPlace?: string;
+      unionPlaceLat?: number;
+      unionPlaceLng?: number;
     }
   | { kind: "PARENT_OF"; childId: string };
 
@@ -137,10 +145,14 @@ export type IndividualFields = {
   birthDateValue?: string | null;
   birthDatePrecision?: DatePrecision | null;
   birthPlace?: string | null;
+  birthPlaceLat?: number | null;
+  birthPlaceLng?: number | null;
   deathDateText?: string | null;
   deathDateValue?: string | null;
   deathDatePrecision?: DatePrecision | null;
   deathPlace?: string | null;
+  deathPlaceLat?: number | null;
+  deathPlaceLng?: number | null;
   notes?: string | null;
   biography?: string | null;
   // Not settable from the normal create/edit forms (photos go through the
@@ -878,6 +890,8 @@ export type UpdateFamilyPayload = {
   unionDateValue?: string | null;
   unionDatePrecision?: DatePrecision | null;
   unionPlace?: string | null;
+  unionPlaceLat?: number | null;
+  unionPlaceLng?: number | null;
 };
 
 export async function updateFamily(treeId: string, id: string, payload: UpdateFamilyPayload): Promise<void> {
@@ -986,6 +1000,8 @@ export type CreateFamilyPayload = {
   unionStatus?: UnionStatus;
   unionDateText?: string;
   unionPlace?: string;
+  unionPlaceLat?: number;
+  unionPlaceLng?: number;
 };
 
 // Creates a union between two already-existing individuals — the partner
@@ -1011,4 +1027,71 @@ export async function fillFamilyPartner(treeId: string, familyId: string, partne
     body: JSON.stringify({ partnerId }),
   });
   await throwIfNotOk(res);
+}
+
+// ---------------------------------------------------------------------
+// Places — geocoded suggestions for the place fields, and the tree map
+// ---------------------------------------------------------------------
+
+// A place field's full value: the free text is always kept (historical
+// names often can't be geocoded); lat/lng are only set once the user picks
+// a located suggestion, and cleared again as soon as they edit the text.
+export type PlaceValue = {
+  text: string;
+  lat: number | null;
+  lng: number | null;
+};
+
+export const EMPTY_PLACE: PlaceValue = { text: "", lat: null, lng: null };
+
+export function placeValue(text: string | null | undefined, lat: number | null | undefined, lng: number | null | undefined): PlaceValue {
+  return { text: text ?? "", lat: lat ?? null, lng: lng ?? null };
+}
+
+export type PlaceSuggestion = {
+  label: string;
+  lat: number;
+  lng: number;
+  source: "tree" | "osm";
+};
+
+export async function searchPlaces(treeId: string, query: string, signal?: AbortSignal): Promise<PlaceSuggestion[]> {
+  const params = new URLSearchParams({ q: query, lang: i18n.language });
+  const res = await apiFetch(`/trees/${treeId}/places/search?${params}`, { signal });
+  return parseJsonOrThrow(res);
+}
+
+export type MapEventKind = "BIRTH" | "DEATH" | "UNION";
+
+export type MapEvent = {
+  kind: MapEventKind;
+  individualId: string;
+  label: string;
+  place: string;
+  lat: number;
+  lng: number;
+  dateText: string | null;
+};
+
+export async function fetchTreeMap(treeId: string): Promise<{ events: MapEvent[]; unlocated: number }> {
+  const res = await apiFetch(`/trees/${treeId}/places/map`);
+  return parseJsonOrThrow(res);
+}
+
+export type UnlocatedPlace = { text: string; uses: number };
+
+export async function fetchUnlocatedPlaces(treeId: string): Promise<UnlocatedPlace[]> {
+  const res = await apiFetch(`/trees/${treeId}/places/unlocated`);
+  return parseJsonOrThrow(res);
+}
+
+// Pins every birth/death/union field in the tree whose text is exactly
+// `text` and has no coordinates yet; returns how many fields that was.
+export async function locatePlace(treeId: string, text: string, lat: number, lng: number): Promise<{ updated: number }> {
+  const res = await apiFetch(`/trees/${treeId}/places/locate`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ text, lat, lng }),
+  });
+  return parseJsonOrThrow(res);
 }

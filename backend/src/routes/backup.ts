@@ -113,6 +113,8 @@ export default async function backupRoutes(fastify: FastifyInstance) {
         unionDateValue: f.unionDateValue,
         unionDatePrecision: f.unionDatePrecision,
         unionPlace: f.unionPlace,
+        unionPlaceLat: f.unionPlaceLat,
+        unionPlaceLng: f.unionPlaceLng,
         notes: f.notes,
         childIds: f.children.map((c) => c.individualId),
       }));

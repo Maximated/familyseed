@@ -19,6 +19,7 @@ import backupRoutes from "./routes/backup.js";
 import gedcomRoutes from "./routes/gedcom.js";
 import csvRoutes from "./routes/csv.js";
 import statisticsRoutes from "./routes/statistics.js";
+import placeRoutes from "./routes/places.js";
 import treesRoutes from "./routes/trees.js";
 import copyRoutes from "./routes/copy.js";
 import inviteLinkRoutes from "./routes/invite-links.js";
@@ -105,6 +106,7 @@ async function treeScopedRoutes(fastify: FastifyInstance) {
   await fastify.register(gedcomRoutes, { prefix: "/gedcom" });
   await fastify.register(csvRoutes, { prefix: "/csv" });
   await fastify.register(statisticsRoutes);
+  await fastify.register(placeRoutes, { prefix: "/places" });
 }
 
 await app.register(treeScopedRoutes, { prefix: "/trees/:treeId" });

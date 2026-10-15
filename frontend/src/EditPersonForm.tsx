@@ -11,6 +11,8 @@ import {
   fetchIndividualRelations,
   fetchLineages,
   mediaUrl,
+  placeValue,
+  EMPTY_PLACE,
   removeIndividualLineage,
   removeParent,
   setMyIdentity,
@@ -20,6 +22,7 @@ import {
   type Individual,
   type Lineage,
   type Partnership,
+  type PlaceValue,
   type RelatedPerson,
   type Sex,
   type UpdateIndividualPayload,
@@ -27,6 +30,7 @@ import {
 import { resizeImage } from "./media";
 import { convertHeicIfNeeded } from "./heic";
 import PersonPicker from "./PersonPicker";
+import PlaceInput from "./PlaceInput";
 import PersonMediaTab from "./PersonMedia";
 import PhotoCropModal from "./PhotoCropModal";
 import PhotoDropzone from "./PhotoDropzone";
@@ -114,11 +118,11 @@ export default function EditPersonForm({
   const [birthDateText, setBirthDateText] = useState("");
   const [birthDateValue, setBirthDateValue] = useState("");
   const [birthDatePrecision, setBirthDatePrecision] = useState<DatePrecision>("EXACT");
-  const [birthPlace, setBirthPlace] = useState("");
+  const [birthPlace, setBirthPlace] = useState<PlaceValue>(EMPTY_PLACE);
   const [deathDateText, setDeathDateText] = useState("");
   const [deathDateValue, setDeathDateValue] = useState("");
   const [deathDatePrecision, setDeathDatePrecision] = useState<DatePrecision>("EXACT");
-  const [deathPlace, setDeathPlace] = useState("");
+  const [deathPlace, setDeathPlace] = useState<PlaceValue>(EMPTY_PLACE);
   const [notes, setNotes] = useState("");
   const [biography, setBiography] = useState("");
   const [photoFile, setPhotoFile] = useState<File | null>(null);
@@ -170,11 +174,11 @@ export default function EditPersonForm({
         setBirthDateText(person.birthDateText ?? "");
         setBirthDateValue(toDateInputValue(person.birthDateValue));
         setBirthDatePrecision(person.birthDatePrecision ?? "EXACT");
-        setBirthPlace(person.birthPlace ?? "");
+        setBirthPlace(placeValue(person.birthPlace, person.birthPlaceLat, person.birthPlaceLng));
         setDeathDateText(person.deathDateText ?? "");
         setDeathDateValue(toDateInputValue(person.deathDateValue));
         setDeathDatePrecision(person.deathDatePrecision ?? "EXACT");
-        setDeathPlace(person.deathPlace ?? "");
+        setDeathPlace(placeValue(person.deathPlace, person.deathPlaceLat, person.deathPlaceLng));
         setNotes(person.notes ?? "");
         setBiography(person.biography ?? "");
         setPhotoPreview(person.photoUrl ? mediaUrl(person.photoUrl) : null);
@@ -390,11 +394,15 @@ export default function EditPersonForm({
         birthDateText: birthDateText.trim() || null,
         birthDateValue: birthDateValue || null,
         birthDatePrecision: birthDateValue ? birthDatePrecision : null,
-        birthPlace: birthPlace.trim() || null,
+        birthPlace: birthPlace.text.trim() || null,
+        birthPlaceLat: birthPlace.lat,
+        birthPlaceLng: birthPlace.lng,
         deathDateText: deathDateText.trim() || null,
         deathDateValue: deathDateValue || null,
         deathDatePrecision: deathDateValue ? deathDatePrecision : null,
-        deathPlace: deathPlace.trim() || null,
+        deathPlace: deathPlace.text.trim() || null,
+        deathPlaceLat: deathPlace.lat,
+        deathPlaceLng: deathPlace.lng,
         notes: notes.trim() || null,
         biography: biography.trim() || null,
       };
@@ -812,10 +820,11 @@ export default function EditPersonForm({
               </label>
               <label>
                 {t("personFields.birthPlace")}
-                <input
+                <PlaceInput
+                  treeId={treeId}
                   placeholder={t("personFields.placePlaceholder")}
                   value={birthPlace}
-                  onChange={(e) => setBirthPlace(e.target.value)}
+                  onChange={setBirthPlace}
                 />
               </label>
               <label>
@@ -842,10 +851,11 @@ export default function EditPersonForm({
               </label>
               <label>
                 {t("personFields.deathPlace")}
-                <input
+                <PlaceInput
+                  treeId={treeId}
                   placeholder={t("personFields.placePlaceholder")}
                   value={deathPlace}
-                  onChange={(e) => setDeathPlace(e.target.value)}
+                  onChange={setDeathPlace}
                 />
               </label>
               <label>

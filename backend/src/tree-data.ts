@@ -78,6 +78,8 @@ export type TreeUnion = {
   unionDateValue: string | null;
   unionDatePrecision: string | null;
   unionPlace: string | null;
+  unionPlaceLat: number | null;
+  unionPlaceLng: number | null;
   notes: string | null;
   order: number;
 };
@@ -163,6 +165,8 @@ export async function buildTreeData(treeId: string): Promise<{ people: TreePerso
         unionDateValue: family.unionDateValue ? family.unionDateValue.toISOString() : null,
         unionDatePrecision: family.unionDatePrecision,
         unionPlace: family.unionPlace,
+        unionPlaceLat: family.unionPlaceLat,
+        unionPlaceLng: family.unionPlaceLng,
         notes: family.notes,
         order: Math.max(orderOf(family.partner1Id, family.id), orderOf(family.partner2Id, family.id)),
       });

@@ -50,6 +50,7 @@
     "exportSubmit": "Eksportuj",
     "gedcom": "Import / Eksport",
     "search": "Szukaj osób",
+    "map": "Mapa drzewa",
     "share": "Udostępnij drzewo",
     "manageGuests": "Zarządzaj gośćmi ({{count}})",
     "renameTree": "Zmień nazwę drzewa",
@@ -623,5 +624,46 @@
     "title": "Statystyki — {{name}}",
     "managementHeading": "Zarządzanie drzewem",
     "lineagesLink": "Zobacz gałęzie"
+  },
+  "place": {
+    "located": "Umieszczono na mapie",
+    "notLocated": "Jeszcze nie na mapie: wybierz podpowiedź, aby umieścić",
+    "noResults": "Brak podpowiedzi — zostanie zapisane dokładnie tak, jak wpisano",
+    "inThisTree": "w tym drzewie"
+  },
+  "map": {
+    "title": "Mapa drzewa",
+    "kind": {
+      "BIRTH": "Urodzenia",
+      "DEATH": "Zgony",
+      "UNION": "Związki"
+    },
+    "paths": "Trasy urodzenie → zgon",
+    "empty": "Brak jeszcze zlokalizowanych miejsc. Wpisując miejsce urodzenia, zgonu lub związku, wybierz jedną z podpowiedzi, aby pojawiło się tutaj.",
+    "unlocated_one": "{{count}} ręcznie wpisane miejsce nie jest na mapie. Edytuj osobę i wybierz podpowiedź, aby je umieścić.",
+    "unlocated_few": "{{count}} ręcznie wpisane miejsca nie są na mapie. Edytuj osoby i wybierz podpowiedź, aby je umieścić.",
+    "unlocated_many": "{{count}} ręcznie wpisanych miejsc nie ma na mapie. Edytuj osoby i wybierz podpowiedź, aby je umieścić.",
+    "unlocated_other": "{{count}} ręcznie wpisanych miejsc nie ma na mapie. Edytuj osoby i wybierz podpowiedź, aby je umieścić.",
+    "locateLink": "Lokalizuj miejsca…"
+  },
+  "locatePlaces": {
+    "title": "Lokalizuj nieumieszczone miejsca",
+    "intro": "Każdy wiersz to ręcznie wpisane miejsce, którego nie ma jeszcze na mapie. Sprawdź propozycję i potwierdź ją lub zmień wyszukiwanie.",
+    "empty": "Wszystkie miejsca w drzewie są zlokalizowane.",
+    "uses_one": "{{count}} użycie",
+    "uses_few": "{{count}} użycia",
+    "uses_many": "{{count}} użyć",
+    "uses_other": "{{count}} użyć",
+    "searching": "Szukanie…",
+    "noMatch": "Brak dopasowania — spróbuj innej nazwy (np. obecnej)",
+    "searchPlaceholder": "Szukaj pod inną nazwą…",
+    "apply": "Lokalizuj",
+    "applyAll": "Lokalizuj wszystkie propozycje ({{count}})",
+    "applyAllConfirm": "Zostanie przypisanych {{count}} zaznaczonych propozycji. Kontynuować?",
+    "applied_one": "Zlokalizowano w {{count}} rekordzie.",
+    "applied_few": "Zlokalizowano w {{count}} rekordach.",
+    "applied_many": "Zlokalizowano w {{count}} rekordach.",
+    "applied_other": "Zlokalizowano w {{count}} rekordach.",
+    "done": "Zlokalizowane miejsca: {{count}}."
   }
 }

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { updateFamily, type DatePrecision, type UnionStatus, type UnionType } from "./api";
+import { placeValue, updateFamily, type DatePrecision, type UnionStatus, type UnionType } from "./api";
+import PlaceInput from "./PlaceInput";
 
 type UnionDetails = {
   unionType: UnionType;
@@ -9,6 +10,8 @@ type UnionDetails = {
   unionDateValue: string | null;
   unionDatePrecision: DatePrecision | null;
   unionPlace: string | null;
+  unionPlaceLat: number | null;
+  unionPlaceLng: number | null;
 };
 
 // Same ISO-timestamp-to-`<input type="date">`-value slicing EditPersonForm
@@ -38,7 +41,9 @@ export default function UnionDetailsEditor({ treeId, familyId, initial, onSaved 
   const [unionDateValue, setUnionDateValue] = useState(toDateInputValue(initial.unionDateValue));
   const [unionDatePrecision, setUnionDatePrecision] = useState<DatePrecision>(initial.unionDatePrecision ?? "EXACT");
   const [unionDateText, setUnionDateText] = useState(initial.unionDateText ?? "");
-  const [unionPlace, setUnionPlace] = useState(initial.unionPlace ?? "");
+  const [unionPlace, setUnionPlace] = useState(
+    placeValue(initial.unionPlace, initial.unionPlaceLat, initial.unionPlaceLng),
+  );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -48,7 +53,7 @@ export default function UnionDetailsEditor({ treeId, familyId, initial, onSaved 
     setUnionDateValue(toDateInputValue(initial.unionDateValue));
     setUnionDatePrecision(initial.unionDatePrecision ?? "EXACT");
     setUnionDateText(initial.unionDateText ?? "");
-    setUnionPlace(initial.unionPlace ?? "");
+    setUnionPlace(placeValue(initial.unionPlace, initial.unionPlaceLat, initial.unionPlaceLng));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     initial.unionType,
@@ -57,6 +62,8 @@ export default function UnionDetailsEditor({ treeId, familyId, initial, onSaved 
     initial.unionDatePrecision,
     initial.unionDateText,
     initial.unionPlace,
+    initial.unionPlaceLat,
+    initial.unionPlaceLng,
   ]);
 
   async function handleSave() {
@@ -69,7 +76,9 @@ export default function UnionDetailsEditor({ treeId, familyId, initial, onSaved 
         unionDateValue: unionDateValue || null,
         unionDatePrecision: unionDateValue ? unionDatePrecision : null,
         unionDateText: unionDateText.trim() || null,
-        unionPlace: unionPlace.trim() || null,
+        unionPlace: unionPlace.text.trim() || null,
+        unionPlaceLat: unionPlace.lat,
+        unionPlaceLng: unionPlace.lng,
       });
       setEditing(false);
       onSaved();
@@ -86,7 +95,7 @@ export default function UnionDetailsEditor({ treeId, familyId, initial, onSaved 
     setUnionDateValue(toDateInputValue(initial.unionDateValue));
     setUnionDatePrecision(initial.unionDatePrecision ?? "EXACT");
     setUnionDateText(initial.unionDateText ?? "");
-    setUnionPlace(initial.unionPlace ?? "");
+    setUnionPlace(placeValue(initial.unionPlace, initial.unionPlaceLat, initial.unionPlaceLng));
     setError(null);
     setEditing(false);
   }
@@ -116,7 +125,7 @@ export default function UnionDetailsEditor({ treeId, familyId, initial, onSaved 
           <li>{t("infoPanel.unionType", { value: t(`unionType.${unionType}`) })}</li>
           <li>{t("infoPanel.unionStatus", { value: t(`unionStatus.${unionStatus}`) })}</li>
           <li>{t("infoPanel.unionDate", { value: displayDate || t("infoPanel.unknownDate") })}</li>
-          {unionPlace && <li>{t("infoPanel.unionPlace", { value: unionPlace })}</li>}
+          {unionPlace.text && <li>{t("infoPanel.unionPlace", { value: unionPlace.text })}</li>}
         </ul>
         <button type="button" className="union-notes-edit-link" onClick={() => setEditing(true)}>
           {t("infoPanel.editUnion")}
@@ -172,11 +181,11 @@ export default function UnionDetailsEditor({ treeId, familyId, initial, onSaved 
       </label>
       <label>
         {t("infoPanel.unionPlaceLabel")}
-        <input
-          type="text"
+        <PlaceInput
+          treeId={treeId}
           placeholder={t("personFields.placePlaceholder")}
           value={unionPlace}
-          onChange={(e) => setUnionPlace(e.target.value)}
+          onChange={setUnionPlace}
         />
       </label>
       {error && <p className="status status-error">{error}</p>}

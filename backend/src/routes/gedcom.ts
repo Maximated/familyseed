@@ -85,6 +85,8 @@ export default async function gedcomRoutes(fastify: FastifyInstance) {
         unionDatePrecision: f.unionDatePrecision,
         unionPlace: f.unionPlace,
         notes: f.notes,
+        unionPlaceLat: f.unionPlaceLat,
+        unionPlaceLng: f.unionPlaceLng,
         childIds: f.children.map((c) => c.individualId).filter((id) => includedSet.has(id)),
       }));
 

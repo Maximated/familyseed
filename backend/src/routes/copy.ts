@@ -37,10 +37,14 @@ const INDIVIDUAL_COPY_FIELDS = [
   "birthDateValue",
   "birthDatePrecision",
   "birthPlace",
+  "birthPlaceLat",
+  "birthPlaceLng",
   "deathDateText",
   "deathDateValue",
   "deathDatePrecision",
   "deathPlace",
+  "deathPlaceLat",
+  "deathPlaceLng",
   "notes",
   "biography",
 ] as const satisfies readonly (keyof Individual)[];
@@ -175,6 +179,8 @@ export default async function copyRoutes(fastify: FastifyInstance) {
               unionDateValue: family.unionDateValue,
               unionDatePrecision: family.unionDatePrecision,
               unionPlace: family.unionPlace,
+              unionPlaceLat: family.unionPlaceLat,
+              unionPlaceLng: family.unionPlaceLng,
               notes: family.notes,
             },
           });

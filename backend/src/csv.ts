@@ -36,8 +36,12 @@ export const CSV_HEADERS = [
   "sex",
   "birth_date",
   "birth_place",
+  "birth_place_lat",
+  "birth_place_lng",
   "death_date",
   "death_place",
+  "death_place_lat",
+  "death_place_lng",
   "notes",
   "biography",
   "father_id",
@@ -47,6 +51,8 @@ export const CSV_HEADERS = [
   "union_status",
   "union_date",
   "union_place",
+  "union_place_lat",
+  "union_place_lng",
   "union_notes",
 ] as const;
 
@@ -61,8 +67,12 @@ export function csvTemplate(): string {
     sex: "F",
     birth_date: "1930-04-12",
     birth_place: "Sevilla",
+    birth_place_lat: "37.3886",
+    birth_place_lng: "-5.9823",
     death_date: "~2005",
     death_place: "",
+    death_place_lat: "",
+    death_place_lng: "",
     notes: "",
     biography: "",
     father_id: "",
@@ -72,6 +82,8 @@ export function csvTemplate(): string {
     union_status: "ENDED_BY_DEATH",
     union_date: "1952-06-10",
     union_place: "Sevilla",
+    union_place_lat: "37.3886",
+    union_place_lng: "-5.9823",
     union_notes: "",
   };
   const example2 = {
@@ -84,8 +96,12 @@ export function csvTemplate(): string {
     sex: "M",
     birth_date: "1955-09-01",
     birth_place: "",
+    birth_place_lat: "",
+    birth_place_lng: "",
     death_date: "",
     death_place: "",
+    death_place_lat: "",
+    death_place_lng: "",
     notes: "",
     biography: "",
     father_id: "",
@@ -95,6 +111,8 @@ export function csvTemplate(): string {
     union_status: "",
     union_date: "",
     union_place: "",
+    union_place_lat: "",
+    union_place_lng: "",
     union_notes: "",
   };
   // Demonstrates a couple with no children together — the only way to
@@ -121,6 +139,8 @@ export function csvTemplate(): string {
     union_status: "",
     union_date: "",
     union_place: "",
+    union_place_lat: "",
+    union_place_lng: "",
     union_notes: "",
   };
   return stringifyCsvSync([example1, example2, example3], { header: true, columns: CSV_HEADERS as unknown as string[] });
@@ -210,10 +230,14 @@ export type ParsedCsvIndividual = {
   birthDateValue: Date | null;
   birthDatePrecision: DatePrecision | null;
   birthPlace: string | null;
+  birthPlaceLat: number | null;
+  birthPlaceLng: number | null;
   deathDateText: string | null;
   deathDateValue: Date | null;
   deathDatePrecision: DatePrecision | null;
   deathPlace: string | null;
+  deathPlaceLat: number | null;
+  deathPlaceLng: number | null;
   notes: string | null;
   biography: string | null;
   fatherCsvId: string | null;
@@ -225,12 +249,33 @@ export type ParsedCsvIndividual = {
   unionDateValue: Date | null;
   unionDatePrecision: DatePrecision | null;
   unionPlace: string | null;
+  unionPlaceLat: number | null;
+  unionPlaceLng: number | null;
   unionNotes: string | null;
 };
 
 function blankToNull(v: string | undefined): string | null {
   const t = (v ?? "").trim();
   return t === "" ? null : t;
+}
+
+// Decimal degrees; a comma decimal separator (as a Spanish-locale
+// spreadsheet writes it) is accepted too. Both halves of a pair must parse
+// and be in range, otherwise the place stays unlocated rather than ending
+// up with one bogus coordinate.
+function parseCoordinatePair(
+  latRaw: string | undefined,
+  lngRaw: string | undefined,
+): { lat: number | null; lng: number | null } {
+  const parse = (raw: string | undefined, limit: number): number | null => {
+    const t = (raw ?? "").trim().replace(",", ".");
+    if (!/^-?\d+(\.\d+)?$/.test(t)) return null;
+    const n = Number(t);
+    return Math.abs(n) <= limit ? n : null;
+  };
+  const lat = parse(latRaw, 90);
+  const lng = parse(lngRaw, 180);
+  return lat === null || lng === null ? { lat: null, lng: null } : { lat, lng };
 }
 
 export function parseCsvFile(text: string): ParsedCsvIndividual[] {
@@ -275,6 +320,13 @@ export function parseCsvFile(text: string): ParsedCsvIndividual[] {
     const birth = parseCsvDate(row.birth_date);
     const death = parseCsvDate(row.death_date);
     const union = parseCsvDate(row.union_date);
+    const birthPlace = blankToNull(row.birth_place);
+    const deathPlace = blankToNull(row.death_place);
+    // Coordinates without a place name have nothing to pin to.
+    const birthCoords = birthPlace ? parseCoordinatePair(row.birth_place_lat, row.birth_place_lng) : { lat: null, lng: null };
+    const deathCoords = deathPlace ? parseCoordinatePair(row.death_place_lat, row.death_place_lng) : { lat: null, lng: null };
+    const unionPlace = blankToNull(row.union_place);
+    const unionCoords = unionPlace ? parseCoordinatePair(row.union_place_lat, row.union_place_lng) : { lat: null, lng: null };
 
     return {
       csvId,
@@ -287,11 +339,15 @@ export function parseCsvFile(text: string): ParsedCsvIndividual[] {
       birthDateText: birth.text ?? null,
       birthDateValue: birth.value ?? null,
       birthDatePrecision: birth.precision ?? null,
-      birthPlace: blankToNull(row.birth_place),
+      birthPlace,
+      birthPlaceLat: birthCoords.lat,
+      birthPlaceLng: birthCoords.lng,
       deathDateText: death.text ?? null,
       deathDateValue: death.value ?? null,
       deathDatePrecision: death.precision ?? null,
-      deathPlace: blankToNull(row.death_place),
+      deathPlace,
+      deathPlaceLat: deathCoords.lat,
+      deathPlaceLng: deathCoords.lng,
       notes: blankToNull(row.notes),
       biography: blankToNull(row.biography),
       fatherCsvId: blankToNull(row.father_id),
@@ -302,7 +358,9 @@ export function parseCsvFile(text: string): ParsedCsvIndividual[] {
       unionDateText: union.text ?? null,
       unionDateValue: union.value ?? null,
       unionDatePrecision: union.precision ?? null,
-      unionPlace: blankToNull(row.union_place),
+      unionPlace,
+      unionPlaceLat: unionCoords.lat,
+      unionPlaceLng: unionCoords.lng,
       unionNotes: blankToNull(row.union_notes),
     };
   });
@@ -353,10 +411,14 @@ export async function importCsvIntoTree(
           birthDateValue: ind.birthDateValue,
           birthDatePrecision: ind.birthDatePrecision,
           birthPlace: ind.birthPlace,
+          birthPlaceLat: ind.birthPlaceLat,
+          birthPlaceLng: ind.birthPlaceLng,
           deathDateText: ind.deathDateText,
           deathDateValue: ind.deathDateValue,
           deathDatePrecision: ind.deathDatePrecision,
           deathPlace: ind.deathPlace,
+          deathPlaceLat: ind.deathPlaceLat,
+          deathPlaceLng: ind.deathPlaceLng,
           notes: ind.notes,
           biography: ind.biography,
         };
@@ -466,6 +528,8 @@ export async function importCsvIntoTree(
           unionDateValue: ind.unionDateValue,
           unionDatePrecision: ind.unionDatePrecision,
           unionPlace: ind.unionPlace,
+          unionPlaceLat: ind.unionPlaceLat,
+          unionPlaceLng: ind.unionPlaceLng,
           notes: ind.unionNotes,
         };
 
@@ -508,10 +572,14 @@ export type ExportCsvIndividual = {
   birthDateValue: Date | null;
   birthDatePrecision: DatePrecision | null;
   birthPlace: string | null;
+  birthPlaceLat: number | null;
+  birthPlaceLng: number | null;
   deathDateText: string | null;
   deathDateValue: Date | null;
   deathDatePrecision: DatePrecision | null;
   deathPlace: string | null;
+  deathPlaceLat: number | null;
+  deathPlaceLng: number | null;
   notes: string | null;
   biography: string | null;
 };
@@ -526,6 +594,8 @@ export type ExportCsvFamily = {
   unionDateValue: Date | null;
   unionDatePrecision: DatePrecision | null;
   unionPlace: string | null;
+  unionPlaceLat: number | null;
+  unionPlaceLng: number | null;
   notes: string | null;
 };
 
@@ -569,7 +639,16 @@ export function serializeCsv(individuals: ExportCsvIndividual[], families: Expor
   // appears exactly once instead of redundantly on both partners' rows.
   const unionByPersonId = new Map<
     string,
-    { spouseId: string; unionType: UnionType; unionStatus: UnionStatus; unionDate: string; unionPlace: string | null; notes: string | null }
+    {
+      spouseId: string;
+      unionType: UnionType;
+      unionStatus: UnionStatus;
+      unionDate: string;
+      unionPlace: string | null;
+      unionPlaceLat: number | null;
+      unionPlaceLng: number | null;
+      notes: string | null;
+    }
   >();
   for (const fam of families) {
     if (!fam.partner1Id || !fam.partner2Id) continue;
@@ -578,6 +657,8 @@ export function serializeCsv(individuals: ExportCsvIndividual[], families: Expor
       unionStatus: fam.unionStatus,
       unionDate: formatCsvDate(fam.unionDateText, fam.unionDateValue, fam.unionDatePrecision),
       unionPlace: fam.unionPlace,
+      unionPlaceLat: fam.unionPlaceLat,
+      unionPlaceLng: fam.unionPlaceLng,
       notes: fam.notes,
     };
     if (!unionByPersonId.has(fam.partner1Id)) {
@@ -603,8 +684,12 @@ export function serializeCsv(individuals: ExportCsvIndividual[], families: Expor
       sex: ind.sex === "MALE" ? "M" : ind.sex === "FEMALE" ? "F" : "",
       birth_date: formatCsvDate(ind.birthDateText, ind.birthDateValue, ind.birthDatePrecision),
       birth_place: ind.birthPlace ?? "",
+      birth_place_lat: ind.birthPlaceLat ?? "",
+      birth_place_lng: ind.birthPlaceLng ?? "",
       death_date: formatCsvDate(ind.deathDateText, ind.deathDateValue, ind.deathDatePrecision),
       death_place: ind.deathPlace ?? "",
+      death_place_lat: ind.deathPlaceLat ?? "",
+      death_place_lng: ind.deathPlaceLng ?? "",
       notes: ind.notes ?? "",
       biography: ind.biography ?? "",
       father_id: parents?.fatherId ?? "",
@@ -614,6 +699,8 @@ export function serializeCsv(individuals: ExportCsvIndividual[], families: Expor
       union_status: union?.unionStatus ?? "",
       union_date: union?.unionDate ?? "",
       union_place: union?.unionPlace ?? "",
+      union_place_lat: union?.unionPlaceLat ?? "",
+      union_place_lng: union?.unionPlaceLng ?? "",
       union_notes: union?.notes ?? "",
     };
   });

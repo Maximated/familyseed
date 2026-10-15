@@ -22,6 +22,9 @@ services:
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
       APP_ORIGIN: ${APP_ORIGIN:-}
+      # Optional: your own Photon geocoder for place suggestions. Leave
+      # unset to use the free public instance (photon.komoot.io).
+      PHOTON_URL: ${PHOTON_URL:-}
     ports:
       - "3001:3001"
     volumes:

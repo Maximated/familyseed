@@ -89,10 +89,14 @@ export type ExportIndividual = {
   birthDateValue: Date | null;
   birthDatePrecision: DatePrecision | null;
   birthPlace: string | null;
+  birthPlaceLat: number | null;
+  birthPlaceLng: number | null;
   deathDateText: string | null;
   deathDateValue: Date | null;
   deathDatePrecision: DatePrecision | null;
   deathPlace: string | null;
+  deathPlaceLat: number | null;
+  deathPlaceLng: number | null;
   notes: string | null;
   biography: string | null;
 };
@@ -108,8 +112,19 @@ export type ExportFamily = {
   unionDatePrecision: DatePrecision | null;
   unionPlace: string | null;
   notes: string | null;
+  unionPlaceLat: number | null;
+  unionPlaceLng: number | null;
   childIds: string[];
 };
+
+// GEDCOM 5.5.1's PLAC.MAP structure — hemisphere-prefixed decimal degrees
+// ("N40.4168" / "W3.7038") rather than signed numbers.
+function placeMapLines(lat: number | null, lng: number | null): string[] {
+  if (lat === null || lng === null) return [];
+  const latitude = `${lat < 0 ? "S" : "N"}${Math.abs(lat).toFixed(6)}`;
+  const longitude = `${lng < 0 ? "W" : "E"}${Math.abs(lng).toFixed(6)}`;
+  return ["3 MAP", `4 LATI ${latitude}`, `4 LONG ${longitude}`];
+}
 
 // Xrefs are regenerated fresh on every export (@I1@, @F1@, ...) rather than
 // reusing a stored gedcomXref — a GEDCOM file only needs internally
@@ -153,14 +168,20 @@ export function serializeGedcom(individuals: ExportIndividual[], families: Expor
     if (birthDate || individual.birthPlace) {
       lines.push("1 BIRT");
       if (birthDate) lines.push(`2 DATE ${birthDate}`);
-      if (individual.birthPlace) lines.push(`2 PLAC ${escapeGedcomLine(individual.birthPlace)}`);
+      if (individual.birthPlace) {
+        lines.push(`2 PLAC ${escapeGedcomLine(individual.birthPlace)}`);
+        lines.push(...placeMapLines(individual.birthPlaceLat, individual.birthPlaceLng));
+      }
     }
 
     const deathDate = gedcomDate(individual.deathDateValue, individual.deathDatePrecision, individual.deathDateText);
     if (deathDate || individual.deathPlace) {
       lines.push("1 DEAT");
       if (deathDate) lines.push(`2 DATE ${deathDate}`);
-      if (individual.deathPlace) lines.push(`2 PLAC ${escapeGedcomLine(individual.deathPlace)}`);
+      if (individual.deathPlace) {
+        lines.push(`2 PLAC ${escapeGedcomLine(individual.deathPlace)}`);
+        lines.push(...placeMapLines(individual.deathPlaceLat, individual.deathPlaceLng));
+      }
     }
 
     for (const famXref of famcByIndividual.get(individual.id) ?? []) lines.push(`1 FAMC @${famXref}@`);
@@ -189,7 +210,10 @@ export function serializeGedcom(individuals: ExportIndividual[], families: Expor
     if (family.unionType === "MARRIAGE" || unionDate || family.unionPlace) {
       lines.push("1 MARR");
       if (unionDate) lines.push(`2 DATE ${unionDate}`);
-      if (family.unionPlace) lines.push(`2 PLAC ${escapeGedcomLine(family.unionPlace)}`);
+      if (family.unionPlace) {
+        lines.push(`2 PLAC ${escapeGedcomLine(family.unionPlace)}`);
+        lines.push(...placeMapLines(family.unionPlaceLat, family.unionPlaceLng));
+      }
     }
     if (family.unionStatus === "DIVORCED" || family.unionStatus === "SEPARATED") lines.push("1 DIV");
     if (family.unionStatus === "ANNULLED") lines.push("1 ANUL");
@@ -276,6 +300,23 @@ function parseGedcomDate(raw: string | undefined): { text: string | undefined; v
   return { text, value, precision };
 }
 
+// Accepts the spec's "N40.4168"/"W3.7038" form as well as plain signed
+// decimals, which several programs write instead.
+function parseCoordinate(raw: string | undefined, negativePrefix: "S" | "W", limit: number): number | null {
+  const match = raw?.trim().match(/^([NSEW])?\s*(-?\d+(?:\.\d+)?)$/i);
+  if (!match) return null;
+  const magnitude = Number(match[2]);
+  const value = match[1]?.toUpperCase() === negativePrefix ? -Math.abs(magnitude) : magnitude;
+  return Number.isFinite(value) && Math.abs(value) <= limit ? value : null;
+}
+
+function parsePlaceCoordinates(eventNode: GedNode | undefined): { lat: number | null; lng: number | null } {
+  const map = findChild(findChild(eventNode, "PLAC"), "MAP");
+  const lat = parseCoordinate(findChild(map, "LATI")?.value, "S", 90);
+  const lng = parseCoordinate(findChild(map, "LONG")?.value, "W", 180);
+  return lat === null || lng === null ? { lat: null, lng: null } : { lat, lng };
+}
+
 function parseName(nameNode: GedNode | undefined): { givenNames: string; surname1: string; alias: string | null } {
   const alias = findChild(nameNode, "NICK")?.value?.trim() || null;
   const givn = findChild(nameNode, "GIVN")?.value?.trim();
@@ -298,12 +339,16 @@ export type ParsedIndividual = {
   birthDateValue: Date | null;
   birthDatePrecision: DatePrecision | null;
   birthPlace: string | null;
+  birthPlaceLat: number | null;
+  birthPlaceLng: number | null;
   deathDateText: string | null;
   deathDateValue: Date | null;
   deathDatePrecision: DatePrecision | null;
   deathPlace: string | null;
   biography: string | null;
   notes: string | null;
+  deathPlaceLat: number | null;
+  deathPlaceLng: number | null;
 };
 
 export type ParsedFamily = {
@@ -318,6 +363,8 @@ export type ParsedFamily = {
   unionDatePrecision: DatePrecision | null;
   unionPlace: string | null;
   notes: string | null;
+  unionPlaceLat: number | null;
+  unionPlaceLng: number | null;
 };
 
 export function parseGedcomFile(text: string): { individuals: ParsedIndividual[]; families: ParsedFamily[] } {
@@ -336,6 +383,8 @@ export function parseGedcomFile(text: string): { individuals: ParsedIndividual[]
     const birth = parseGedcomDate(findChild(birt, "DATE")?.value);
     const deat = findChild(node, "DEAT");
     const death = parseGedcomDate(findChild(deat, "DATE")?.value);
+    const birthCoords = parsePlaceCoordinates(birt);
+    const deathCoords = parsePlaceCoordinates(deat);
 
     individuals.push({
       xref,
@@ -347,11 +396,15 @@ export function parseGedcomFile(text: string): { individuals: ParsedIndividual[]
       birthDateValue: birth.value ?? null,
       birthDatePrecision: birth.precision ?? null,
       birthPlace: findChild(birt, "PLAC")?.value?.trim() || null,
+      birthPlaceLat: birthCoords.lat,
+      birthPlaceLng: birthCoords.lng,
       deathDateText: death.text ?? null,
       deathDateValue: death.value ?? null,
       deathDatePrecision: death.precision ?? null,
       deathPlace: findChild(deat, "PLAC")?.value?.trim() || null,
       ...readIndividualNotes(node),
+      deathPlaceLat: deathCoords.lat,
+      deathPlaceLng: deathCoords.lng,
     });
   }
 
@@ -362,6 +415,7 @@ export function parseGedcomFile(text: string): { individuals: ParsedIndividual[]
 
     const marr = findChild(node, "MARR");
     const marriage = parseGedcomDate(findChild(marr, "DATE")?.value);
+    const marriageCoords = parsePlaceCoordinates(marr);
     const unionStatus: UnionStatus = findChild(node, "DIV") ? "DIVORCED" : findChild(node, "ANUL") ? "ANNULLED" : "ONGOING";
 
     families.push({
@@ -376,6 +430,8 @@ export function parseGedcomFile(text: string): { individuals: ParsedIndividual[]
       unionDatePrecision: marriage.precision ?? null,
       unionPlace: findChild(marr, "PLAC")?.value?.trim() || null,
       notes: readNote(node),
+      unionPlaceLat: marriageCoords.lat,
+      unionPlaceLng: marriageCoords.lng,
     });
   }
 
@@ -415,12 +471,16 @@ export async function importGedcomIntoTree(
             birthDateValue: ind.birthDateValue,
             birthDatePrecision: ind.birthDatePrecision,
             birthPlace: ind.birthPlace,
+            birthPlaceLat: ind.birthPlaceLat,
+            birthPlaceLng: ind.birthPlaceLng,
             deathDateText: ind.deathDateText,
             deathDateValue: ind.deathDateValue,
             deathDatePrecision: ind.deathDatePrecision,
             deathPlace: ind.deathPlace,
             biography: ind.biography,
             notes: ind.notes,
+            deathPlaceLat: ind.deathPlaceLat,
+            deathPlaceLng: ind.deathPlaceLng,
           },
           update: {
             givenNames: ind.givenNames || "(sin nombre)",
@@ -431,12 +491,16 @@ export async function importGedcomIntoTree(
             birthDateValue: ind.birthDateValue,
             birthDatePrecision: ind.birthDatePrecision,
             birthPlace: ind.birthPlace,
+            birthPlaceLat: ind.birthPlaceLat,
+            birthPlaceLng: ind.birthPlaceLng,
             deathDateText: ind.deathDateText,
             deathDateValue: ind.deathDateValue,
             deathDatePrecision: ind.deathDatePrecision,
             deathPlace: ind.deathPlace,
             biography: ind.biography,
             notes: ind.notes,
+            deathPlaceLat: ind.deathPlaceLat,
+            deathPlaceLng: ind.deathPlaceLng,
           },
         });
         xrefToId.set(ind.xref, row.id);
@@ -465,6 +529,8 @@ export async function importGedcomIntoTree(
             unionDatePrecision: fam.unionDatePrecision,
             unionPlace: fam.unionPlace,
             notes: fam.notes,
+            unionPlaceLat: fam.unionPlaceLat,
+            unionPlaceLng: fam.unionPlaceLng,
           },
           update: {
             partner1Id,
@@ -476,6 +542,8 @@ export async function importGedcomIntoTree(
             unionDatePrecision: fam.unionDatePrecision,
             unionPlace: fam.unionPlace,
             notes: fam.notes,
+            unionPlaceLat: fam.unionPlaceLat,
+            unionPlaceLng: fam.unionPlaceLng,
           },
         });
         familiesWritten++;

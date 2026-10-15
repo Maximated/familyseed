@@ -50,6 +50,7 @@
     "exportSubmit": "Export",
     "gedcom": "Import/Export",
     "search": "Search people",
+    "map": "Tree map",
     "share": "Share tree",
     "manageGuests": "Manage guests ({{count}})",
     "renameTree": "Rename tree",
@@ -623,5 +624,40 @@
     "title": "Statistics — {{name}}",
     "managementHeading": "Tree management",
     "lineagesLink": "View lineages"
+  },
+  "place": {
+    "located": "Located on the map",
+    "notLocated": "Not on the map yet: pick a suggestion to place it",
+    "noResults": "No suggestions — it will be saved exactly as typed",
+    "inThisTree": "in this tree"
+  },
+  "map": {
+    "title": "Tree map",
+    "kind": {
+      "BIRTH": "Births",
+      "DEATH": "Deaths",
+      "UNION": "Unions"
+    },
+    "paths": "Birth → death paths",
+    "empty": "No located places yet. When typing a birth, death or union place, pick one of the suggestions to see it here.",
+    "unlocated_one": "{{count}} hand-typed place is not on the map. Edit the person and pick a suggestion to place it.",
+    "unlocated_other": "{{count}} hand-typed places are not on the map. Edit the people and pick a suggestion to place them.",
+    "locateLink": "Locate places…"
+  },
+  "locatePlaces": {
+    "title": "Locate unplaced places",
+    "intro": "Each row is a hand-typed place that is not on the map yet. Review the proposal and confirm it, or change the search to refine it.",
+    "empty": "Every place in the tree is located.",
+    "uses_one": "{{count}} use",
+    "uses_other": "{{count}} uses",
+    "searching": "Searching…",
+    "noMatch": "No match — try another name (e.g. the current one)",
+    "searchPlaceholder": "Search with another name…",
+    "apply": "Locate",
+    "applyAll": "Locate all proposals ({{count}})",
+    "applyAllConfirm": "The {{count}} proposals currently selected will be assigned. Continue?",
+    "applied_one": "Located in {{count}} record.",
+    "applied_other": "Located in {{count}} records.",
+    "done": "Places located: {{count}}."
   }
 }

@@ -50,6 +50,7 @@
     "exportSubmit": "Exportar",
     "gedcom": "Importar/exportar",
     "search": "Buscar personas",
+    "map": "Mapa del árbol",
     "share": "Compartir árbol",
     "manageGuests": "Gestionar invitados ({{count}})",
     "renameTree": "Cambiar nombre del árbol",
@@ -208,6 +209,7 @@
   },
   "addPerson": {
     "title": "Añadir persona",
+    "photoUploadFailed": "La persona se guardó, pero no se pudo subir la foto: {{message}}. Pulsa Guardar para reintentarlo o elige otra imagen.",
     "relationshipLegend": "Relación con el árbol",
     "childOf": "Es hijo/a de",
     "removeOtherParent": "quitar",
@@ -238,6 +240,7 @@
   },
   "editPerson": {
     "title": "Editar persona",
+    "photoUploadFailed": "Los cambios se guardaron, pero no se pudo subir la foto: {{message}}. Pulsa Guardar para reintentarlo o elige otra imagen.",
     "parentsLegend": "Padres",
     "noParents": "Sin padres registrados todavía.",
     "addParent": "+ Vincular padre/madre existente",
@@ -623,5 +626,40 @@
     "title": "Estadísticas — {{name}}",
     "managementHeading": "Gestión del árbol",
     "lineagesLink": "Ver linajes"
+  },
+  "place": {
+    "located": "Ubicado en el mapa",
+    "notLocated": "Sin ubicar en el mapa: elige una sugerencia para situarlo",
+    "noResults": "Sin sugerencias — se guardará tal cual lo escribas",
+    "inThisTree": "en este árbol"
+  },
+  "map": {
+    "title": "Mapa del árbol",
+    "kind": {
+      "BIRTH": "Nacimientos",
+      "DEATH": "Defunciones",
+      "UNION": "Uniones"
+    },
+    "paths": "Trayectos nacimiento → defunción",
+    "empty": "Todavía no hay lugares ubicados. Al escribir un lugar de nacimiento, defunción o unión, elige una de las sugerencias para que aparezca aquí.",
+    "unlocated_one": "{{count}} lugar escrito sin ubicar no aparece en el mapa. Edita a la persona y elige una sugerencia para situarlo.",
+    "unlocated_other": "{{count}} lugares escritos sin ubicar no aparecen en el mapa. Edita a las personas y elige una sugerencia para situarlos.",
+    "locateLink": "Ubicar lugares…"
+  },
+  "locatePlaces": {
+    "title": "Ubicar lugares sin situar",
+    "intro": "Cada fila es un lugar escrito a mano que aún no está en el mapa. Revisa la propuesta y confírmala, o cambia la búsqueda para afinar.",
+    "empty": "Todos los lugares del árbol están ubicados.",
+    "uses_one": "{{count}} uso",
+    "uses_other": "{{count}} usos",
+    "searching": "Buscando…",
+    "noMatch": "Sin coincidencias — prueba con otro nombre (por ejemplo, el actual)",
+    "searchPlaceholder": "Buscar con otro nombre…",
+    "apply": "Ubicar",
+    "applyAll": "Ubicar todas las propuestas ({{count}})",
+    "applyAllConfirm": "Se asignarán las {{count}} propuestas que aparecen seleccionadas. ¿Continuar?",
+    "applied_one": "Ubicado en {{count}} registro.",
+    "applied_other": "Ubicado en {{count}} registros.",
+    "done": "Lugares ubicados: {{count}}."
   }
 }

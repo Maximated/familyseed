@@ -1,8 +1,17 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { addParent, createFamily, type Individual, type UnionStatus, type UnionType } from "./api";
+import {
+  addParent,
+  createFamily,
+  EMPTY_PLACE,
+  type Individual,
+  type PlaceValue,
+  type UnionStatus,
+  type UnionType,
+} from "./api";
 import IOSToggle from "./IOSToggle";
 import PersonPicker from "./PersonPicker";
+import PlaceInput from "./PlaceInput";
 
 type Props = {
   treeId: string;
@@ -32,7 +41,7 @@ export default function LinkPeopleModal({ treeId, onLinked, onClose }: Props) {
   const [unionType, setUnionType] = useState<UnionType>("MARRIAGE");
   const [unionStatus, setUnionStatus] = useState<UnionStatus>("ONGOING");
   const [unionDateText, setUnionDateText] = useState("");
-  const [unionPlace, setUnionPlace] = useState("");
+  const [unionPlace, setUnionPlace] = useState<PlaceValue>(EMPTY_PLACE);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -61,7 +70,9 @@ export default function LinkPeopleModal({ treeId, onLinked, onClose }: Props) {
           unionType,
           unionStatus,
           unionDateText: unionDateText.trim() || undefined,
-          unionPlace: unionPlace.trim() || undefined,
+          unionPlace: unionPlace.text.trim() || undefined,
+          unionPlaceLat: unionPlace.lat ?? undefined,
+          unionPlaceLng: unionPlace.lng ?? undefined,
         });
       }
       onLinked();
@@ -132,11 +143,11 @@ export default function LinkPeopleModal({ treeId, onLinked, onClose }: Props) {
                 value={unionDateText}
                 onChange={(e) => setUnionDateText(e.target.value)}
               />
-              <input
-                type="text"
+              <PlaceInput
+                treeId={treeId}
                 placeholder={t("personFields.placePlaceholder")}
                 value={unionPlace}
-                onChange={(e) => setUnionPlace(e.target.value)}
+                onChange={setUnionPlace}
               />
             </div>
           )}

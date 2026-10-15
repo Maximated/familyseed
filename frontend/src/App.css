@@ -4467,3 +4467,248 @@ button.btn-outline:disabled {
   justify-content: flex-start;
   padding-top: 0.5rem;
 }
+
+/* Place field with geocoded suggestions (PlaceInput.tsx) — same dropdown
+   look as .person-picker-results, but floating over the fields below it
+   instead of pushing them down while the user is still typing. */
+.place-input {
+  position: relative;
+}
+
+.modal-panel .place-input input:not([type="radio"]):not([type="checkbox"]):not([type="file"]) {
+  padding-right: 1.6rem;
+}
+
+.place-input-status {
+  position: absolute;
+  right: 0.2rem;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  color: rgba(27, 67, 50, 0.25);
+  pointer-events: auto;
+}
+
+.place-input-status.is-located {
+  color: var(--color-forest-light);
+}
+
+.place-input-results {
+  position: absolute;
+  top: calc(100% + 2px);
+  left: 0;
+  right: 0;
+  z-index: 5;
+  list-style: none;
+  margin: 0;
+  padding: 0.25rem;
+  max-height: 220px;
+  overflow-y: auto;
+  border: 1px solid #e5e5e5;
+  border-radius: 6px;
+  background: #fff;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.12);
+}
+
+.place-input-results li[role="option"] {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.4rem 0.5rem;
+  border-radius: 4px;
+  cursor: pointer;
+  color: var(--color-forest);
+  font-size: 0.9rem;
+}
+
+.place-input-results li[role="option"]:hover,
+.place-input-results li[role="option"].is-active {
+  background: rgba(224, 122, 41, 0.1);
+  color: var(--color-amber);
+}
+
+.place-input-tag {
+  flex: 0 0 auto;
+  font-size: 0.7rem;
+  color: var(--color-forest-light);
+}
+
+.place-input-empty {
+  padding: 0.35rem 0.5rem;
+  font-size: 0.85rem;
+  color: var(--color-text-secondary);
+}
+
+.place-input-attribution {
+  padding: 0.15rem 0.5rem 0;
+  font-size: 0.65rem;
+  text-align: right;
+  color: #9ca3af;
+}
+
+/* Tree map (MapView.tsx) */
+.modal-panel.map-view-panel {
+  width: 1000px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  /* Own stacking context: Leaflet's panes/controls use z-index 400–1000,
+     which would otherwise paint over the "locate places" modal opened on
+     top of this one (a sibling at z-index 10). */
+  position: relative;
+  z-index: 0;
+}
+
+.map-view-header h2 {
+  margin-bottom: 0.4rem;
+}
+
+.map-view-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem 1rem;
+  font-size: 0.85rem;
+}
+
+.map-view-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  cursor: pointer;
+}
+
+.map-view-swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.map-view-canvas-wrap {
+  position: relative;
+}
+
+.map-view-canvas {
+  height: min(65vh, 600px);
+  min-height: 280px;
+  border-radius: 6px;
+  overflow: hidden;
+  border: 1px solid #e5e5e5;
+}
+
+.map-view-empty {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 500;
+  max-width: 80%;
+  margin: 0;
+  padding: 0.8rem 1rem;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.95);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.15);
+  font-size: 0.9rem;
+  text-align: center;
+}
+
+.map-popup ul {
+  list-style: none;
+  margin: 0.35rem 0 0;
+  padding: 0;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.map-popup button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  padding: 0.2rem 0.1rem;
+  font: inherit;
+  color: var(--color-forest);
+  cursor: pointer;
+}
+
+.map-popup button:hover {
+  color: var(--color-amber);
+  text-decoration: underline;
+}
+
+/* Bulk "locate places" pass (LocatePlacesView.tsx), opened from the map. */
+.modal-panel.locate-places-panel {
+  width: 640px;
+}
+
+.locate-places-list {
+  list-style: none;
+  margin: 0.75rem 0 0;
+  padding: 0;
+  max-height: 55vh;
+  overflow-y: auto;
+}
+
+.locate-places-list > li {
+  padding: 0.6rem 0;
+  border-bottom: 1px solid #eee;
+}
+
+.locate-places-list > li.is-applied {
+  opacity: 0.6;
+}
+
+.locate-places-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+
+.locate-places-uses {
+  font-size: 0.8rem;
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+}
+
+.locate-places-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-top: 0.3rem;
+}
+
+.locate-places-pick {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.locate-places-pick select {
+  flex: 1;
+  min-width: 0;
+}
+
+.modal-panel .locate-places-pick button {
+  flex: 0 0 auto;
+  width: auto;
+}
+
+.locate-places-applied {
+  margin: 0.2rem 0 0;
+  font-size: 0.85rem;
+  color: var(--color-forest-light);
+}
+
+@media (max-width: 480px) {
+  .locate-places-pick {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+
+.map-view-panel .field-hint .union-notes-edit-link {
+  display: inline;
+  margin: 0;
+}

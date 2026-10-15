@@ -6,8 +6,10 @@ import {
   createIndividual,
   uploadPersonMedia,
   uploadPersonPhoto,
+  EMPTY_PLACE,
   type DatePrecision,
   type Individual,
+  type PlaceValue,
   type Relationship,
   type Sex,
   type TreePerson,
@@ -25,6 +27,7 @@ import { checkParentChildWarning } from "./relationshipGuards";
 import { surnameSuggestion } from "./surnameSuggestions";
 import SurnameSuggestion from "./SurnameSuggestion";
 import StagedMediaTab, { type StagedMediaItem } from "./StagedMediaTab";
+import PlaceInput from "./PlaceInput";
 
 // Independently combinable now (a new person is very often a child *and*
 // a spouse *and* a parent all at once) — only "no relation known" stays
@@ -84,7 +87,7 @@ export default function AddPersonForm({ treeId, people, initialRelation, onCreat
   const [unionType, setUnionType] = useState<UnionType>("MARRIAGE");
   const [unionStatus, setUnionStatus] = useState<UnionStatus>("ONGOING");
   const [unionDateText, setUnionDateText] = useState("");
-  const [unionPlace, setUnionPlace] = useState("");
+  const [unionPlace, setUnionPlace] = useState<PlaceValue>(EMPTY_PLACE);
   const [child, setChild] = useState<Individual | null>(
     () => (initialRelation?.kind === "PARENT_OF" ? initialRelation.child : null),
   );
@@ -116,11 +119,11 @@ export default function AddPersonForm({ treeId, people, initialRelation, onCreat
   const [birthDateText, setBirthDateText] = useState("");
   const [birthDateValue, setBirthDateValue] = useState("");
   const [birthDatePrecision, setBirthDatePrecision] = useState<DatePrecision>("EXACT");
-  const [birthPlace, setBirthPlace] = useState("");
+  const [birthPlace, setBirthPlace] = useState<PlaceValue>(EMPTY_PLACE);
   const [deathDateText, setDeathDateText] = useState("");
   const [deathDateValue, setDeathDateValue] = useState("");
   const [deathDatePrecision, setDeathDatePrecision] = useState<DatePrecision>("EXACT");
-  const [deathPlace, setDeathPlace] = useState("");
+  const [deathPlace, setDeathPlace] = useState<PlaceValue>(EMPTY_PLACE);
   const [notes, setNotes] = useState("");
   const [biography, setBiography] = useState("");
   const [photoFile, setPhotoFile] = useState<File | null>(null);
@@ -191,7 +194,9 @@ export default function AddPersonForm({ treeId, people, initialRelation, onCreat
         unionType,
         unionStatus,
         unionDateText: unionDateText || undefined,
-        unionPlace: unionPlace || undefined,
+        unionPlace: unionPlace.text.trim() || undefined,
+        unionPlaceLat: unionPlace.lat ?? undefined,
+        unionPlaceLng: unionPlace.lng ?? undefined,
       };
     }
     return { kind: "PARENT_OF", childId: child?.id ?? "" };
@@ -279,11 +284,15 @@ export default function AddPersonForm({ treeId, people, initialRelation, onCreat
             birthDateText: birthDateText.trim() || undefined,
             birthDateValue: birthDateValue || undefined,
             birthDatePrecision: birthDateValue ? birthDatePrecision : undefined,
-            birthPlace: birthPlace.trim() || undefined,
+            birthPlace: birthPlace.text.trim() || undefined,
+            birthPlaceLat: birthPlace.lat ?? undefined,
+            birthPlaceLng: birthPlace.lng ?? undefined,
             deathDateText: deathDateText.trim() || undefined,
             deathDateValue: deathDateValue || undefined,
             deathDatePrecision: deathDateValue ? deathDatePrecision : undefined,
-            deathPlace: deathPlace.trim() || undefined,
+            deathPlace: deathPlace.text.trim() || undefined,
+            deathPlaceLat: deathPlace.lat ?? undefined,
+            deathPlaceLng: deathPlace.lng ?? undefined,
             notes: notes.trim() || undefined,
             biography: biography.trim() || undefined,
           },
@@ -308,7 +317,9 @@ export default function AddPersonForm({ treeId, people, initialRelation, onCreat
             unionType,
             unionStatus,
             unionDateText: unionDateText || undefined,
-            unionPlace: unionPlace || undefined,
+            unionPlace: unionPlace.text.trim() || undefined,
+            unionPlaceLat: unionPlace.lat ?? undefined,
+            unionPlaceLng: unionPlace.lng ?? undefined,
           });
         } else if (kind === "PARENT_OF" && child) {
           await addParent(treeId, child.id, personId);
@@ -427,11 +438,11 @@ export default function AddPersonForm({ treeId, people, initialRelation, onCreat
                 value={unionDateText}
                 onChange={(e) => setUnionDateText(e.target.value)}
               />
-              <input
-                type="text"
+              <PlaceInput
+                treeId={treeId}
                 placeholder={t("personFields.placePlaceholder")}
                 value={unionPlace}
-                onChange={(e) => setUnionPlace(e.target.value)}
+                onChange={setUnionPlace}
               />
             </div>
           )}
@@ -559,10 +570,11 @@ export default function AddPersonForm({ treeId, people, initialRelation, onCreat
           </label>
           <label>
             {t("personFields.birthPlace")}
-            <input
+            <PlaceInput
+              treeId={treeId}
               placeholder={t("personFields.placePlaceholder")}
               value={birthPlace}
-              onChange={(e) => setBirthPlace(e.target.value)}
+              onChange={setBirthPlace}
             />
           </label>
           <label>
@@ -590,10 +602,11 @@ export default function AddPersonForm({ treeId, people, initialRelation, onCreat
           </label>
           <label>
             {t("personFields.deathPlace")}
-            <input
+            <PlaceInput
+              treeId={treeId}
               placeholder={t("personFields.placePlaceholder")}
               value={deathPlace}
-              onChange={(e) => setDeathPlace(e.target.value)}
+              onChange={setDeathPlace}
             />
           </label>
           <label>

@@ -37,6 +37,8 @@ export type InfoPanelData = {
     unionDateValue: string | null;
     unionDatePrecision: DatePrecision | null;
     unionPlace: string | null;
+    unionPlaceLat: number | null;
+    unionPlaceLng: number | null;
     partner1Id: string;
     partner2Id: string;
     children: UnionChild[];

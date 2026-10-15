@@ -77,6 +77,8 @@ export default async function csvRoutes(fastify: FastifyInstance) {
       unionDateValue: f.unionDateValue,
       unionDatePrecision: f.unionDatePrecision,
       unionPlace: f.unionPlace,
+      unionPlaceLat: f.unionPlaceLat,
+      unionPlaceLng: f.unionPlaceLng,
       notes: f.notes,
     }));
 

@@ -33,6 +33,8 @@ const createFamilyBodySchema = {
     unionDateValue: { type: "string", format: "date" },
     unionDatePrecision: { type: "string", enum: DATE_PRECISION_VALUES },
     unionPlace: { type: "string" },
+    unionPlaceLat: { type: "number", minimum: -90, maximum: 90 },
+    unionPlaceLng: { type: "number", minimum: -180, maximum: 180 },
     childrenIds: { type: "array", items: { type: "string" } },
   },
   additionalProperties: false,
@@ -47,6 +49,8 @@ type CreateFamilyBody = {
   unionDateValue?: string;
   unionDatePrecision?: (typeof DATE_PRECISION_VALUES)[number];
   unionPlace?: string;
+  unionPlaceLat?: number;
+  unionPlaceLng?: number;
   childrenIds?: string[];
 };
 
@@ -65,6 +69,8 @@ const updateFamilyBodySchema = {
     unionDateValue: { type: ["string", "null"], format: "date" },
     unionDatePrecision: { type: ["string", "null"], enum: [...DATE_PRECISION_VALUES, null] },
     unionPlace: optionalNullableString,
+    unionPlaceLat: { type: ["number", "null"], minimum: -90, maximum: 90 },
+    unionPlaceLng: { type: ["number", "null"], minimum: -180, maximum: 180 },
     notes: optionalNullableString,
   },
   additionalProperties: false,
@@ -77,6 +83,8 @@ type UpdateFamilyBody = {
   unionDateValue?: string | null;
   unionDatePrecision?: (typeof DATE_PRECISION_VALUES)[number] | null;
   unionPlace?: string | null;
+  unionPlaceLat?: number | null;
+  unionPlaceLng?: number | null;
   notes?: string | null;
 };
 
@@ -91,6 +99,8 @@ export default async function familyRoutes(fastify: FastifyInstance) {
       unionDateValue,
       unionDatePrecision,
       unionPlace,
+      unionPlaceLat,
+      unionPlaceLng,
       childrenIds,
     } = request.body as CreateFamilyBody;
 
@@ -138,6 +148,8 @@ export default async function familyRoutes(fastify: FastifyInstance) {
             unionDateValue: unionDateValue ? new Date(unionDateValue) : undefined,
             unionDatePrecision,
             unionPlace,
+            unionPlaceLat,
+            unionPlaceLng,
           },
         });
 
