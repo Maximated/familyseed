@@ -50,6 +50,27 @@ export const individualFieldsSchema = {
     notes: optionalNullableString,
     biography: optionalNullableString,
     photoUrl: { type: "string" },
+    hasTitles: { type: "boolean" },
+    // The full list, replaced wholesale on every save that includes it
+    // (omit the key to leave the existing rows alone) — a person holds a
+    // handful of titles at most, so diffing them isn't worth an endpoint.
+    titles: {
+      type: "array",
+      items: {
+        type: "object",
+        required: ["title"],
+        properties: {
+          title: { type: "string", minLength: 1 },
+          ordinal: optionalNullableString,
+          domain: optionalNullableString,
+          fromText: optionalNullableString,
+          toText: optionalNullableString,
+          consort: { type: "boolean" },
+          isPrimary: { type: "boolean" },
+        },
+        additionalProperties: false,
+      },
+    },
   },
   additionalProperties: false,
 };
@@ -142,7 +163,40 @@ export type IndividualFieldsInput = {
   notes?: string | null;
   biography?: string | null;
   photoUrl?: string;
+  hasTitles?: boolean;
+  titles?: TitleInput[];
 };
+
+export type TitleInput = {
+  title: string;
+  ordinal?: string | null;
+  domain?: string | null;
+  fromText?: string | null;
+  toText?: string | null;
+  consort?: boolean;
+  isPrimary?: boolean;
+};
+
+// Prisma createMany rows for a titles list — trims, drops blank optional
+// parts to null, numbers them in list order, and keeps at most one
+// primary (the first flagged, else the first row, so a titled person
+// always has a card name to show).
+export function titleRows(titles: TitleInput[]) {
+  const text = (v: string | null | undefined) => (v && v.trim() ? v.trim() : null);
+  const primaryIndex = Math.max(0, titles.findIndex((t) => t.isPrimary));
+  return titles.map((t, index) => ({
+    title: t.title.trim(),
+    ordinal: text(t.ordinal),
+    domain: text(t.domain),
+    fromText: text(t.fromText),
+    toText: text(t.toText),
+    consort: !!t.consort,
+    isPrimary: index === primaryIndex,
+    position: index,
+  }));
+}
+
+const TITLES_INCLUDE = { titles: { orderBy: { position: "asc" as const } } };
 
 type CreateIndividualBody = {
   individual: IndividualFieldsInput;
@@ -455,6 +509,7 @@ export default async function individualRoutes(fastify: FastifyInstance) {
           { surname1: { contains: search } },
           { surname2: { contains: search } },
           { surname1BirthName: { contains: search } },
+          { titles: { some: { OR: [{ title: { contains: search } }, { domain: { contains: search } }] } } },
         ],
       });
     }
@@ -492,6 +547,7 @@ export default async function individualRoutes(fastify: FastifyInstance) {
       orderBy: [{ surname1: "asc" }, { givenNames: "asc" }],
       include: {
         _count: { select: { childOf: true, familiesAsPartner1: true, familiesAsPartner2: true } },
+        ...TITLES_INCLUDE,
       },
     });
 
@@ -549,6 +605,7 @@ export default async function individualRoutes(fastify: FastifyInstance) {
           include: { partner1: true, children: { include: { individual: true } } },
         },
         lineages: true,
+        ...TITLES_INCLUDE,
       },
     });
 
@@ -640,12 +697,14 @@ export default async function individualRoutes(fastify: FastifyInstance) {
       const treeId = request.treeId!;
 
       const result = await prisma.$transaction(async (tx) => {
+        const { titles, ...individualFields } = individual;
         const created = await tx.individual.create({
           data: {
-            ...individual,
+            ...individualFields,
             treeId,
             birthDateValue: individual.birthDateValue ? new Date(individual.birthDateValue) : undefined,
             deathDateValue: individual.deathDateValue ? new Date(individual.deathDateValue) : undefined,
+            titles: titles?.length ? { create: titleRows(titles) } : undefined,
           },
         });
 
@@ -836,7 +895,7 @@ export default async function individualRoutes(fastify: FastifyInstance) {
 
   fastify.patch("/:id", { schema: { body: updateIndividualBodySchema } }, async (request, reply) => {
     const { id } = request.params as { id: string };
-    const updates = request.body as UpdateIndividualBody;
+    const { titles, ...updates } = request.body as UpdateIndividualBody;
     const treeId = request.treeId!;
 
     const existing = await prisma.individual.findFirst({ where: { id, treeId, deletedAt: null } });
@@ -856,7 +915,10 @@ export default async function individualRoutes(fastify: FastifyInstance) {
           updates.birthDateValue === undefined ? undefined : updates.birthDateValue ? new Date(updates.birthDateValue) : null,
         deathDateValue:
           updates.deathDateValue === undefined ? undefined : updates.deathDateValue ? new Date(updates.deathDateValue) : null,
+        // Replace-all semantics (see individualFieldsSchema.titles).
+        titles: titles === undefined ? undefined : { deleteMany: {}, create: titleRows(titles) },
       },
+      include: TITLES_INCLUDE,
     });
 
     // Only derive from a surname that actually changed in this save — not

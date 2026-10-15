@@ -12,3 +12,6 @@ Images/**/*.af~lock~
 Images/vectorstock_32071593/vectorstock_32071593.jpg
 Images/vectorstock_32071593/vectorstock_32071593.png
 Images/vectorstock_32071593/vectorstock_32071593_transparent.png
+
+# Local docker-compose secrets (copied from .env.example) — never commit.
+.env

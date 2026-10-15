@@ -5,6 +5,7 @@ import "./App.css";
 import { useTranslation } from "react-i18next";
 import { Link, useParams } from "react-router-dom";
 import i18n from "./i18n";
+import { displayNameOf, formatTitle, type TitleFields } from "./titles";
 import {
   deriveLineages,
   fetchIndividual,
@@ -37,6 +38,7 @@ import {
   ArrowLeftIcon,
   ArrowUpDownIcon,
   BarChartIcon,
+  CrownIcon,
   GitBranchIcon,
   HomeIcon,
   LinkIcon,
@@ -624,9 +626,24 @@ const ANCESTRY_ICON_SVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentC
 // person has no uploaded photo.
 const PERSON_ICON_SVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21a8 8 0 0 0-16 0"/><circle cx="12" cy="7" r="4"/></svg>`;
 
+// Lucide's "crown" (same path as Icons.tsx's CrownIcon) — the badge on a
+// titled person's card. Hovering/tapping it shows just their titles (see
+// the .card-crown wiring in wireCardAndUnionClicks), separate from the
+// card's own slower full-record hover preview.
+const CROWN_ICON_SVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11.562 3.266a.5.5 0 0 1 .876 0L15.39 8.87a1 1 0 0 0 1.516.294L21.183 5.5a.5.5 0 0 1 .798.519l-2.834 10.246a1 1 0 0 1-.956.734H5.81a1 1 0 0 1-.957-.734L2.02 6.02a.5.5 0 0 1 .798-.519l4.276 3.664a1 1 0 0 0 1.516-.294z"/><path d="M5 21h14"/></svg>`;
+
+function personTitles(data: Record<string, unknown>): TitleFields[] {
+  return data.hasTitles && Array.isArray(data.titles) ? (data.titles as TitleFields[]) : [];
+}
+
 function cardTemplate(d: CardDatum): string {
   const data = d.data.data;
-  const name = escapeHtml(`${data["first name"] ?? ""} ${data["last name"] ?? ""}`.toString().trim());
+  // A titled person is named by their primary title ("Felipe I de
+  // Castilla") rather than given name + surname — see titles.ts.
+  const name = escapeHtml(displayNameOf(data));
+  const crownHtml = personTitles(data).length
+    ? `<button type="button" class="card-crown" data-person-id="${d.data.id}" title="${escapeHtml(i18n.t("titles.crownLabel"))}" aria-label="${escapeHtml(i18n.t("titles.crownLabel"))}">${CROWN_ICON_SVG}</button>`
+    : "";
   const alias = data.alias ? escapeHtml(String(data.alias)) : "";
   const birthName = data["birth name"] ? escapeHtml(String(data["birth name"])) : "";
   const lifespan = formatLifespan(
@@ -646,6 +663,7 @@ function cardTemplate(d: CardDatum): string {
     : `<div class="card-avatar card-avatar-placeholder">${PERSON_ICON_SVG}</div>`;
   return `
     <div class="card-inner" data-person-id="${d.data.id}">
+      ${crownHtml}
       ${avatarHtml}
       <div class="card-text">
         <div class="card-name name-text">${name}</div>
@@ -702,15 +720,37 @@ function buildPersonInfoPanel(person: TreePerson): InfoPanelData {
   if (d.notes) sections.push({ heading: i18n.t("infoPanel.sectionNotes"), items: splitLines(String(d.notes)) });
   if (d.biography) sections.push({ heading: i18n.t("infoPanel.sectionBiography"), items: splitLines(String(d.biography)) });
 
+  // A titled person's header names them by title, so the family surname
+  // (no longer in the title line) moves down to the subtitle alongside
+  // any birth surname — the Títulos tab lists the titles themselves.
+  const titles = personTitles(d);
+  const subtitle = titles.length ? surnameLine : d["birth name"] ? String(d["birth name"]) : undefined;
+
   return {
     icon: <UserIcon size={20} />,
     iconClassName:
       d.gender === "F" ? "info-panel-icon-female" : d.gender === "M" ? "info-panel-icon-male" : "info-panel-icon-other",
     photoUrl: d.avatar ? mediaUrl(String(d.avatar)) : undefined,
-    title: `${d["first name"]} ${d["last name"]}`.trim(),
-    subtitle: d["birth name"] ? String(d["birth name"]) : undefined,
+    title: displayNameOf(d),
+    subtitle: subtitle || undefined,
     personId: person.id,
+    titles: titles.length ? titles : undefined,
+    givenNames: d["first name"],
     sections,
+  };
+}
+
+// The crown badge's own hover: only the titles, nothing else from the
+// record — the full preview is the card's own (slower) hover.
+function buildTitlesPreview(person: TreePerson): InfoPanelData {
+  const d = person.data;
+  const titles = personTitles(d);
+  return {
+    icon: <CrownIcon size={20} />,
+    iconClassName: "info-panel-icon-crown",
+    title: displayNameOf(d),
+    subtitle: d["last name"] || undefined,
+    sections: [{ heading: i18n.t("titles.sectionTitles"), items: titles.map((t) => formatTitle(t, d["first name"])) }],
   };
 }
 
@@ -990,6 +1030,41 @@ function App() {
       };
     });
 
+    // The crown on a titled person's card: hovering it shows just their
+    // titles at once (replacing the card's own 1s full-preview timer, so
+    // the two never fight), and a tap does the same on touch, where the
+    // next tap anywhere on the card (its own click handler) re-centers
+    // and the preview is torn down with the re-render.
+    container.querySelectorAll<HTMLButtonElement>(".card-crown").forEach((btn) => {
+      const show = () => {
+        const person = btn.dataset.personId ? treeDataRef.current.find((p) => p.id === btn.dataset.personId) : undefined;
+        if (!person || !containerRef.current) return;
+        const rect = btn.getBoundingClientRect();
+        const relativeTop = rect.top - containerRef.current.getBoundingClientRect().top;
+        setHoverPreview({ data: buildTitlesPreview(person), x: rect.left + rect.width / 2, y: rect.top, flip: relativeTop < 220 });
+      };
+      // Touch has no leave event, so a second tap on the crown closes it.
+      let openedByTap = false;
+      btn.onmouseenter = () => {
+        window.clearTimeout(hoverTimerRef.current);
+        show();
+      };
+      btn.onmouseleave = () => {
+        openedByTap = false;
+        setHoverPreview(null);
+      };
+      btn.onclick = (e) => {
+        e.stopPropagation();
+        if (openedByTap) {
+          openedByTap = false;
+          setHoverPreview(null);
+        } else {
+          openedByTap = true;
+          show();
+        }
+      };
+    });
+
     // A real (non-placeholder) avatar opens a full-size view instead of
     // re-centering the tree the way clicking the rest of the card does.
     container.querySelectorAll<HTMLImageElement>(".card-avatar:not(.card-avatar-placeholder)").forEach((img) => {
@@ -1060,6 +1135,9 @@ function App() {
         const personId = card.dataset.personId;
         card.onclick = () => {
           if (!personId) return;
+          // A titles preview opened from the crown (see .card-crown
+          // above) closes on the next tap anywhere on a card.
+          setHoverPreview(null);
           pendingCardActionsPersonIdRef.current = personId;
         };
       });

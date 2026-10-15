@@ -9,6 +9,7 @@ import UnionChildrenEditor, { type UnionChild } from "./UnionChildrenEditor";
 import CopyPersonModal from "./CopyPersonModal";
 import PhotoLightbox from "./PhotoLightbox";
 import { deleteFamily, type DatePrecision, type UnionStatus, type UnionType } from "./api";
+import { formatTitle, type TitleFields } from "./titles";
 
 export type InfoPanelSection = {
   heading: string;
@@ -26,6 +27,10 @@ export type InfoPanelData = {
   sections: InfoPanelSection[];
   // Only set for a person (not a union) — enables the Relaciones/Fotos/Documentos tabs.
   personId?: string;
+  // A titled person's held titles (Individual.hasTitles) — adds the
+  // Títulos tab, which only exists when there's something to list.
+  titles?: TitleFields[];
+  givenNames?: string;
   // Only set for a union (not a person) — enables the inline notes editor
   // and the type/status/date/place editor below.
   familyId?: string;
@@ -53,7 +58,7 @@ type Props = {
   onDataChanged: () => void;
 };
 
-type Tab = "ficha" | "relaciones" | "estadisticas" | "fotos" | "documentos";
+type Tab = "ficha" | "titulos" | "relaciones" | "estadisticas" | "fotos" | "documentos";
 
 export default function InfoPanel({ treeId, data, onClose, onNavigateToPerson, onDataChanged }: Props) {
   const { t } = useTranslation();
@@ -105,7 +110,14 @@ export default function InfoPanel({ treeId, data, onClose, onNavigateToPerson, o
           <div className="info-panel-tabs">
             {(
               data.personId
-                ? (["ficha", "relaciones", "estadisticas", "fotos", "documentos"] as Tab[])
+                ? ([
+                    "ficha",
+                    ...(data.titles?.length ? ["titulos"] : []),
+                    "relaciones",
+                    "estadisticas",
+                    "fotos",
+                    "documentos",
+                  ] as Tab[])
                 : (["ficha", "fotos", "documentos"] as Tab[])
             ).map((tabKey) => (
               <button
@@ -182,6 +194,18 @@ export default function InfoPanel({ treeId, data, onClose, onNavigateToPerson, o
                 )}
               </div>
             )}
+          </div>
+        )}
+        {tab === "titulos" && data.personId && data.titles && (
+          <div className="info-panel-tab-content">
+            <ul className="titles-list">
+              {data.titles.map((title, index) => (
+                <li key={index} className={title.isPrimary ? "titles-list-primary" : undefined}>
+                  {formatTitle(title, data.givenNames)}
+                </li>
+              ))}
+            </ul>
+            {data.subtitle && <p className="field-hint">{t("titles.house", { value: data.subtitle })}</p>}
           </div>
         )}
         {tab === "relaciones" && data.personId && (

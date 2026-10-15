@@ -1,6 +1,7 @@
 import { parse } from "parse-gedcom";
 import { prisma } from "./db.js";
 import { deriveLineagesFromSurnames } from "./routes/individuals.js";
+import { formatTitle, parseTitleText, type TitleFields } from "./titles.js";
 
 // ---------------------------------------------------------------------
 // Shared types
@@ -99,6 +100,8 @@ export type ExportIndividual = {
   deathPlaceLng: number | null;
   notes: string | null;
   biography: string | null;
+  hasTitles: boolean;
+  titles: TitleFields[];
 };
 
 export type ExportFamily = {
@@ -163,6 +166,21 @@ export function serializeGedcom(individuals: ExportIndividual[], families: Expor
     if (individual.alias) lines.push(`2 NICK ${escapeGedcomLine(individual.alias)}`);
 
     lines.push(`1 SEX ${individual.sex === "MALE" ? "M" : individual.sex === "FEMALE" ? "F" : "U"}`);
+
+    // GEDCOM's own nobility-title attribute. The value is the human form
+    // ("Rey consorte de Castilla") so any other program shows something
+    // sensible; the ordinal rides along as a NOTE under it, since GEDCOM
+    // has no slot for a regnal number and parseTitles below reads it back.
+    if (individual.hasTitles) {
+      for (const title of individual.titles) {
+        lines.push(`1 TITL ${escapeGedcomLine(formatTitle({ ...title, fromText: null, toText: null }))}`);
+        if (title.fromText && title.toText) lines.push(`2 DATE FROM ${title.fromText} TO ${title.toText}`);
+        else if (title.fromText) lines.push(`2 DATE FROM ${title.fromText}`);
+        else if (title.toText) lines.push(`2 DATE TO ${title.toText}`);
+        if (title.ordinal) lines.push(`2 NOTE Ordinal: ${escapeGedcomLine(title.ordinal)}`);
+        if (title.isPrimary) lines.push("2 NOTE Principal");
+      }
+    }
 
     const birthDate = gedcomDate(individual.birthDateValue, individual.birthDatePrecision, individual.birthDateText);
     if (birthDate || individual.birthPlace) {
@@ -349,7 +367,43 @@ export type ParsedIndividual = {
   notes: string | null;
   deathPlaceLat: number | null;
   deathPlaceLng: number | null;
+  titles: TitleFields[];
 };
+
+// The reverse of the TITL block serializeGedcom writes — also makes a fair
+// guess at a file from elsewhere (see parseTitleText), with a plain DATE
+// becoming the from-text.
+function parseTitles(node: GedNode): TitleFields[] {
+  const titles: TitleFields[] = [];
+  for (const titl of findChildren(node, "TITL")) {
+    const raw = titl.value?.trim();
+    if (!raw) continue;
+    const { title: text, domain, consort } = parseTitleText(raw);
+    if (!text) continue;
+
+    let fromText: string | null = null;
+    let toText: string | null = null;
+    const date = findChild(titl, "DATE")?.value?.trim();
+    if (date) {
+      const match = /^(?:FROM\s+(.+?))?(?:\s*TO\s+(.+))?$/i.exec(date);
+      fromText = match?.[1]?.trim() || (match?.[2] ? null : date);
+      toText = match?.[2]?.trim() || null;
+    }
+
+    let ordinal: string | null = null;
+    let isPrimary = false;
+    for (const note of findChildren(titl, "NOTE")) {
+      const value = note.value?.trim() ?? "";
+      const ordinalMatch = /^Ordinal:\s*(.+)$/i.exec(value);
+      if (ordinalMatch) ordinal = ordinalMatch[1].trim();
+      if (/^Principal$/i.test(value)) isPrimary = true;
+    }
+
+    titles.push({ title: text.trim(), ordinal, domain, fromText, toText, consort, isPrimary });
+  }
+  if (titles.length && !titles.some((t) => t.isPrimary)) titles[0].isPrimary = true;
+  return titles;
+}
 
 export type ParsedFamily = {
   xref: string;
@@ -392,6 +446,7 @@ export function parseGedcomFile(text: string): { individuals: ParsedIndividual[]
       surname1,
       alias,
       sex,
+      titles: parseTitles(node),
       birthDateText: birth.text ?? null,
       birthDateValue: birth.value ?? null,
       birthDatePrecision: birth.precision ?? null,
@@ -481,6 +536,8 @@ export async function importGedcomIntoTree(
             notes: ind.notes,
             deathPlaceLat: ind.deathPlaceLat,
             deathPlaceLng: ind.deathPlaceLng,
+            hasTitles: ind.titles.length > 0,
+            titles: ind.titles.length ? { create: ind.titles.map((t, position) => ({ ...t, position })) } : undefined,
           },
           update: {
             givenNames: ind.givenNames || "(sin nombre)",
@@ -501,6 +558,10 @@ export async function importGedcomIntoTree(
             notes: ind.notes,
             deathPlaceLat: ind.deathPlaceLat,
             deathPlaceLng: ind.deathPlaceLng,
+            // A re-import replaces the rest of the record wholesale too,
+            // so the titles follow the file rather than merging.
+            hasTitles: ind.titles.length > 0,
+            titles: { deleteMany: {}, create: ind.titles.map((t, position) => ({ ...t, position })) },
           },
         });
         xrefToId.set(ind.xref, row.id);

@@ -99,7 +99,10 @@ export default async function backupRoutes(fastify: FastifyInstance) {
     const treeId = request.treeId!;
     const tree = await prisma.tree.findUniqueOrThrow({ where: { id: treeId } });
 
-    const individuals = await prisma.individual.findMany({ where: { treeId, deletedAt: null } });
+    const individuals = await prisma.individual.findMany({
+      where: { treeId, deletedAt: null },
+      include: { titles: { orderBy: { position: "asc" } } },
+    });
     const rawFamilies = await prisma.family.findMany({ where: { treeId }, include: { children: true } });
     const families = rawFamilies
       .filter((f) => f.partner1Id || f.partner2Id)

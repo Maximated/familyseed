@@ -12,8 +12,25 @@ export function uploadsRoot(): string {
   return UPLOADS_ROOT;
 }
 
+// The stored name ends up inside Individual.photoUrl / PersonMedia.url,
+// so it has to stay short: the path prefix alone (/uploads/<cuid>/<cuid>/
+// <uuid>-) is ~98 chars. Accents fold to plain letters (as in filename.ts)
+// and the base is capped at 40 chars — Wikipedia/Commons downloads often
+// come with 100+ char names, which used to overflow the URL column and
+// make the whole upload fail.
+const MAX_BASENAME = 40;
+
 function sanitizeFilename(name: string): string {
-  return name.replace(/[^a-zA-Z0-9._-]/g, "_").slice(-100);
+  const cleaned = name
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-zA-Z0-9._-]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+  const dot = cleaned.lastIndexOf(".");
+  const hasExt = dot > 0 && cleaned.length - dot <= 6;
+  const ext = hasExt ? cleaned.slice(dot).toLowerCase() : "";
+  const base = (hasExt ? cleaned.slice(0, dot) : cleaned).slice(0, MAX_BASENAME).replace(/[._-]+$/g, "");
+  return `${base || "archivo"}${ext}`;
 }
 
 export async function saveUpload(

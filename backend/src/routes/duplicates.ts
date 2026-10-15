@@ -212,11 +212,16 @@ export default async function duplicateRoutes(fastify: FastifyInstance) {
       if (!keep) throw new HttpError(404, `No existe el individuo ${keepId}`);
       if (!merge) throw new HttpError(404, `No existe el individuo ${mergeId}`);
 
+      // The merge review has no titles column — whichever record wins the
+      // other fields, the title rows are carried over below, not chosen.
+      const { titles: _titles, ...individualFields } = individual;
+
       await prisma.$transaction(async (tx) => {
         await tx.individual.update({
           where: { id: keepId },
           data: {
-            ...individual,
+            ...individualFields,
+            hasTitles: keep.hasTitles || merge.hasTitles,
             birthDateValue:
               individual.birthDateValue === undefined
                 ? undefined
@@ -262,6 +267,12 @@ export default async function duplicateRoutes(fastify: FastifyInstance) {
           } else {
             await tx.familyChild.update({ where: { id: link.id }, data: { individualId: keepId } });
           }
+        }
+
+        // Titles: the kept record's own list wins if it has one; otherwise
+        // the merged-away person's titles move over so they aren't lost.
+        if ((await tx.personTitle.count({ where: { individualId: keepId } })) === 0) {
+          await tx.personTitle.updateMany({ where: { individualId: mergeId }, data: { individualId: keepId } });
         }
 
         // Lineage memberships: same reassign-or-drop-if-redundant pattern.

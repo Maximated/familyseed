@@ -63,6 +63,7 @@ export default async function csvRoutes(fastify: FastifyInstance) {
 
     const individuals = await prisma.individual.findMany({
       where: { treeId, deletedAt: null, ...(includedIds ? { id: { in: [...includedIds] } } : {}) },
+      include: { titles: { orderBy: { position: "asc" } } },
     });
     const includedSet = new Set(individuals.map((i) => i.id));
 

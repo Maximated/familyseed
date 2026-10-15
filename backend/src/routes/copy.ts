@@ -1,5 +1,5 @@
 import type { FastifyInstance } from "fastify";
-import type { Individual } from "@prisma/client";
+import type { Individual, PersonTitle } from "@prisma/client";
 import { prisma } from "../db.js";
 import { requireAuth } from "./auth.js";
 import { buildTreeData, expandWithSpouses, walkGraph } from "../tree-data.js";
@@ -47,7 +47,18 @@ const INDIVIDUAL_COPY_FIELDS = [
   "deathPlaceLng",
   "notes",
   "biography",
+  "hasTitles",
 ] as const satisfies readonly (keyof Individual)[];
+
+// The PersonTitle rows travel with the person (they're facts about them,
+// like the alias), minus ids/ownership so they get created fresh.
+const TITLES_INCLUDE = { titles: { orderBy: { position: "asc" as const } } };
+function copyTitles(titles: PersonTitle[]) {
+  if (titles.length === 0) return undefined;
+  return {
+    create: titles.map(({ id: _id, individualId: _individualId, ...fields }) => fields),
+  };
+}
 
 function pickCopyFields(individual: Individual) {
   const picked = {} as Pick<Individual, (typeof INDIVIDUAL_COPY_FIELDS)[number]>;
@@ -68,7 +79,7 @@ export default async function copyRoutes(fastify: FastifyInstance) {
     const { destTreeId, mode, direction } = request.body as CopyBody;
     const userId = request.userId!;
 
-    const source = await prisma.individual.findFirst({ where: { id, deletedAt: null } });
+    const source = await prisma.individual.findFirst({ where: { id, deletedAt: null }, include: TITLES_INCLUDE });
     if (!source) {
       return reply.code(404).send({ error: `No existe el individuo ${id}` });
     }
@@ -99,6 +110,7 @@ export default async function copyRoutes(fastify: FastifyInstance) {
           ...pickCopyFields(source),
           treeId: destTreeId,
           originIndividualId: source.id,
+          titles: copyTitles(source.titles),
         },
       });
       await logChange({
@@ -128,6 +140,7 @@ export default async function copyRoutes(fastify: FastifyInstance) {
 
     const sourceIndividuals = await prisma.individual.findMany({
       where: { id: { in: copyIds }, deletedAt: null },
+      include: TITLES_INCLUDE,
     });
     const copyIdSet = new Set(sourceIndividuals.map((i) => i.id));
 
@@ -158,6 +171,7 @@ export default async function copyRoutes(fastify: FastifyInstance) {
               ...pickCopyFields(individual),
               treeId: destTreeId,
               originIndividualId: individual.id,
+              titles: copyTitles(individual.titles),
             },
           });
           idMap.set(individual.id, created.id);

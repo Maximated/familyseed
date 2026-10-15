@@ -51,6 +51,10 @@ export type TreePerson = {
     notes?: string;
     biography?: string;
     avatar?: string;
+    // Only when Individual.hasTitles — see titles.ts for how these turn
+    // into the card's name line.
+    hasTitles?: boolean;
+    titles?: TreeTitle[];
     birthYear?: number;
     deathYear?: number;
     // ISO 8601 — full-precision dates, additive alongside birthYear/
@@ -66,6 +70,16 @@ export type TreePerson = {
     spouses: string[];
     children: string[];
   };
+};
+
+export type TreeTitle = {
+  title: string;
+  ordinal: string | null;
+  domain: string | null;
+  fromText: string | null;
+  toText: string | null;
+  consort: boolean;
+  isPrimary: boolean;
 };
 
 export type TreeUnion = {
@@ -113,6 +127,7 @@ export async function buildTreeData(treeId: string): Promise<{ people: TreePerso
         orderBy: { createdAt: "asc" },
       },
       lineages: { select: { lineageId: true } },
+      titles: { orderBy: { position: "asc" } },
     },
   });
 
@@ -218,6 +233,19 @@ export async function buildTreeData(treeId: string): Promise<{ people: TreePerso
         notes: individual.notes ?? undefined,
         biography: individual.biography ?? undefined,
         avatar: individual.photoUrl ?? undefined,
+        hasTitles: individual.hasTitles || undefined,
+        titles:
+          individual.hasTitles && individual.titles.length
+            ? individual.titles.map(({ title, ordinal, domain, fromText, toText, consort, isPrimary }) => ({
+                title,
+                ordinal,
+                domain,
+                fromText,
+                toText,
+                consort,
+                isPrimary,
+              }))
+            : undefined,
         // Used by the frontend's timeline navigation (bucket individuals by
         // era) and lineage highlight chips — purely navigational, not part
         // of the genealogical data itself.

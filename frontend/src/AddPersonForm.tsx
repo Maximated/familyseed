@@ -22,6 +22,7 @@ import PhotoCropModal from "./PhotoCropModal";
 import PhotoDropzone from "./PhotoDropzone";
 import PersonPicker from "./PersonPicker";
 import IOSToggle from "./IOSToggle";
+import TitlesEditor, { type TitleDraft, emptyTitleDraft, titlesPayload } from "./TitlesEditor";
 import { unknownGivenNameFor } from "./unknownPerson";
 import { checkParentChildWarning } from "./relationshipGuards";
 import { surnameSuggestion } from "./surnameSuggestions";
@@ -112,6 +113,9 @@ export default function AddPersonForm({ treeId, people, initialRelation, onCreat
   const [surname2, setSurname2] = useState("");
   const [surname1BirthName, setSurname1BirthName] = useState("");
   const [alias, setAlias] = useState("");
+  // Royalty/nobility — see EditPersonForm's own copy of this state.
+  const [hasTitles, setHasTitles] = useState(false);
+  const [titles, setTitles] = useState<TitleDraft[]>([]);
   const [sex, setSex] = useState<Sex>("UNKNOWN");
   // Same auto-filled, sex-aware placeholder identity as EditPersonForm —
   // see unknownGivenNameFor.
@@ -280,6 +284,8 @@ export default function AddPersonForm({ treeId, people, initialRelation, onCreat
             surname2: surname2.trim() || undefined,
             surname1BirthName: surname1BirthName.trim() || undefined,
             alias: alias.trim() || undefined,
+            hasTitles: hasTitles && titlesPayload(titles).length > 0,
+            titles: hasTitles ? titlesPayload(titles) : undefined,
             sex,
             birthDateText: birthDateText.trim() || undefined,
             birthDateValue: birthDateValue || undefined,
@@ -328,11 +334,16 @@ export default function AddPersonForm({ treeId, people, initialRelation, onCreat
       }
 
       if (photoFile) {
-        const resized = await resizeImage(photoFile, 500, 0.85);
-        await uploadPersonPhoto(treeId, personId, resized, photoFile.name).catch(() => {
-          // The person is already created — a failed photo upload shouldn't
-          // block finishing the form, just leave the avatar unset.
-        });
+        // The person already exists (createdPersonIdRef) — a failed upload
+        // keeps the form open with the reason, and re-submitting retries
+        // just the photo rather than creating a second person.
+        try {
+          const resized = await resizeImage(photoFile, 500, 0.85);
+          await uploadPersonPhoto(treeId, personId, resized, photoFile.name);
+        } catch (err) {
+          setError(t("addPerson.photoUploadFailed", { message: (err as Error).message }));
+          return;
+        }
       }
 
       if (!mediaUploadedRef.current) {
@@ -537,6 +548,21 @@ export default function AddPersonForm({ treeId, people, initialRelation, onCreat
               onChange={(e) => setAlias(e.target.value)}
             />
           </label>
+          <IOSToggle
+            checked={hasTitles}
+            onChange={() => {
+              if (!hasTitles && titles.length === 0) setTitles([emptyTitleDraft(true)]);
+              setHasTitles(!hasTitles);
+            }}
+            label={t("titles.toggle")}
+            multi
+          />
+          {hasTitles && (
+            <>
+              <p className="field-hint">{t("titles.hint")}</p>
+              <TitlesEditor titles={titles} onChange={setTitles} />
+            </>
+          )}
           <label>
             {t("personFields.sex")}
             <select value={sex} onChange={(e) => setSex(e.target.value as Sex)}>

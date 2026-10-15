@@ -35,6 +35,7 @@ import PersonMediaTab from "./PersonMedia";
 import PhotoCropModal from "./PhotoCropModal";
 import PhotoDropzone from "./PhotoDropzone";
 import IOSToggle from "./IOSToggle";
+import TitlesEditor, { type TitleDraft, draftsFromTitles, emptyTitleDraft, titlesPayload } from "./TitlesEditor";
 import { Trash2Icon } from "./Icons";
 import { checkParentChildWarning } from "./relationshipGuards";
 import { unknownGivenNameFor } from "./unknownPerson";
@@ -109,6 +110,10 @@ export default function EditPersonForm({
   const [surname2, setSurname2] = useState("");
   const [surname1BirthName, setSurname1BirthName] = useState("");
   const [alias, setAlias] = useState("");
+  // Royalty/nobility: the toggle unfolds the titles list, and the primary
+  // title takes over the card's name line (see titles.ts).
+  const [hasTitles, setHasTitles] = useState(false);
+  const [titles, setTitles] = useState<TitleDraft[]>([]);
   const [sex, setSex] = useState<Sex>("UNKNOWN");
   // A consistent, auto-filled placeholder identity for someone real but
   // unidentified (e.g. an ancestor whose name was never passed down) —
@@ -170,6 +175,8 @@ export default function EditPersonForm({
         setSurname2(person.surname2 ?? "");
         setSurname1BirthName(person.surname1BirthName ?? "");
         setAlias(person.alias ?? "");
+        setHasTitles(person.hasTitles ?? false);
+        setTitles(draftsFromTitles(person.titles));
         setSex(person.sex);
         setBirthDateText(person.birthDateText ?? "");
         setBirthDateValue(toDateInputValue(person.birthDateValue));
@@ -390,6 +397,11 @@ export default function EditPersonForm({
         surname2: surname2.trim() || null,
         surname1BirthName: surname1BirthName.trim() || null,
         alias: alias.trim() || null,
+        // Toggled on with nothing filled in is the same as off — no title
+        // to name the card by. The list is still sent (empty) so stale
+        // rows from an earlier save don't linger.
+        hasTitles: hasTitles && titlesPayload(titles).length > 0,
+        titles: hasTitles ? titlesPayload(titles) : [],
         sex,
         birthDateText: birthDateText.trim() || null,
         birthDateValue: birthDateValue || null,
@@ -413,11 +425,16 @@ export default function EditPersonForm({
       setLineageIds(refreshed.lineageIds ?? []);
 
       if (photoFile) {
-        const resized = await resizeImage(photoFile, 500, 0.85);
-        await uploadPersonPhoto(treeId, personId, resized, photoFile.name).catch(() => {
-          // The rest of the edit already saved — a failed photo upload
-          // shouldn't block finishing.
-        });
+        // The rest of the edit is already saved at this point, so a failed
+        // upload keeps the form open with the reason rather than closing as
+        // if everything went through — re-submitting just retries the photo.
+        try {
+          const resized = await resizeImage(photoFile, 500, 0.85);
+          await uploadPersonPhoto(treeId, personId, resized, photoFile.name);
+        } catch (err) {
+          setError(t("editPerson.photoUploadFailed", { message: (err as Error).message }));
+          return;
+        }
       }
 
       onSaved(personId);
@@ -788,6 +805,21 @@ export default function EditPersonForm({
                   onChange={(e) => setAlias(e.target.value)}
                 />
               </label>
+              <IOSToggle
+                checked={hasTitles}
+                onChange={() => {
+                  if (!hasTitles && titles.length === 0) setTitles([emptyTitleDraft(true)]);
+                  setHasTitles(!hasTitles);
+                }}
+                label={t("titles.toggle")}
+                multi
+              />
+              {hasTitles && (
+                <>
+                  <p className="field-hint">{t("titles.hint")}</p>
+                  <TitlesEditor titles={titles} onChange={setTitles} />
+                </>
+              )}
               <label>
                 {t("personFields.sex")}
                 <select value={sex} onChange={(e) => setSex(e.target.value as Sex)}>

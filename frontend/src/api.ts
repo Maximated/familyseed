@@ -37,6 +37,30 @@ export type Lineage = {
   color: string | null;
 };
 
+// One held title of a titled person (Individual.hasTitles) — see
+// titles.ts for how the list turns into "Felipe I de Castilla".
+export type PersonTitle = {
+  id: string;
+  title: string;
+  ordinal: string | null;
+  domain: string | null;
+  fromText: string | null;
+  toText: string | null;
+  consort: boolean;
+  isPrimary: boolean;
+  position: number;
+};
+
+export type TitleInput = {
+  title: string;
+  ordinal?: string | null;
+  domain?: string | null;
+  fromText?: string | null;
+  toText?: string | null;
+  consort?: boolean;
+  isPrimary?: boolean;
+};
+
 // The shape GET /trees/:treeId returns: family-chart's Datum plus the extra
 // fields used only by the timeline/lineage-chip navigation (not the
 // genealogy itself). Kept separate from family-chart's own (stricter) Data
@@ -62,6 +86,8 @@ export type TreePerson = {
     deathPrecision?: string;
     notes?: string;
     biography?: string;
+    hasTitles?: boolean;
+    titles?: Array<Omit<PersonTitle, "id" | "position">>;
     lineageIds: string[];
     [key: string]: unknown;
   };
@@ -95,6 +121,9 @@ export type Individual = {
   notes: string | null;
   biography: string | null;
   photoUrl: string | null;
+  hasTitles?: boolean;
+  // Populated by the list, GET /:id and update responses (not create).
+  titles?: PersonTitle[];
   deletedAt?: string | null;
   // Only populated by fetchIndividualRelations (GET /:id) — list/create/
   // update responses don't include it.
@@ -159,6 +188,9 @@ export type IndividualFields = {
   // upload endpoint instead) — only used when a duplicate merge picks
   // which of the two records' avatar to keep.
   photoUrl?: string;
+  hasTitles?: boolean;
+  // The whole list, replaced on save — omit to leave the stored rows alone.
+  titles?: TitleInput[];
 };
 
 export type CreateIndividualPayload = {

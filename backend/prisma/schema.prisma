@@ -324,7 +324,16 @@ model Individual {
 
   notes     String? @db.Text
   biography String? @map("biography") @db.Text
-  photoUrl  String? @map("photo_url")
+  photoUrl  String? @map("photo_url") @db.VarChar(512)
+
+  // Royalty/nobility switch — when set, the tree card's first line comes
+  // from the primary PersonTitle ("Felipe I de Castilla") instead of
+  // "givenNames surname1" ("Felipe Habsburgo"), the card wears a crown
+  // badge, and the info panel gains a Títulos tab. The surname stays the
+  // family/lineage key either way (Habsburgo is still what groups them);
+  // the title rows only change how the person is *presented*.
+  hasTitles Boolean       @default(false) @map("has_titles")
+  titles    PersonTitle[]
 
   // Original ID from a GEDCOM import, kept for round-tripping export/import.
   // Unique per tree, not globally — two independently imported trees can
@@ -479,8 +488,8 @@ model PersonMedia {
   individual   Individual @relation(fields: [individualId], references: [id], onDelete: Cascade)
 
   type     MediaType
-  url      String
-  filename String
+  url      String @db.VarChar(512)
+  filename String @db.VarChar(512)
   mimeType String?   @map("mime_type")
 
   createdAt DateTime @default(now()) @map("created_at")
@@ -508,8 +517,8 @@ model FamilyMedia {
   family   Family @relation(fields: [familyId], references: [id], onDelete: Cascade)
 
   type     MediaType
-  url      String
-  filename String
+  url      String @db.VarChar(512)
+  filename String @db.VarChar(512)
   mimeType String?   @map("mime_type")
 
   createdAt DateTime @default(now()) @map("created_at")
@@ -517,4 +526,39 @@ model FamilyMedia {
   @@index([familyId])
   @@index([treeId])
   @@map("family_media")
+}
+
+// One held title of a titled person (see Individual.hasTitles) — "Rey de
+// Castilla", "Duque de Borgoña"... A person usually holds several, and
+// one of them (isPrimary) decides how they're named on the tree card.
+// Dates are free text like the birth/death display strings (reign dates
+// are often only known to the year, or "1506" for a few months' rule).
+model PersonTitle {
+  id String @id @default(cuid())
+
+  individualId String     @map("individual_id")
+  individual   Individual @relation(fields: [individualId], references: [id], onDelete: Cascade)
+
+  // "Rey", "Duquesa", "Conde", "Señor"... — stored as typed, so a woman's
+  // title is spelled in her own gender rather than normalised to a key.
+  title   String
+  // Regnal number — "I", "IV". Goes with the given name, not the title:
+  // Felipe I de Castilla but Felipe IV de Borgoña, same person.
+  ordinal String?
+  // The territory/domain — "Castilla", "Borgoña". Null for a title with
+  // no "de X" part (Papa, Emperador del Sacro Imperio is a domain, though).
+  domain  String?
+
+  fromText String? @map("from_text")
+  toText   String? @map("to_text")
+
+  // Held by marriage (rey consorte) rather than in their own right.
+  consort   Boolean @default(false)
+  // Exactly one per person at most — the one the card's name line uses.
+  isPrimary Boolean @default(false) @map("is_primary")
+  // Display order in the titles list, as the user arranged them.
+  position  Int     @default(0)
+
+  @@index([individualId])
+  @@map("person_titles")
 }

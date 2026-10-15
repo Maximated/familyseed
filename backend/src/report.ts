@@ -4,6 +4,7 @@ import puppeteer from "puppeteer";
 import type { TreePerson, TreeUnion } from "./tree-data.js";
 import { walkGraph } from "./tree-data.js";
 import { uploadsRoot } from "./uploads.js";
+import { formatTitle, titledDisplayName } from "./titles.js";
 
 export type ReportDirection = "ancestors" | "descendants" | "both";
 export type ReportLayout = "vertical" | "horizontal" | "descending";
@@ -29,7 +30,20 @@ function escapeHtml(value: string): string {
 }
 
 function personName(person: TreePerson): string {
-  return `${person.data["first name"] ?? ""} ${person.data["last name"] ?? ""}`.trim();
+  const given = person.data["first name"] ?? "";
+  const surname = person.data["last name"] ?? "";
+  if (person.data.hasTitles && person.data.titles?.length) return titledDisplayName(given, surname, person.data.titles);
+  return `${given} ${surname}`.trim();
+}
+
+// The held titles under a titled person's name, in the same wording the
+// info panel's Títulos tab uses — plus the family surname, which the name
+// line no longer carries for them.
+function personTitlesHtml(person: TreePerson): string {
+  if (!person.data.hasTitles || !person.data.titles?.length) return "";
+  const lines = person.data.titles.map((t) => formatTitle(t, person.data["first name"]));
+  const surname = person.data["last name"];
+  return `<div class="person-titles">${escapeHtml(lines.join(" · "))}${surname ? ` <span class="person-house">(${escapeHtml(surname)})</span>` : ""}</div>`;
 }
 
 function lifespan(person: TreePerson): string {
@@ -100,6 +114,7 @@ async function personCardHtml(
       ${avatarHtml}
       <div class="person-info">
         <div class="person-name">${escapeHtml(personName(person))} ${alias}</div>
+        ${personTitlesHtml(person)}
         ${span ? `<div class="person-lifespan">${escapeHtml(span)}</div>` : ""}
         ${place ? `<div class="person-place">${escapeHtml(place)}</div>` : ""}
         ${unionsHtml}
@@ -344,6 +359,13 @@ export async function renderReportHtml(
   .alias {
     font-weight: 400;
     font-style: italic;
+    color: var(--color-text-secondary);
+  }
+  .person-titles {
+    font-size: 11px;
+    color: var(--color-forest);
+  }
+  .person-house {
     color: var(--color-text-secondary);
   }
   .person-lifespan,

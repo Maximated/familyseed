@@ -2,6 +2,7 @@ import { parse as parseCsvSync } from "csv-parse/sync";
 import { stringify as stringifyCsvSync } from "csv-stringify/sync";
 import { prisma } from "./db.js";
 import { deriveLineagesFromSurnames } from "./routes/individuals.js";
+import { parseTitlesCsv, serializeTitlesCsv, type TitleFields } from "./titles.js";
 
 // ---------------------------------------------------------------------
 // Shared types
@@ -26,6 +27,9 @@ type UnionStatus = "ONGOING" | "ENDED_BY_DEATH" | "DIVORCED" | "SEPARATED" | "AN
 // pair (see importCsvIntoTree), and like father_id/mother_id, a person
 // with more than one relationship can only have one of them represented
 // here — same trade-off this format already makes for adoption.
+//
+// `titles` packs a titled person's whole list (Individual.hasTitles) into
+// one cell — see serializeTitlesCsv in titles.ts for the format.
 export const CSV_HEADERS = [
   "id",
   "given_names",
@@ -33,6 +37,7 @@ export const CSV_HEADERS = [
   "surname2",
   "surname1_birth_name",
   "alias",
+  "titles",
   "sex",
   "birth_date",
   "birth_place",
@@ -64,6 +69,7 @@ export function csvTemplate(): string {
     surname2: "López",
     surname1_birth_name: "",
     alias: "",
+    titles: "",
     sex: "F",
     birth_date: "1930-04-12",
     birth_place: "Sevilla",
@@ -93,6 +99,7 @@ export function csvTemplate(): string {
     surname2: "",
     surname1_birth_name: "",
     alias: "",
+    titles: "",
     sex: "M",
     birth_date: "1955-09-01",
     birth_place: "",
@@ -125,6 +132,7 @@ export function csvTemplate(): string {
     surname2: "",
     surname1_birth_name: "",
     alias: "",
+    titles: "",
     sex: "M",
     birth_date: "1928-01-20",
     birth_place: "",
@@ -240,6 +248,7 @@ export type ParsedCsvIndividual = {
   deathPlaceLng: number | null;
   notes: string | null;
   biography: string | null;
+  titles: TitleFields[];
   fatherCsvId: string | null;
   motherCsvId: string | null;
   spouseCsvId: string | null;
@@ -350,6 +359,7 @@ export function parseCsvFile(text: string): ParsedCsvIndividual[] {
       deathPlaceLng: deathCoords.lng,
       notes: blankToNull(row.notes),
       biography: blankToNull(row.biography),
+      titles: parseTitlesCsv(row.titles),
       fatherCsvId: blankToNull(row.father_id),
       motherCsvId: blankToNull(row.mother_id),
       spouseCsvId: blankToNull(row.spouse_id),
@@ -421,15 +431,19 @@ export async function importCsvIntoTree(
           deathPlaceLng: ind.deathPlaceLng,
           notes: ind.notes,
           biography: ind.biography,
+          hasTitles: ind.titles.length > 0,
         };
+        const titleRows = ind.titles.map((t, position) => ({ ...t, position }));
+        const createTitles = titleRows.length ? { create: titleRows } : undefined;
 
         const row = xref
           ? await tx.individual.upsert({
               where: { treeId_gedcomXref: { treeId, gedcomXref: xref } },
-              create: { treeId, gedcomXref: xref, ...data },
-              update: data,
+              create: { treeId, gedcomXref: xref, ...data, titles: createTitles },
+              // A re-import replaces the record wholesale, titles included.
+              update: { ...data, titles: { deleteMany: {}, create: titleRows } },
             })
-          : await tx.individual.create({ data: { treeId, ...data } });
+          : await tx.individual.create({ data: { treeId, ...data, titles: createTitles } });
 
         if (ind.csvId) csvIdToDbId.set(ind.csvId, row.id);
         individualIds.push(row.id);
@@ -582,6 +596,8 @@ export type ExportCsvIndividual = {
   deathPlaceLng: number | null;
   notes: string | null;
   biography: string | null;
+  hasTitles: boolean;
+  titles: TitleFields[];
 };
 
 export type ExportCsvFamily = {
@@ -681,6 +697,7 @@ export function serializeCsv(individuals: ExportCsvIndividual[], families: Expor
       surname2: ind.surname2 ?? "",
       surname1_birth_name: ind.surname1BirthName ?? "",
       alias: ind.alias ?? "",
+      titles: ind.hasTitles ? serializeTitlesCsv(ind.titles) : "",
       sex: ind.sex === "MALE" ? "M" : ind.sex === "FEMALE" ? "F" : "",
       birth_date: formatCsvDate(ind.birthDateText, ind.birthDateValue, ind.birthDatePrecision),
       birth_place: ind.birthPlace ?? "",

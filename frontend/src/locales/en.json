@@ -119,8 +119,32 @@
     "FEMALE": "Female",
     "UNKNOWN": "Unknown"
   },
+  "titles": {
+    "toggle": "Titled person (royalty, nobility)",
+    "hint": "On the tree they will be named by their primary title — given name, ordinal and territory, like “Philip I of Castile” — and the card gets a crown. The surname is kept and still groups the family.",
+    "title": "Title",
+    "titlePlaceholder": "e.g. King, Duchess, Count",
+    "ordinal": "Ordinal",
+    "ordinalPlaceholder": "e.g. I, IV",
+    "domain": "Territory",
+    "domainPlaceholder": "e.g. Castile",
+    "from": "From",
+    "to": "To",
+    "datePlaceholder": "e.g. 1506",
+    "primary": "Primary",
+    "primaryHint": "The primary title is the one that names the person on the tree.",
+    "consort": "Consort (by marriage)",
+    "add": "+ Add title",
+    "remove": "Remove title",
+    "ofDomain": "of {{domain}}",
+    "consortSuffix": "consort",
+    "crownLabel": "View titles",
+    "sectionTitles": "Titles",
+    "house": "Surname / house: {{value}}"
+  },
   "infoPanel": {
     "tabFicha": "Profile",
+    "tabTitulos": "Titles",
     "tabRelaciones": "Relationships",
     "tabEstadisticas": "Statistics",
     "tabFotos": "Photos",
@@ -209,6 +233,7 @@
   },
   "addPerson": {
     "title": "Add person",
+    "photoUploadFailed": "The person was saved, but the photo could not be uploaded: {{message}}. Press Save to retry or pick another image.",
     "relationshipLegend": "Relationship to tree",
     "childOf": "Is child of",
     "removeOtherParent": "remove",
@@ -239,6 +264,7 @@
   },
   "editPerson": {
     "title": "Edit person",
+    "photoUploadFailed": "The changes were saved, but the photo could not be uploaded: {{message}}. Press Save to retry or pick another image.",
     "parentsLegend": "Parents",
     "noParents": "No recorded parents yet.",
     "addParent": "+ Link existing parent",

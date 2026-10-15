@@ -119,8 +119,32 @@
     "FEMALE": "Kobieta",
     "UNKNOWN": "Nieznana"
   },
+  "titles": {
+    "toggle": "Osoba z tytułami (rody królewskie, szlachta)",
+    "hint": "W drzewie będzie nazywana według tytułu głównego — imię, numer i ziemia, np. „Filip I Kastylii” — a karta otrzyma koronę. Nazwisko zostaje i nadal grupuje rodzinę.",
+    "title": "Tytuł",
+    "titlePlaceholder": "np. Król, Księżna, Hrabia",
+    "ordinal": "Numer",
+    "ordinalPlaceholder": "np. I, IV",
+    "domain": "Ziemia / terytorium",
+    "domainPlaceholder": "np. Kastylii (w dopełniaczu)",
+    "from": "Od",
+    "to": "Do",
+    "datePlaceholder": "np. 1506",
+    "primary": "Główny",
+    "primaryHint": "Tytuł główny nadaje osobie nazwę w drzewie.",
+    "consort": "Małżonek/małżonka (z tytułu małżeństwa)",
+    "add": "+ Dodaj tytuł",
+    "remove": "Usuń tytuł",
+    "ofDomain": "{{domain}}",
+    "consortSuffix": "małżonek",
+    "crownLabel": "Zobacz tytuły",
+    "sectionTitles": "Tytuły",
+    "house": "Nazwisko / ród: {{value}}"
+  },
   "infoPanel": {
     "tabFicha": "Karta",
+    "tabTitulos": "Tytuły",
     "tabRelaciones": "Relacje",
     "tabEstadisticas": "Statystyki",
     "tabFotos": "Zdjęcia",
@@ -209,6 +233,7 @@
   },
   "addPerson": {
     "title": "Dodaj osobę",
+    "photoUploadFailed": "Osoba została zapisana, ale nie udało się przesłać zdjęcia: {{message}}. Naciśnij Zapisz, aby spróbować ponownie, lub wybierz inny obraz.",
     "relationshipLegend": "Relacja z drzewem",
     "childOf": "Jest dzieckiem",
     "removeOtherParent": "usuń",
@@ -239,6 +264,7 @@
   },
   "editPerson": {
     "title": "Edytuj osobę",
+    "photoUploadFailed": "Zmiany zostały zapisane, ale nie udało się przesłać zdjęcia: {{message}}. Naciśnij Zapisz, aby spróbować ponownie, lub wybierz inny obraz.",
     "parentsLegend": "Rodzice",
     "noParents": "Brak zarejestrowanych rodziców.",
     "addParent": "+ Połącz z istniejącym rodzicem",
@@ -641,18 +667,16 @@
     "paths": "Trasy urodzenie → zgon",
     "empty": "Brak jeszcze zlokalizowanych miejsc. Wpisując miejsce urodzenia, zgonu lub związku, wybierz jedną z podpowiedzi, aby pojawiło się tutaj.",
     "unlocated_one": "{{count}} ręcznie wpisane miejsce nie jest na mapie. Edytuj osobę i wybierz podpowiedź, aby je umieścić.",
-    "unlocated_few": "{{count}} ręcznie wpisane miejsca nie są na mapie. Edytuj osoby i wybierz podpowiedź, aby je umieścić.",
-    "unlocated_many": "{{count}} ręcznie wpisanych miejsc nie ma na mapie. Edytuj osoby i wybierz podpowiedź, aby je umieścić.",
     "unlocated_other": "{{count}} ręcznie wpisanych miejsc nie ma na mapie. Edytuj osoby i wybierz podpowiedź, aby je umieścić.",
-    "locateLink": "Lokalizuj miejsca…"
+    "locateLink": "Lokalizuj miejsca…",
+    "unlocated_few": "{{count}} ręcznie wpisane miejsca nie są na mapie. Edytuj osoby i wybierz podpowiedź, aby je umieścić.",
+    "unlocated_many": "{{count}} ręcznie wpisanych miejsc nie ma na mapie. Edytuj osoby i wybierz podpowiedź, aby je umieścić."
   },
   "locatePlaces": {
     "title": "Lokalizuj nieumieszczone miejsca",
     "intro": "Każdy wiersz to ręcznie wpisane miejsce, którego nie ma jeszcze na mapie. Sprawdź propozycję i potwierdź ją lub zmień wyszukiwanie.",
     "empty": "Wszystkie miejsca w drzewie są zlokalizowane.",
     "uses_one": "{{count}} użycie",
-    "uses_few": "{{count}} użycia",
-    "uses_many": "{{count}} użyć",
     "uses_other": "{{count}} użyć",
     "searching": "Szukanie…",
     "noMatch": "Brak dopasowania — spróbuj innej nazwy (np. obecnej)",
@@ -661,9 +685,11 @@
     "applyAll": "Lokalizuj wszystkie propozycje ({{count}})",
     "applyAllConfirm": "Zostanie przypisanych {{count}} zaznaczonych propozycji. Kontynuować?",
     "applied_one": "Zlokalizowano w {{count}} rekordzie.",
-    "applied_few": "Zlokalizowano w {{count}} rekordach.",
-    "applied_many": "Zlokalizowano w {{count}} rekordach.",
     "applied_other": "Zlokalizowano w {{count}} rekordach.",
-    "done": "Zlokalizowane miejsca: {{count}}."
+    "done": "Zlokalizowane miejsca: {{count}}.",
+    "uses_few": "{{count}} użycia",
+    "uses_many": "{{count}} użyć",
+    "applied_few": "Zlokalizowano w {{count}} rekordach.",
+    "applied_many": "Zlokalizowano w {{count}} rekordach."
   }
 }
