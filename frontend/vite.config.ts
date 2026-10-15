@@ -24,19 +24,19 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
-      registerType: 'autoUpdate',
-      // The plugin's own auto-injected register script reloads the page
-      // the instant a new service worker takes control — no warning, no
-      // regard for whatever the user's mid-interaction with (reported:
-      // the PWA "crashing" right after using search, on a session that
-      // happened to line up with a fresh deploy landing). registerType
-      // 'autoUpdate' still means the new worker activates itself promptly
-      // in the background (that part's fine, nothing user-visible) — it's
-      // specifically the forced reload that's disruptive. Registering it
-      // ourselves via useRegisterSW (see UpdateAvailableBanner.tsx) instead
-      // surfaces a dismissible "actualizar" banner and reloads only when
-      // the user taps it. injectRegister: null stops the plugin from also
-      // injecting its own auto-reloading version alongside ours.
+      // 'prompt', not 'autoUpdate': in autoUpdate mode the plugin's
+      // register code (virtual:pwa-register, which useRegisterSW wraps)
+      // reloads the page itself the moment a new worker activates — with
+      // no warning and no regard for whatever the user is doing — and
+      // never reports needRefresh, so UpdateAvailableBanner.tsx could
+      // never show. Reported twice as the app "throwing the user out" of
+      // a half-filled person form a minute after a fresh deploy landed
+      // (the new worker installs in the background after launch, then
+      // activates and reloads). In 'prompt' mode the new worker waits,
+      // the banner appears, and the reload only happens when the user
+      // taps it. injectRegister: null keeps the plugin from also injecting
+      // its own register script alongside the banner's.
+      registerType: 'prompt',
       injectRegister: null,
       // Runs the service worker in dev too (not just `vite build`), since
       // that's how this app actually gets tested and used day to day.

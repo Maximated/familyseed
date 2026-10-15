@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Trans, useTranslation } from "react-i18next";
 import {
   addIndividualLineage,
@@ -378,6 +378,28 @@ export default function EditPersonForm({
     setCropSource(null);
   }
 
+  // Once anything has been typed, a tap on the backdrop no longer closes
+  // the form (on a phone the panel leaves a thin strip of backdrop at each
+  // side that's easy to hit while scrolling, and everything typed so far
+  // was lost without warning); the Cancel button still does. The
+  // beforeunload guard covers a reload/close for the same reason, where
+  // the browser supports it.
+  const dirtyRef = useRef(false);
+  function markDirty() {
+    dirtyRef.current = true;
+  }
+  function handleBackdropClick() {
+    if (!dirtyRef.current) onClose();
+  }
+  useEffect(() => {
+    function warn(event: BeforeUnloadEvent) {
+      if (!dirtyRef.current) return;
+      event.preventDefault();
+    }
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, []);
+
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
     if (!givenNames.trim() || !surname1.trim()) {
@@ -465,10 +487,11 @@ export default function EditPersonForm({
 
   return (
     <>
-    <div className="modal-backdrop" onClick={onClose}>
+    <div className="modal-backdrop" onClick={handleBackdropClick}>
       <form
         className="modal-panel modal-panel-frosted"
         onClick={(e) => e.stopPropagation()}
+        onChange={markDirty}
         onSubmit={handleSubmit}
       >
         <div className="person-form-heading">

@@ -2,12 +2,12 @@ import { useTranslation } from "react-i18next";
 import { useRegisterSW } from "virtual:pwa-register/react";
 
 // Registers the service worker ourselves (see vite.config.ts's
-// injectRegister: null) instead of letting the plugin's own auto-injected
-// script force a reload the instant a new version takes control — that
-// reload could land mid-interaction (reported: right after using search),
-// with no warning and no way to finish whatever you were doing first. This
-// surfaces a small dismissible-by-ignoring banner instead; the reload only
-// happens when the user actually taps it.
+// registerType: 'prompt' + injectRegister: null) so a new version never
+// reloads the page on its own — that reload used to land mid-interaction
+// (reported: right after using search, and twice while filling in a
+// person form), with no warning and no way to finish first. The new
+// worker just waits; this surfaces a small dismissible-by-ignoring banner
+// and the reload only happens when the user actually taps it.
 export default function UpdateAvailableBanner() {
   const { t } = useTranslation();
   const {

@@ -33,20 +33,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // fetchCurrentUser (a real 401) is returned immediately, never
     // retried, so a genuinely logged-out visitor still sees the login
     // screen without delay.
-    function checkSession() {
+    // `initial`: the first check at mount, where there's no known state
+    // to keep and an unreachable backend has to resolve to "not logged
+    // in". On the visibility re-checks below it's the opposite: the user
+    // was logged in a moment ago, so a request that *fails* (the backend
+    // mid-redeploy behind the proxy, a phone whose network hasn't come
+    // back yet after switching apps) proves nothing about the session
+    // and must leave them where they are — only a real 401 (a resolved
+    // null) logs them out. Reported: coming back from copying something
+    // in another app, the user was dropped out of the tree to the login
+    // screen with their half-filled form gone.
+    function checkSession(initial: boolean) {
       retryOnNetworkFailure(fetchCurrentUser)
         .then((u) => {
-          if (!cancelled) setUser(u);
+          if (cancelled) return;
+          // Same user as before: keep the existing object so nothing
+          // keyed on it re-renders or resets for no reason.
+          setUser((current) => {
+            const unchanged = current && u && current.id === u.id && current.name === u.name && current.avatarUrl === u.avatarUrl;
+            return unchanged ? current : u;
+          });
         })
         .catch(() => {
-          if (!cancelled) setUser(null);
+          if (!cancelled && initial) setUser(null);
         })
         .finally(() => {
           if (!cancelled) setLoading(false);
         });
     }
 
-    checkSession();
+    checkSession(true);
 
     // Reported: reopening the app (Brave/Edge on Windows specifically)
     // still showed the user as logged out even with this retry in place —
@@ -57,7 +73,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // becomes visible again catches that case without needing to know
     // which specific browser mechanism caused it.
     function handleVisibilityChange() {
-      if (document.visibilityState === "visible") checkSession();
+      if (document.visibilityState === "visible") checkSession(false);
     }
     document.addEventListener("visibilitychange", handleVisibilityChange);
 
